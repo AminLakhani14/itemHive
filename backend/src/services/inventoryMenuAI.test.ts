@@ -5,7 +5,7 @@ import { contrast } from './logoTheme';
 
 const inventory = [{ id: 'pizza', name: 'Pizza', category: 'Food', price: 500 }, { id: 'drink', name: 'Pepsi', category: 'Drinks', price: 100 }];
 const suggestion = () => ({ summary: 'Food and drinks.', sections: [{ name: 'Pizzas', reason: 'Main dishes', productIds: ['pizza'] }, { name: 'Drinks', reason: 'Refreshing sides', productIds: ['drink'] }], deals: [{ name: 'Pizza + Pepsi', reason: 'Lunch combo', productIds: ['pizza', 'drink'], dealPrice: 550.556 }] });
-const style = { backgroundColor: '#fff8ed', textColor: '#222222', accentColor: '#783925', headerColor: '#783925', surfaceColor: '#fff8ed', fontStyle: 'serif' as const, decoration: 'corners' as const, reason: 'Warm restaurant colors with subtle corners.' };
+const style = { backgroundColor: '#fff8ed', textColor: '#222222', accentColor: '#783925', headerColor: '#783925', surfaceColor: '#fff8ed', fontStyle: 'serif' as const, decoration: 'corners' as const, visualStyle: 'cards' as const, sectionColumns: 2 as const, reason: 'Warm restaurant colors with subtle corners.' };
 
 test('style is opt-in, validated for readability and restricted to supported editable fields', () => {
     const input = { ...suggestion(), style };
@@ -13,7 +13,7 @@ test('style is opt-in, validated for readability and restricted to supported edi
     assert.equal(validateMenuSuggestion(input, inventory, false, false).style, undefined);
     assert.deepEqual(input.style, style);
     assert.throws(() => validateMenuSuggestion(suggestion(), inventory, false, true), /Missing/);
-    for (const patch of [{ backgroundColor: 'red' }, { decoration: 'arbitrary-art' }, { fontStyle: 'unknown' }, { templateId: 'modern' }]) {
+    for (const patch of [{ backgroundColor: 'red' }, { decoration: 'arbitrary-art' }, { fontStyle: 'unknown' }, { templateId: 'modern' }, { visualStyle: 'unsupported' }, { sectionColumns: 4 }, { sectionColumns: '2' }, { visualStyle: undefined }]) {
         assert.throws(() => validateMenuSuggestion({ ...input, style: { ...style, ...patch } }, inventory, false, true));
     }
 });
@@ -43,6 +43,10 @@ test('style prompt sends restaurant logo as an image, prioritizes user preferenc
         const body = JSON.parse(String(init.body)); const parts = body.contents[0].parts;
         assert.deepEqual(parts[1], { inlineData: { mimeType: 'image/png', data: 'aGVsbG8=' } });
         assert.match(parts[0].text, /take priority over logo colors/);
+        assert.match(parts[0].text, /Default to a contemporary restaurant menu/);
+        assert.match(parts[0].text, /Respect explicit requests for classic\/serif\/single-column designs/);
+        assert.ok(body.generationConfig.responseSchema.properties.style.required.includes('visualStyle'));
+        assert.ok(body.generationConfig.responseSchema.properties.style.required.includes('sectionColumns'));
         assert.match(parts[0].text, /Use cream with corner accents/);
         assert.match(parts[0].text, /Rustic Italian cafe/);
         assert.ok(!parts[0].text.includes('aGVsbG8='));

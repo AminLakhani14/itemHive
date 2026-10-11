@@ -88,12 +88,13 @@ test('item prices survive model saving and publication; draft edits stay private
     t.mock.method(publications, 'getPublication', async () => live);
     t.mock.method(OrderDraft, 'findOne', async () => draft);
     const { result, res } = response();
-    await createDigitalMenu(staffRequest({ name: 'Cafe', productIds: ['coffee', 'cake'], productPrices: { coffee: 175.555, cake: 0 }, content, design: { ...design, pageSize: 'a4', orientation: 'portrait', decoration: 'corners' } }), res);
+    await createDigitalMenu(staffRequest({ name: 'Cafe', productIds: ['coffee', 'cake'], productPrices: { coffee: 175.555, cake: 0 }, content, design: { ...design, pageSize: 'a4', orientation: 'portrait', decoration: 'corners', visualStyle: 'cards', sectionColumns: 2 } }), res);
     assert.equal(result.status, 201);
     assert.deepEqual(root.productPrices, { coffee: 175.56, cake: 0 });
     assert.equal(root.design.pageSize, 'a4');
     assert.equal(root.design.orientation, 'portrait');
     assert.equal(root.design.decoration, 'corners');
+    assert.equal(root.design.visualStyle, 'cards'); assert.equal(root.design.sectionColumns, 2);
     await updateDigitalMenu(staffRequest({ name: 'Cafe', productIds: ['coffee'], status: 'draft' }), res);
     assert.deepEqual(root.productPrices, { coffee: 175.56 });
     await updateDigitalMenu(staffRequest({ name: 'Cafe', productIds: ['coffee'], productPrices: { coffee: 225 }, status: 'draft' }), res);
@@ -101,6 +102,7 @@ test('item prices survive model saving and publication; draft edits stay private
     assert.deepEqual(live.menu.productPrices, { coffee: 225 });
     assert.equal(live.menu.design.pageSize, 'a4');
     assert.equal(live.menu.design.decoration, 'corners');
+    assert.equal(live.menu.design.visualStyle, 'cards'); assert.equal(live.menu.design.sectionColumns, 2);
     await updateDigitalMenu(staffRequest({ name: 'Cafe', productIds: ['coffee'], productPrices: { coffee: 300 }, design: { ...design, pageSize: 'a5', orientation: 'landscape', decoration: 'dots' }, status: 'draft' }), res);
     assert.equal(publications.hasMenuChanges(root, live.menu), true);
     await getPublicMenu(staffRequest(), res);
@@ -108,6 +110,7 @@ test('item prices survive model saving and publication; draft edits stay private
     assert.equal(result.body.menu.design.pageSize, 'a4');
     assert.equal(result.body.menu.design.orientation, 'portrait');
     assert.equal(result.body.menu.design.decoration, 'corners');
+    assert.equal(result.body.menu.design.visualStyle, 'cards'); assert.equal(result.body.menu.design.sectionColumns, 2);
     await previewDigitalMenu(staffRequest(), res);
     assert.equal(result.body.products[0].salePrice, 300);
     assert.equal(result.body.menu.design.pageSize, 'a5');
@@ -126,7 +129,9 @@ test('item prices survive model saving and publication; draft edits stay private
 test('all ten templates and custom designs are accepted, while unsafe or incomplete design values are rejected', () => {
     assert.equal(MENU_TEMPLATE_IDS.filter(id => id !== 'custom').length, 10);
     for (const templateId of MENU_TEMPLATE_IDS) assert.deepEqual(parseMenuDesign({ ...design, templateId }), { ...design, templateId });
-    for (const decoration of ['none', 'border', 'corners', 'dots'] as const) assert.deepEqual(parseMenuDesign({ ...design, decoration }), { ...design, decoration });
+    for (const decoration of ['none', 'border', 'corners', 'dots', 'glow'] as const) assert.deepEqual(parseMenuDesign({ ...design, decoration }), { ...design, decoration });
+    for (const visualStyle of ['classic', 'cards', 'minimal', 'editorial']) for (const sectionColumns of [1, 2, 3]) assert.deepEqual(parseMenuDesign({ ...design, visualStyle, sectionColumns }), { ...design, visualStyle, sectionColumns });
+    for (const patch of [{ visualStyle: 'missing' }, { sectionColumns: 0 }, { sectionColumns: 4 }, { sectionColumns: '2' }]) assert.equal(parseMenuDesign({ ...design, ...patch }), null);
     assert.equal(parseMenuDesign({ ...design, decoration: 'url(https://example.com)' }), null);
     for (const pageSize of ['a4', 'a5', 'letter']) for (const orientation of ['portrait', 'landscape']) assert.deepEqual(parseMenuDesign({ ...design, pageSize, orientation }), { ...design, pageSize, orientation });
     for (const invalid of [null, [], {}, { ...design, templateId: 'missing' }, { ...design, accentColor: 'url(https://example.com)' }, { ...design, layout: 'unknown' }, { ...design, showImages: 'true' }, { ...design, pageSize: 'poster' }, { ...design, orientation: 'diagonal' }]) {
