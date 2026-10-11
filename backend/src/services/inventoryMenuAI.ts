@@ -33,13 +33,44 @@ const schema = Joi.object({
     }).optional(),
 });
 
+// Keep a logo's hue where possible, while making generated heading/body colors readable.
+// This applies to AI output only; reviewed user edits are never normalized.
+function readableColor(color: string, backgrounds: string[]): string | undefined {
+    const readable = (candidate: string) => backgrounds.every(background => contrast(candidate, background) >= 4.5);
+    if (readable(color)) return color;
+    const channels = [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16));
+    let nearest: { color: string; distance: number } | undefined;
+    for (let step = 1; step <= 255; step++) {
+        for (const target of [0, 255]) {
+            const rgb = channels.map(channel => Math.round(channel + (target - channel) * step / 255));
+            const candidate = `#${rgb.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+            const distance = rgb.reduce((sum, channel, index) => sum + (channel - channels[index]) ** 2, 0);
+            if (readable(candidate) && (!nearest || distance < nearest.distance)) nearest = { color: candidate, distance };
+        }
+    }
+    return nearest?.color;
+}
+
 export function validateMenuSuggestion(input: unknown, inventory: MenuInventoryItem[], includeDeals: boolean, includeStyle = false): MenuSuggestion {
     const { value, error } = schema.validate(input, { convert: false });
     if (error) throw new Error('Invalid AI menu suggestion');
     const result = value as MenuSuggestion;
     if (includeStyle) {
         if (!result.style) throw new Error('Missing AI menu style');
-        if ([result.style.backgroundColor, result.style.surfaceColor].some(background => contrast(result.style!.textColor, background) < 4.5 || contrast(result.style!.accentColor, background) < 4.5)) throw new Error('Unreadable AI menu style');
+        const style = result.style;
+        let backgrounds = [style.backgroundColor, style.surfaceColor];
+        let text = readableColor(style.textColor, backgrounds), accent = readableColor(style.accentColor, backgrounds);
+        let adjusted = false;
+        // Incompatible light/dark surfaces may have no readable shared text color.
+        if (!text || !accent) {
+            style.surfaceColor = style.backgroundColor;
+            backgrounds = [style.backgroundColor];
+            text = readableColor(style.textColor, backgrounds); accent = readableColor(style.accentColor, backgrounds);
+            adjusted = true;
+        }
+        adjusted ||= text !== style.textColor || accent !== style.accentColor;
+        style.textColor = text!; style.accentColor = accent!;
+        if (adjusted) style.reason = `${style.reason.slice(0, 380)} Colors were adjusted for readable text and headings. You can edit every color.`;
     } else delete result.style;
     const available = new Map(inventory.map(item => [item.id, item]));
     const assigned = new Set<string>();

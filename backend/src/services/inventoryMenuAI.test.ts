@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { suggestInventoryMenu, validateMenuSuggestion } from './inventoryMenuAI';
+import { contrast } from './logoTheme';
 
 const inventory = [{ id: 'pizza', name: 'Pizza', category: 'Food', price: 500 }, { id: 'drink', name: 'Pepsi', category: 'Drinks', price: 100 }];
 const suggestion = () => ({ summary: 'Food and drinks.', sections: [{ name: 'Pizzas', reason: 'Main dishes', productIds: ['pizza'] }, { name: 'Drinks', reason: 'Refreshing sides', productIds: ['drink'] }], deals: [{ name: 'Pizza + Pepsi', reason: 'Lunch combo', productIds: ['pizza', 'drink'], dealPrice: 550.556 }] });
@@ -12,9 +13,25 @@ test('style is opt-in, validated for readability and restricted to supported edi
     assert.equal(validateMenuSuggestion(input, inventory, false, false).style, undefined);
     assert.deepEqual(input.style, style);
     assert.throws(() => validateMenuSuggestion(suggestion(), inventory, false, true), /Missing/);
-    for (const patch of [{ textColor: '#fff8ed' }, { accentColor: '#fff8ed' }, { surfaceColor: '#222222' }, { backgroundColor: 'red' }, { decoration: 'arbitrary-art' }, { fontStyle: 'unknown' }, { templateId: 'modern' }]) {
+    for (const patch of [{ backgroundColor: 'red' }, { decoration: 'arbitrary-art' }, { fontStyle: 'unknown' }, { templateId: 'modern' }]) {
         assert.throws(() => validateMenuSuggestion({ ...input, style: { ...style, ...patch } }, inventory, false, true));
     }
+});
+
+test('bright logo accents and low-contrast text become readable suggestions without discarding the menu or mutating input', () => {
+    const input = { ...suggestion(), style: { ...style, backgroundColor: '#ffffff', surfaceColor: '#fdfdfd', textColor: '#ffffff', accentColor: '#ff9900', headerColor: '#ff9900' } };
+    const before = JSON.stringify(input);
+    const result = validateMenuSuggestion(input, inventory, true, true);
+    assert.equal(result.sections.length, 2); assert.equal(result.deals.length, 1);
+    assert.equal(result.style!.headerColor, '#ff9900'); assert.notEqual(result.style!.accentColor, '#ff9900');
+    assert.match(result.style!.reason, /adjusted for readable/);
+    for (const background of [result.style!.backgroundColor, result.style!.surfaceColor]) {
+        assert.ok(contrast(result.style!.textColor, background) >= 4.5); assert.ok(contrast(result.style!.accentColor, background) >= 4.5);
+    }
+    assert.equal(JSON.stringify(input), before);
+    const incompatible = validateMenuSuggestion({ ...input, style: { ...input.style, backgroundColor: '#595959', surfaceColor: '#dadada' } }, inventory, false, true).style!;
+    assert.equal(incompatible.surfaceColor, incompatible.backgroundColor);
+    assert.ok(contrast(incompatible.textColor, incompatible.backgroundColor) >= 4.5);
 });
 
 test('style prompt sends restaurant logo as an image, prioritizes user preferences and does not expose its base64 as text', async t => {
