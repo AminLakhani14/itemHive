@@ -4,7 +4,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import Product from '../models/Product';
 import * as ai from '../services/inventoryMenuAI';
-import { recommendMenu } from './menuAIController';
+import { menuAICapabilities, recommendMenu } from './menuAIController';
 import { GeminiRequestError } from '../services/geminiKeys';
 
 const req = (body: Record<string, unknown> = { productIds: ['pizza'], productPrices: { pizza: 400 } }) => ({ user: { id: '507f1f77bcf86cd799439011', businessId: '507f1f77bcf86cd799439012', businessIsLegacy: false, role: 'super_admin' }, body }) as unknown as AuthRequest;
@@ -17,6 +17,30 @@ function keys(t: TestContext) {
     const original = process.env.GEMINI_API_KEYS; process.env.GEMINI_API_KEYS = 'test-key';
     t.after(() => { if (original === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = original; });
 }
+
+test('capabilities expose supported style requests without running the AI provider', t => {
+    const provider = t.mock.method(ai, 'suggestInventoryMenu', async () => { throw new Error('Must not call'); });
+    const { res, result } = response(); menuAICapabilities(req(), res);
+    assert.deepEqual(result.body, { features: ['custom-menu-style'] }); assert.equal(provider.mock.callCount(), 0);
+});
+
+test('custom style requests validate merchant branding and do not pass branding when style is disabled', async t => {
+    keys(t);
+    const design = { templateId: 'custom', backgroundColor: '#ffffff', textColor: '#222222', accentColor: '#222222', headerColor: '#ffffff', surfaceColor: '#ffffff', fontStyle: 'sans', layout: 'list', showImages: false, decoration: 'border' };
+    const brand = { name: 'Cafe', theme: 'Rustic cafe', logo: 'data:image/png;base64,aGVsbG8=', colors: ['#783925'] };
+    t.mock.method(Product, 'find', () => ({ select: () => ({ lean: async () => [{ id: 'pizza', name: 'Pizza', salePrice: 500 }] }) }));
+    const provider = t.mock.method(ai, 'suggestInventoryMenu', async (_inventory: any, options: any) => {
+        assert.equal(options.includeStyle, true); assert.deepEqual(options.currentDesign, design); assert.deepEqual(options.brand, brand);
+        return { summary: 'Ready', sections: [], deals: [] };
+    });
+    const good = response(); await recommendMenu(req({ productIds: ['pizza'], includeStyle: true, currentDesign: design, brand }), good.res); assert.equal(good.result.status, 200);
+    for (const patch of [{ currentDesign: { ...design, templateId: 'classic' } }, { currentDesign: {} }, { brand: { ...brand, logo: 'https://example.com/logo.png' } }, { brand: { ...brand, colors: ['red'] } }, { includeStyle: 'yes' }]) {
+        const bad = response(); await recommendMenu(req({ productIds: ['pizza'], includeStyle: true, currentDesign: design, brand, ...patch }), bad.res); assert.equal(bad.result.status, 400);
+    }
+    assert.equal(provider.mock.callCount(), 1);
+    t.mock.method(ai, 'suggestInventoryMenu', async (_inventory: any, options: any) => { assert.equal(options.brand, undefined); return { summary: 'Ready', sections: [], deals: [] }; });
+    const disabled = response(); await recommendMenu(req({ productIds: ['pizza'], includeStyle: false, brand }), disabled.res); assert.equal(disabled.result.status, 200);
+});
 
 test('disabled menu access and missing provider configuration produce actionable errors without a provider request', async t => {
     const originalKeys = process.env.GEMINI_API_KEYS, originalKey = process.env.GEMINI_API_KEY;

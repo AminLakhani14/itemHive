@@ -4,6 +4,38 @@ import { suggestInventoryMenu, validateMenuSuggestion } from './inventoryMenuAI'
 
 const inventory = [{ id: 'pizza', name: 'Pizza', category: 'Food', price: 500 }, { id: 'drink', name: 'Pepsi', category: 'Drinks', price: 100 }];
 const suggestion = () => ({ summary: 'Food and drinks.', sections: [{ name: 'Pizzas', reason: 'Main dishes', productIds: ['pizza'] }, { name: 'Drinks', reason: 'Refreshing sides', productIds: ['drink'] }], deals: [{ name: 'Pizza + Pepsi', reason: 'Lunch combo', productIds: ['pizza', 'drink'], dealPrice: 550.556 }] });
+const style = { backgroundColor: '#fff8ed', textColor: '#222222', accentColor: '#783925', headerColor: '#783925', surfaceColor: '#fff8ed', fontStyle: 'serif' as const, decoration: 'corners' as const, reason: 'Warm restaurant colors with subtle corners.' };
+
+test('style is opt-in, validated for readability and restricted to supported editable fields', () => {
+    const input = { ...suggestion(), style };
+    assert.deepEqual(validateMenuSuggestion(input, inventory, false, true).style, style);
+    assert.equal(validateMenuSuggestion(input, inventory, false, false).style, undefined);
+    assert.deepEqual(input.style, style);
+    assert.throws(() => validateMenuSuggestion(suggestion(), inventory, false, true), /Missing/);
+    for (const patch of [{ textColor: '#fff8ed' }, { accentColor: '#fff8ed' }, { surfaceColor: '#222222' }, { backgroundColor: 'red' }, { decoration: 'arbitrary-art' }, { fontStyle: 'unknown' }, { templateId: 'modern' }]) {
+        assert.throws(() => validateMenuSuggestion({ ...input, style: { ...style, ...patch } }, inventory, false, true));
+    }
+});
+
+test('style prompt sends restaurant logo as an image, prioritizes user preferences and does not expose its base64 as text', async t => {
+    const original = process.env.GEMINI_API_KEYS;
+    process.env.GEMINI_API_KEYS = 'test-key';
+    t.after(() => { if (original === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = original; });
+    const logo = 'data:image/png;base64,aGVsbG8=';
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)); const parts = body.contents[0].parts;
+        assert.deepEqual(parts[1], { inlineData: { mimeType: 'image/png', data: 'aGVsbG8=' } });
+        assert.match(parts[0].text, /take priority over logo colors/);
+        assert.match(parts[0].text, /Use cream with corner accents/);
+        assert.match(parts[0].text, /Rustic Italian cafe/);
+        assert.ok(!parts[0].text.includes('aGVsbG8='));
+        assert.ok(body.generationConfig.responseSchema.required.includes('style'));
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: 'Style ready', sections: [], deals: [], style }) }] } }] }));
+    });
+    const result = await suggestInventoryMenu(inventory, { menuName: 'Cafe', brief: 'Use cream with corner accents', includeDeals: false, includeStyle: true, existingSections: [], brand: { name: 'Cafe', theme: 'Rustic Italian cafe', logo, colors: ['#783925'] } });
+    assert.deepEqual(result.style, style);
+    await assert.rejects(() => suggestInventoryMenu(inventory, { menuName: '', brief: '', includeDeals: false, includeStyle: true, existingSections: [], brand: { name: '', theme: '', logo: 'https://example.com/logo.png', colors: [] } }), /Invalid menu logo/);
+});
 
 test('AI combos validate inventory, calculate regular price, round edited currency and honor the disabled checkbox', () => {
     assert.deepEqual(validateMenuSuggestion(suggestion(), inventory, true).deals[0], { ...suggestion().deals[0], dealPrice: 550.56, regularPrice: 600 });
@@ -30,13 +62,32 @@ test('provider receives a structured inventory request and results use validated
     t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
         const body = JSON.parse(String(init.body));
         assert.equal(body.generationConfig.responseMimeType, 'application/json');
-        assert.ok(body.contents[0].parts[0].text.includes(JSON.stringify(inventory)));
+        assert.ok(body.contents[0].parts[0].text.includes(JSON.stringify(inventory.map((item, index) => ({ ...item, id: `p${index + 1}` })))));
         assert.ok(body.contents[0].parts[0].text.includes('Deals are disabled'));
-        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(suggestion()) }] } }] }));
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ ...suggestion(), sections: [{ name: 'Pizzas', reason: 'Main dishes', productIds: ['p1'] }, { name: 'Drinks', reason: 'Refreshing sides', productIds: ['p2'] }], deals: [] }) }] } }] }));
     });
     const result = await suggestInventoryMenu(inventory, { menuName: '369 Pizza', brief: 'Takeaway', includeDeals: false, existingSections: ['Pizzas'] });
     assert.equal(result.sections[0].productIds[0], 'pizza');
     assert.deepEqual(result.deals, []);
+});
+
+test('request-local item IDs map back to inventory IDs for sections and authoritative combo prices', async t => {
+    const original = process.env.GEMINI_API_KEYS;
+    process.env.GEMINI_API_KEYS = 'test-key';
+    t.after(() => { if (original === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = original; });
+    const selected = inventory.map((item, index) => ({ ...item, id: `original-long-id-${index}` }));
+    const output = { summary: 'Lunch menu', sections: [{ name: 'Lunch', reason: 'Food and drinks', productIds: ['p1', 'p2'] }], deals: [{ name: 'Lunch combo', reason: 'Pairs a meal and drink', productIds: ['p1', 'p2'], dealPrice: 550 }] };
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+        assert.ok(!String(init.body).includes('original-long-id'));
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(output) }] } }] }));
+    });
+    const options = { menuName: '', brief: '', includeDeals: true, existingSections: [] };
+    const result = await suggestInventoryMenu(selected, options);
+    assert.deepEqual(result.sections[0].productIds, selected.map(item => item.id));
+    assert.deepEqual(result.deals[0].productIds, selected.map(item => item.id));
+    assert.equal(result.deals[0].regularPrice, 600);
+    output.sections[0].productIds[0] = selected[0].id;
+    await assert.rejects(() => suggestInventoryMenu(selected, options), /unavailable/);
 });
 
 test('malformed or empty provider responses never become fake menu suggestions', async t => {

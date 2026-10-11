@@ -60,6 +60,7 @@ const DigitalMenuSchema = new Schema<IDigitalMenu>({
         showImages: { type: Boolean, required: true },
         pageSize: { type: String, enum: ['a4', 'a5', 'letter'] },
         orientation: { type: String, enum: ['portrait', 'landscape'] },
+        decoration: { type: String, enum: ['none', 'border', 'corners', 'dots'] },
     }, { _id: false }), default: undefined },
     isActive: { type: Boolean, default: true },
     orderingEnabled: { type: Boolean, default: true },

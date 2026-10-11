@@ -1,7 +1,6 @@
 import Joi from 'joi';
 import sharp from 'sharp';
-import { fetchWithGeminiFallback } from './geminiKeys';
-import { getMenuAIModels } from './inventoryMenuAI';
+import { fetchMenuAI } from './menuAIProvider';
 
 export type ExtractedMenu = { name: string; notes: string; sections: Array<{ name: string; page: number; items: Array<{ name: string; price: number | null }> }> };
 export class InvalidMenuFileError extends Error {}
@@ -49,7 +48,7 @@ export async function extractOldMenu(source: { file?: string; text?: string }): 
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: instructions }];
     if (attachment) parts.push({ inlineData: attachment });
     else parts.push({ text: `Existing menu text: ${source.text || ''}` });
-    const response = await fetchWithGeminiFallback(getMenuAIModels().map(model => `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`), JSON.stringify({
+    const response = await fetchMenuAI({
         contents: [{ role: 'user', parts }], generationConfig: {
             responseMimeType: 'application/json', responseSchema: { type: 'OBJECT', properties: {
                 name: { type: 'STRING' }, notes: { type: 'STRING' }, sections: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
@@ -57,7 +56,7 @@ export async function extractOldMenu(source: { file?: string; text?: string }): 
                 }, required: ['name', 'page', 'items'] } },
             }, required: ['name', 'notes', 'sections'] },
         },
-    }));
+    });
     if (!response.ok) throw new Error('AI provider unavailable');
     const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
     const output = data.candidates?.[0]?.content?.parts?.map(part => part.text ?? '').join('');

@@ -80,3 +80,53 @@ test('provider failures move to the next model while connection retries keep the
         else process.env.GEMINI_API_KEYS = previous;
     }
 });
+
+test('a slow menu attempt falls back before the shared deadline, including stalled response bodies', async t => {
+    const previous = process.env.GEMINI_API_KEYS; process.env.GEMINI_API_KEYS = 'fixture-key';
+    t.after(() => { if (previous === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = previous; });
+    for (const stallBody of [false, true]) {
+        const seen: string[] = [];
+        t.mock.method(globalThis, 'fetch', async (url: unknown, init: RequestInit) => {
+            seen.push(String(url));
+            if (seen.length > 1) return new Response('{"ok":true}');
+            const signal = init.signal!;
+            if (stallBody) return new Response(new ReadableStream({ start(controller) {
+                const timer = setTimeout(() => controller.close(), 1000);
+                signal.addEventListener('abort', () => { clearTimeout(timer); controller.error(signal.reason); }, { once: true });
+            } }));
+            return new Promise<Response>((resolve, reject) => {
+                const timer = setTimeout(() => resolve(new Response('{}')), 1000);
+                signal.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+            });
+        });
+        const response = await fetchWithGeminiFallback(['https://slow.test', 'https://fast.test'], '{}', { attemptTimeoutMs: 20 });
+        assert.deepEqual(await response.json(), { ok: true });
+        assert.deepEqual(seen, ['https://slow.test', 'https://fast.test']);
+        t.mock.restoreAll();
+    }
+});
+
+test('menu attempt exhaustion and the shared deadline stay bounded; authentication failures are never retried', async t => {
+    const previous = process.env.GEMINI_API_KEYS; process.env.GEMINI_API_KEYS = 'fixture-key';
+    t.after(() => { if (previous === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = previous; });
+    let calls = 0;
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+        calls++;
+        return new Promise<Response>((resolve, reject) => {
+            const timer = setTimeout(() => resolve(new Response('{}')), 1000);
+            init.signal!.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal!.reason); }, { once: true });
+        });
+    });
+    await assert.rejects(fetchWithGeminiFallback(['https://slow.test'], '{}', { attemptTimeoutMs: 20 }), (error: unknown) => error instanceof GeminiRequestError && error.code === 'timeout');
+    assert.equal(calls, 3);
+    calls = 0;
+    const originalTimeout = AbortSignal.timeout.bind(AbortSignal);
+    t.mock.method(AbortSignal, 'timeout', (milliseconds: number) => originalTimeout(milliseconds === 45000 ? 20 : milliseconds));
+    await assert.rejects(fetchWithGeminiFallback(['https://slow.test'], '{}', { attemptTimeoutMs: 100 }), (error: unknown) => error instanceof GeminiRequestError && error.code === 'timeout');
+    assert.equal(calls, 1);
+    t.mock.restoreAll();
+    calls = 0;
+    t.mock.method(globalThis, 'fetch', async () => { calls++; return new Response('', { status: 403 }); });
+    await assert.rejects(fetchWithGeminiFallback(['https://first.test', 'https://second.test'], '{}', { attemptTimeoutMs: 20, fallbackOnModelError: true }), (error: unknown) => error instanceof GeminiRequestError && error.code === 'credentials');
+    assert.equal(calls, 1);
+});

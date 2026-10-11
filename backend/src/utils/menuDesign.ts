@@ -12,6 +12,7 @@ export interface MenuDesign {
     showImages: boolean;
     pageSize?: 'a4' | 'a5' | 'letter';
     orientation?: 'portrait' | 'landscape';
+    decoration?: 'none' | 'border' | 'corners' | 'dots';
 }
 
 export const parseMenuDesign = (value: unknown): MenuDesign | null => {
@@ -21,6 +22,7 @@ export const parseMenuDesign = (value: unknown): MenuDesign | null => {
     const colors = ['accentColor', 'headerColor', 'backgroundColor', 'surfaceColor', 'textColor'] as const;
     if (input.pageSize !== undefined && !['a4', 'a5', 'letter'].includes(String(input.pageSize))) return null;
     if (input.orientation !== undefined && !['portrait', 'landscape'].includes(String(input.orientation))) return null;
+    if (input.decoration !== undefined && !['none', 'border', 'corners', 'dots'].includes(String(input.decoration))) return null;
     if (colors.some(key => typeof input[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(input[key] as string))) return null;
     return {
         templateId: input.templateId as MenuDesign['templateId'],
@@ -29,5 +31,6 @@ export const parseMenuDesign = (value: unknown): MenuDesign | null => {
         layout: input.layout as MenuDesign['layout'], fontStyle: input.fontStyle as MenuDesign['fontStyle'], showImages: input.showImages,
         ...(input.pageSize !== undefined ? { pageSize: input.pageSize as MenuDesign['pageSize'] } : {}),
         ...(input.orientation !== undefined ? { orientation: input.orientation as MenuDesign['orientation'] } : {}),
+        ...(input.decoration !== undefined ? { decoration: input.decoration as MenuDesign['decoration'] } : {}),
     };
 };

@@ -15,7 +15,7 @@
     "migrate:product-images": "npm run build && node dist/scripts/optimizeProductImages.js",
     "test": "npm run build && node --test dist/services/payrollCalculator.test.js dist/services/payrollWorkflow.test.js dist/services/expenseWorkflow.test.js",
     "test:expenses": "npm run build && node --test dist/services/expenseWorkflow.test.js",
-    "test:digital-menus": "npm run build && node --test dist/controllers/digitalMenuController.test.js dist/utils/dealPricing.test.js dist/services/inventoryMenuAI.test.js dist/controllers/menuAIController.test.js dist/services/oldMenuImport.test.js dist/controllers/menuImportController.test.js",
+    "test:digital-menus": "npm run build && node --test dist/controllers/digitalMenuController.test.js dist/utils/dealPricing.test.js dist/services/inventoryMenuAI.test.js dist/controllers/menuAIController.test.js dist/services/oldMenuImport.test.js dist/controllers/menuImportController.test.js dist/services/geminiKeys.test.js dist/services/menuAIProvider.test.js",
     "test:payroll": "npm run build && node --test dist/services/payrollCalculator.test.js dist/services/payrollWorkflow.test.js"
   },
   "keywords": [],
