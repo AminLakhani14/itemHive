@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { suggestInventoryMenu, validateMenuSuggestion } from './inventoryMenuAI';
 import { contrast } from './logoTheme';
+import type { MenuDesign } from '../utils/menuDesign';
 
 const inventory = [{ id: 'pizza', name: 'Pizza', category: 'Food', price: 500 }, { id: 'drink', name: 'Pepsi', category: 'Drinks', price: 100 }];
 const suggestion = () => ({ summary: 'Food and drinks.', sections: [{ name: 'Pizzas', reason: 'Main dishes', productIds: ['pizza'] }, { name: 'Drinks', reason: 'Refreshing sides', productIds: ['drink'] }], deals: [{ name: 'Pizza + Pepsi', reason: 'Lunch combo', productIds: ['pizza', 'drink'], dealPrice: 550.556 }] });
@@ -26,12 +27,12 @@ test('bright logo accents and low-contrast text become readable suggestions with
     assert.equal(result.style!.headerColor, '#ff9900'); assert.notEqual(result.style!.accentColor, '#ff9900');
     assert.match(result.style!.reason, /adjusted for readable/);
     for (const background of [result.style!.backgroundColor, result.style!.surfaceColor]) {
-        assert.ok(contrast(result.style!.textColor, background) >= 4.5); assert.ok(contrast(result.style!.accentColor, background) >= 4.5);
+        assert.ok(contrast(result.style!.textColor!, background!) >= 4.5); assert.ok(contrast(result.style!.accentColor!, background!) >= 4.5);
     }
     assert.equal(JSON.stringify(input), before);
     const incompatible = validateMenuSuggestion({ ...input, style: { ...input.style, backgroundColor: '#595959', surfaceColor: '#dadada' } }, inventory, false, true).style!;
     assert.equal(incompatible.surfaceColor, incompatible.backgroundColor);
-    assert.ok(contrast(incompatible.textColor, incompatible.backgroundColor) >= 4.5);
+    assert.ok(contrast(incompatible.textColor!, incompatible.backgroundColor!) >= 4.5);
 });
 
 test('style prompt sends restaurant logo as an image, prioritizes user preferences and does not expose its base64 as text', async t => {
@@ -62,6 +63,34 @@ test('AI combos validate inventory, calculate regular price, round edited curren
     assert.deepEqual(validateMenuSuggestion(suggestion(), inventory, true).deals[0], { ...suggestion().deals[0], dealPrice: 550.56, regularPrice: 600 });
     assert.deepEqual(validateMenuSuggestion(suggestion(), inventory, false).deals, []);
     assert.equal(inventory[0].price, 500);
+});
+
+test('template styles discard all AI color and copy overrides without normalizing the selected palette', async t => {
+    const currentDesign: MenuDesign = { ...style, templateId: 'midnight', layout: 'grid', showImages: false, accentColor: '#ff9900', backgroundColor: '#ffffff', surfaceColor: '#ffffff' };
+    const before = JSON.stringify(currentDesign);
+    const result = validateMenuSuggestion({ ...suggestion(), style, menuName: 'Unexpected rename', headings: [{ type: 'heading', text: 'Unexpected heading' }] }, inventory, false, true, currentDesign);
+    assert.equal(result.menuName, undefined); assert.equal(result.headings, undefined);
+    assert.equal(result.style!.visualStyle, 'cards'); assert.equal(result.style!.sectionColumns, 2);
+    assert.ok(Object.keys(result.style!).every(key => !key.endsWith('Color'))); assert.equal(JSON.stringify(currentDesign), before);
+    const original = process.env.GEMINI_API_KEYS; process.env.GEMINI_API_KEYS = 'test-key';
+    t.after(() => { if (original === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = original; });
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        assert.match(body.contents[0].parts[0].text, /ALL five colors from currentDesign exactly unchanged/);
+        assert.ok(!('backgroundColor' in body.generationConfig.responseSchema.properties.style.properties));
+        assert.ok(!('menuName' in body.generationConfig.responseSchema.properties));
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: 'Modern template', sections: [], deals: [], style: result.style }) }] } }] }));
+    });
+    const generated = await suggestInventoryMenu(inventory, { menuName: 'My menu', brief: 'Make it fancy and modern', includeDeals: false, includeStyle: true, existingSections: [], currentDesign });
+    assert.deepEqual(generated.style, result.style);
+});
+
+test('custom menus validate name and heading suggestions and strip them when suggestions are disabled', () => {
+    const input = { ...suggestion(), style, menuName: 'Cafe favorites', headings: [{ type: 'heading', text: 'Explore the menu' }, { type: 'label', text: 'Snacks & sips' }] };
+    const result = validateMenuSuggestion(input, inventory, false, true);
+    assert.equal(result.menuName, input.menuName); assert.deepEqual(result.headings, input.headings);
+    const disabled = validateMenuSuggestion(input, inventory, false, false); assert.equal(disabled.menuName, undefined); assert.equal(disabled.headings, undefined);
+    for (const patch of [{ menuName: '' }, { menuName: 'x'.repeat(101) }, { headings: [{ type: 'title', text: 'Bad' }] }, { headings: [{ type: 'heading', text: '' }] }, { headings: Array(4).fill(input.headings[0]) }]) assert.throws(() => validateMenuSuggestion({ ...input, ...patch }, inventory, false, true));
 });
 
 test('untrusted AI cannot invent products, double-assign products or offer invalid combos/prices', () => {
