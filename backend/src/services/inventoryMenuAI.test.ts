@@ -8,6 +8,35 @@ const inventory = [{ id: 'pizza', name: 'Pizza', category: 'Food', price: 500 },
 const suggestion = () => ({ summary: 'Food and drinks.', sections: [{ name: 'Pizzas', reason: 'Main dishes', productIds: ['pizza'] }, { name: 'Drinks', reason: 'Refreshing sides', productIds: ['drink'] }], deals: [{ name: 'Pizza + Pepsi', reason: 'Lunch combo', productIds: ['pizza', 'drink'], dealPrice: 550.556 }] });
 const style = { backgroundColor: '#fff8ed', textColor: '#222222', accentColor: '#783925', headerColor: '#783925', surfaceColor: '#fff8ed', fontStyle: 'serif' as const, decoration: 'corners' as const, visualStyle: 'cards' as const, sectionColumns: 2 as const, reason: 'Warm restaurant colors with subtle corners.' };
 
+test('custom menus request a complete modern palette with no branding, theme only, logo only or both', async t => {
+    const original = process.env.GEMINI_API_KEYS;
+    process.env.GEMINI_API_KEYS = 'test-key';
+    t.after(() => { if (original === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = original; });
+    const currentDesign: MenuDesign = { ...style, templateId: 'custom', backgroundColor: '#ffffff', textColor: '#20221f', layout: 'grid', showImages: false };
+    const brands = [undefined, { name: '', theme: 'Warm cafe', colors: ['#783925'], logo: '' }, { name: '', theme: '', colors: [], logo: 'data:image/png;base64,aGVsbG8=' }, { name: 'Cafe', theme: 'Warm cafe', colors: ['#783925'], logo: 'data:image/png;base64,aGVsbG8=' }];
+    let expectedLogo = false;
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        const { required } = body.generationConfig.responseSchema.properties.style;
+        for (const key of ['backgroundColor', 'textColor', 'accentColor', 'headerColor', 'surfaceColor', 'fontStyle', 'visualStyle', 'decoration', 'sectionColumns']) assert.ok(required.includes(key));
+        assert.ok(body.generationConfig.responseSchema.required.includes('menuName'));
+        assert.ok(body.generationConfig.responseSchema.required.includes('headings'));
+        assert.match(body.contents[0].parts[0].text, /blank canvas colors in currentDesign are placeholders/);
+        assert.match(body.contents[0].parts[0].text, /choose a fresh, cohesive modern palette/);
+        assert.equal(body.contents[0].parts.length, expectedLogo ? 2 : 1);
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: 'Complete design', sections: [{ name: 'Meals', reason: 'Main dishes', productIds: ['p1'] }], deals: [], style, menuName: 'Cafe favorites', headings: [{ type: 'label', text: 'Meals & sips' }] }) }] } }] }));
+    });
+    for (const brand of brands) {
+        expectedLogo = Boolean(brand?.logo);
+        const result = await suggestInventoryMenu(inventory, { menuName: '', brief: '', includeDeals: false, existingSections: [], includeStyle: true, currentDesign, brand });
+        assert.deepEqual(result.style, style); assert.equal(result.menuName, 'Cafe favorites'); assert.equal(result.headings?.length, 1);
+    }
+    for (const key of ['backgroundColor', 'textColor', 'accentColor', 'headerColor', 'surfaceColor'] as const) {
+        const incomplete: Partial<typeof style> = { ...style }; delete incomplete[key];
+        assert.throws(() => validateMenuSuggestion({ ...suggestion(), style: incomplete }, inventory, false, true, currentDesign), /Missing AI menu colors/);
+    }
+});
+
 test('style is opt-in, validated for readability and restricted to supported editable fields', () => {
     const input = { ...suggestion(), style };
     assert.deepEqual(validateMenuSuggestion(input, inventory, false, true).style, style);
@@ -146,4 +175,24 @@ test('malformed or empty provider responses never become fake menu suggestions',
     t.after(() => { if (original === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = original; });
     t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ candidates: [] })));
     await assert.rejects(() => suggestInventoryMenu(inventory, { menuName: '', brief: '', includeDeals: true, existingSections: [] }));
+});
+
+test('a previous menu picture is sent as a labelled image after the logo and never as prompt text', async t => {
+    const original = process.env.GEMINI_API_KEYS;
+    process.env.GEMINI_API_KEYS = 'test-key';
+    t.after(() => { if (original === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = original; });
+    const calls: unknown[][] = [];
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+        const parts = JSON.parse(String(init.body)).contents[0].parts;
+        calls.push(parts);
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: 'Like your old menu', sections: [{ name: 'Pizzas', reason: 'As before', productIds: ['p1'] }], deals: [] }) }] } }] }));
+    });
+    await suggestInventoryMenu(inventory, { menuName: '', brief: '', includeDeals: true, existingSections: [], inspiration: 'data:image/webp;base64,bWVudQ==' });
+    const [parts] = calls as Array<Array<{ text?: string; inlineData?: unknown }>>;
+    assert.match(parts[0].text!, /previous menu is attached/); assert.match(parts[0].text!, /missing from the selected inventory/);
+    assert.ok(!parts[0].text!.includes('bWVudQ==')); assert.ok(!parts[0].text!.includes('"inspiration"'));
+    assert.deepEqual(parts.slice(1), [{ text: 'Previous menu:' }, { inlineData: { mimeType: 'image/webp', data: 'bWVudQ==' } }]);
+    await suggestInventoryMenu(inventory, { menuName: '', brief: '', includeDeals: true, existingSections: [] });
+    assert.equal(calls[1].length, 1); assert.doesNotMatch((calls[1][0] as { text: string }).text, /previous menu is attached/);
+    await assert.rejects(() => suggestInventoryMenu(inventory, { menuName: '', brief: '', includeDeals: true, existingSections: [], inspiration: 'https://example.com/menu.png' }));
 });

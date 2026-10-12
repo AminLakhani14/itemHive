@@ -21,7 +21,7 @@ function keys(t: TestContext) {
 test('capabilities expose supported style requests without running the AI provider', t => {
     const provider = t.mock.method(ai, 'suggestInventoryMenu', async () => { throw new Error('Must not call'); });
     const { res, result } = response(); menuAICapabilities(req(), res);
-    assert.deepEqual(result.body, { features: ['custom-menu-style', 'template-menu-style', 'custom-menu-copy'] }); assert.equal(provider.mock.callCount(), 0);
+    assert.deepEqual(result.body, { features: ['custom-menu-style', 'template-menu-style', 'custom-menu-copy', 'menu-inspiration'] }); assert.equal(provider.mock.callCount(), 0);
 });
 
 test('custom style requests validate merchant branding and do not pass branding when style is disabled', async t => {
@@ -94,4 +94,16 @@ test('concurrent generation is rejected, provider failures are clear, and a late
     const second = response(); await recommendMenu(req(), second.res); assert.equal(second.result.status, 409);
     release(); await pending; assert.equal(first.result.status, 504);
     const retry = response(); await recommendMenu(req(), retry.res); assert.equal(retry.result.status, 504);
+});
+
+test('an old menu picture is passed as inspiration only when it is a valid image', async t => {
+    keys(t);
+    t.mock.method(Product, 'find', () => ({ select: () => ({ lean: async () => [{ id: 'pizza', name: 'Pizza', salePrice: 500 }] }) }));
+    const picture = 'data:image/webp;base64,aGVsbG8=';
+    const provider = t.mock.method(ai, 'suggestInventoryMenu', async (_inventory: any, options: any) => { assert.equal(options.inspiration, picture); return { summary: 'Ready', sections: [], deals: [] }; });
+    const good = response(); await recommendMenu(req({ productIds: ['pizza'], inspiration: picture }), good.res); assert.equal(good.result.status, 200);
+    for (const inspiration of ['https://example.com/menu.png', 'data:image/svg+xml;base64,PHN2Zz4=', `data:image/webp;base64,${'A'.repeat(1_100_001)}`]) {
+        const bad = response(); await recommendMenu(req({ productIds: ['pizza'], inspiration }), bad.res); assert.equal(bad.result.status, 400);
+    }
+    assert.equal(provider.mock.callCount(), 1);
 });

@@ -5,6 +5,7 @@ import Product from '../models/Product';
 import { buildTenantFilter } from '../utils/tenancy';
 import { menuItemPrice, parseMenuPrices } from '../utils/menuPrices';
 import { parseMenuDesign } from '../utils/menuDesign';
+import { MAX_MENU_PICTURE_LENGTH } from '../utils/menuContent';
 import { getGeminiKeys, GeminiQuotaError, GeminiRequestError } from '../services/geminiKeys';
 import { suggestInventoryMenu } from '../services/inventoryMenuAI';
 
@@ -23,11 +24,12 @@ const schema = Joi.object({
         logo: Joi.string().max(1400000).pattern(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/).allow('').default(''),
         colors: Joi.array().max(8).items(Joi.string().pattern(/^#[0-9a-f]{6}$/i)).default([]),
     }).optional(),
+    inspiration: Joi.string().max(MAX_MENU_PICTURE_LENGTH).pattern(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/).optional(),
 });
 const active = new Set<string>();
 
 export function menuAICapabilities(_req: AuthRequest, res: Response) {
-    return res.json({ features: ['custom-menu-style', 'template-menu-style', 'custom-menu-copy'] });
+    return res.json({ features: ['custom-menu-style', 'template-menu-style', 'custom-menu-copy', 'menu-inspiration'] });
 }
 
 export async function recommendMenu(req: AuthRequest, res: Response) {
@@ -49,7 +51,7 @@ export async function recommendMenu(req: AuthRequest, res: Response) {
         if (products.length !== value.productIds.length) return res.status(400).json({ message: 'Some selected inventory items are unavailable. Refresh your inventory and try again.' });
         const inventory = products.map(product => ({ id: product.id, name: product.name.slice(0, 250), category: String(product.category || '').slice(0, 160), price: menuItemPrice(product, prices) }));
         if (inventory.some(item => !Number.isFinite(item.price) || item.price < 0 || !Number.isFinite(item.price * 100))) return res.status(400).json({ message: 'Check the selling prices of the selected inventory items.' });
-        return res.json(await suggestInventoryMenu(inventory, { menuName: value.menuName, brief: value.brief, includeDeals: value.includeDeals, existingSections: value.existingSections, includeStyle: value.includeStyle, currentDesign: currentDesign ?? undefined, brand: value.includeStyle && currentDesign?.templateId === 'custom' ? value.brand : undefined }));
+        return res.json(await suggestInventoryMenu(inventory, { menuName: value.menuName, brief: value.brief, includeDeals: value.includeDeals, existingSections: value.existingSections, includeStyle: value.includeStyle, currentDesign: currentDesign ?? undefined, brand: value.includeStyle && currentDesign?.templateId === 'custom' ? value.brand : undefined, inspiration: value.inspiration }));
     } catch (err) {
         if (err instanceof GeminiRequestError) {
             const messages = { connection: 'The server could not connect to Google AI. Please retry.', timeout: 'Google AI took too long to respond. Please retry.', model: 'The configured AI model is unavailable. Ask your administrator to update it.', credentials: 'Google AI rejected the configured credentials. Ask your administrator to check them.', provider: 'Google AI is experiencing high demand. Please try again shortly.' };
