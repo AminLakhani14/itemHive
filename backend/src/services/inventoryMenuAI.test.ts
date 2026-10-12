@@ -15,7 +15,7 @@ test('AI selects section photos from the supplied library, honors opt-out and re
     t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
         const body = JSON.parse(String(init.body)); const schema = body.generationConfig.responseSchema.properties.sections.items;
         assert.equal(schema.required.includes('imageKey'), enabled);
-        if (enabled) { assert.match(body.contents[0].parts[0].text, /illustrative AI-created library photos/); assert.ok(schema.properties.imageKey.enum.includes('none')); }
+        if (enabled) { assert.match(body.contents[0].parts[0].text, /real web photographs from the supplied library/); assert.ok(schema.properties.imageKey.enum.includes('none')); }
         return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: 'Photo menu', sections: [{ name: 'Main course', reason: 'Meals', productIds: ['p1'], imageKey }], deals: [] }) }] } }] }));
     });
     const options = { menuName: '', brief: '', includeDeals: false, existingSections: [], includeSectionImages: true };

@@ -37,10 +37,14 @@ export const MAX_MENU_PICTURES = 2;
 const MENU_PICTURE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 export const MAX_SECTION_IMAGE_LENGTH = 200_000;
 export const MAX_MENU_IMAGE_LENGTH = 2_400_000;
+export function isSectionImageLink(input: string): boolean {
+    if (!input.startsWith('https://') || input.length > 2048) return false;
+    try { const url = new URL(input); return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password; } catch { return false; }
+}
 export function parseSectionImage(input: unknown): MenuBlock['sectionImage'] | null {
     if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
     const image = input as Record<string, unknown>;
-    if (typeof image.url !== 'string' || image.url.length > MAX_SECTION_IMAGE_LENGTH || !(MENU_PICTURE.test(image.url) || /^\/menu-images\/(main-course|appetizers|drinks|desserts)\.webp$/.test(image.url))) return null;
+    if (typeof image.url !== 'string' || image.url.length > MAX_SECTION_IMAGE_LENGTH || !(MENU_PICTURE.test(image.url) || isSectionImageLink(image.url) || /^\/menu-images\/(main-course|appetizers|drinks|desserts)\.webp$/.test(image.url))) return null;
     if (typeof image.alt !== 'string' || !image.alt.trim() || image.alt.length > 160) return null;
     return { url: image.url, alt: image.alt.trim() };
 }

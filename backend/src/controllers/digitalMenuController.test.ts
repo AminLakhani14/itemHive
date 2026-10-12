@@ -341,7 +341,7 @@ test('drafts can save unfinished menus but publication rejects empty menus and f
 
 test('draft saves preserve the live snapshot, publishing switches one workspace menu and existing table QRs, and previews remain private', async (t) => {
     const businessId = '507f1f77bcf86cd799439012';
-    const sectionImage = { url: '/menu-images/drinks.webp', alt: 'Illustrative drinks' };
+    const sectionImage = { url: 'https://images.pexels.com/photos/18509675/pexels-photo-18509675/free-photo-of-glass-of-lemonade.jpeg?auto=compress&w=1200', alt: 'Lemonade' };
     const photoContent = content.map(block => block.type === 'section' ? { ...block, sectionImage } : block);
     const roots: any[] = ['first', 'second'].map(_id => ({ _id, name: _id, businessId, menuType: 'menu', status: 'draft', productIds: ['coffee'], content: photoContent, design, isActive: true, save: async () => {} }));
     const table = { _id: 'table', token: 'table-qr', sourceMenuId: 'first', businessId, tableName: 'Table 1', orderingEnabled: true };
