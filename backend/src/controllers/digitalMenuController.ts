@@ -261,7 +261,8 @@ export const getPublicMenu = async (req: AuthRequest, res: Response) => {
 const sendMenuResponse = async (res: Response, menu: { tableName?: string; token: string; businessId?: Types.ObjectId }, rootMenu: ReturnType<typeof menuSnapshot>, orderingEnabled: boolean) => {
     const deals = rootMenu.deals;
     const productIds = [...new Set([...rootMenu.productIds, ...deals.flatMap(deal => deal.productIds)])];
-    const products = await Product.find({ id: { $in: productIds }, businessId: menu.businessId }).select('id name salePrice price imageUrl category').lean();
+    // Inventory descriptions stay private unless the published design shows them.
+    const products = await Product.find({ id: { $in: productIds }, businessId: menu.businessId }).select(`id name salePrice price imageUrl category${rootMenu.design?.showDescriptions ? ' description' : ''}`).lean();
     const ordered = productIds.flatMap(id => {
         const product = products.find(value => value.id === id);
         return product ? [{ ...product, salePrice: menuItemPrice(product, rootMenu.productPrices) }] : [];

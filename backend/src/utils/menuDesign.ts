@@ -10,6 +10,7 @@ export interface MenuDesign {
     layout: 'list' | 'grid';
     fontStyle: 'sans' | 'serif';
     showImages: boolean;
+    showDescriptions?: boolean;
     pageSize?: 'a4' | 'a5' | 'letter';
     orientation?: 'portrait' | 'landscape';
     decoration?: 'none' | 'border' | 'corners' | 'dots' | 'glow';
@@ -27,6 +28,7 @@ export const parseMenuDesign = (value: unknown): MenuDesign | null => {
     if (input.decoration !== undefined && !['none', 'border', 'corners', 'dots', 'glow'].includes(String(input.decoration))) return null;
     if (input.visualStyle !== undefined && !['classic', 'cards', 'minimal', 'editorial'].includes(String(input.visualStyle))) return null;
     if (input.sectionColumns !== undefined && ![1, 2, 3].includes(input.sectionColumns as number)) return null;
+    if (input.showDescriptions !== undefined && typeof input.showDescriptions !== 'boolean') return null;
     if (colors.some(key => typeof input[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(input[key] as string))) return null;
     return {
         templateId: input.templateId as MenuDesign['templateId'],
@@ -38,5 +40,6 @@ export const parseMenuDesign = (value: unknown): MenuDesign | null => {
         ...(input.visualStyle !== undefined ? { visualStyle: input.visualStyle as MenuDesign['visualStyle'] } : {}),
         ...(input.sectionColumns !== undefined ? { sectionColumns: input.sectionColumns as MenuDesign['sectionColumns'] } : {}),
         ...(input.decoration !== undefined ? { decoration: input.decoration as MenuDesign['decoration'] } : {}),
+        ...(input.showDescriptions !== undefined ? { showDescriptions: input.showDescriptions } : {}),
     };
 };

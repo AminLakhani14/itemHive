@@ -6,7 +6,8 @@ export function getMenuAIModels(): string[] {
     return [...new Set([primary, ...fallbacks.split(',')].map(model => model.trim()).filter(Boolean))];
 }
 
-export async function fetchMenuAI(request: { contents: unknown[]; generationConfig: Record<string, unknown> }): Promise<Response> {
+// Long structured outputs (a whole copied menu) may use a larger share of the shared deadline per attempt.
+export async function fetchMenuAI(request: { contents: unknown[]; generationConfig: Record<string, unknown> }, { attemptTimeoutMs = 15000 }: { attemptTimeoutMs?: number } = {}): Promise<Response> {
     const urls = getMenuAIModels().map(model => `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
     return fetchWithGeminiFallback(urls, url => {
         const model = decodeURIComponent(new URL(url).pathname.split('/models/')[1].split(':')[0]);
@@ -14,5 +15,5 @@ export async function fetchMenuAI(request: { contents: unknown[]; generationConf
             ? { thinkingLevel: model.includes('flash-lite') ? 'minimal' : 'low' }
             : model.startsWith('gemini-2.5-flash') ? { thinkingBudget: 0 } : undefined;
         return JSON.stringify({ ...request, generationConfig: { ...request.generationConfig, ...(thinkingConfig ? { thinkingConfig } : {}) } });
-    }, { attemptTimeoutMs: 15000, fallbackOnModelError: true });
+    }, { attemptTimeoutMs, fallbackOnModelError: true });
 }

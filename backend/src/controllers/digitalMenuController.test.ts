@@ -133,10 +133,23 @@ test('all ten templates and custom designs are accepted, while unsafe or incompl
     for (const visualStyle of ['classic', 'cards', 'minimal', 'editorial']) for (const sectionColumns of [1, 2, 3]) assert.deepEqual(parseMenuDesign({ ...design, visualStyle, sectionColumns }), { ...design, visualStyle, sectionColumns });
     for (const patch of [{ visualStyle: 'missing' }, { sectionColumns: 0 }, { sectionColumns: 4 }, { sectionColumns: '2' }]) assert.equal(parseMenuDesign({ ...design, ...patch }), null);
     assert.equal(parseMenuDesign({ ...design, decoration: 'url(https://example.com)' }), null);
+    for (const showDescriptions of [true, false]) assert.deepEqual(parseMenuDesign({ ...design, showImages: true, showDescriptions }), { ...design, showImages: true, showDescriptions });
+    assert.equal(parseMenuDesign({ ...design, showDescriptions: 'yes' }), null);
     for (const pageSize of ['a4', 'a5', 'letter']) for (const orientation of ['portrait', 'landscape']) assert.deepEqual(parseMenuDesign({ ...design, pageSize, orientation }), { ...design, pageSize, orientation });
     for (const invalid of [null, [], {}, { ...design, templateId: 'missing' }, { ...design, accentColor: 'url(https://example.com)' }, { ...design, layout: 'unknown' }, { ...design, showImages: 'true' }, { ...design, pageSize: 'poster' }, { ...design, orientation: 'diagonal' }]) {
         assert.equal(parseMenuDesign(invalid), null);
     }
+});
+
+test('menu pictures keep an uploaded page as-is within the size and count limits', () => {
+    const picture = { id: 'old-menu', type: 'image', text: 'Our menu', fontSize: 16, color: '#222222', align: 'center', productIds: [], page: 1, span: 6, imageUrl: 'data:image/webp;base64,aGVsbG8=' } as MenuBlock;
+    assert.deepEqual(parseMenuContent([picture, ...content], ['coffee']), [picture, ...content]);
+    const invalid: unknown[] = [
+        [{ ...picture, imageUrl: undefined }], [{ ...picture, imageUrl: 'https://example.com/menu.png' }], [{ ...picture, imageUrl: 'data:image/svg+xml;base64,PHN2Zz4=' }],
+        [{ ...picture, imageUrl: `data:image/webp;base64,${'A'.repeat(1_100_000)}` }], [{ ...content[0], imageUrl: picture.imageUrl }], [{ ...picture, productIds: ['coffee'] }],
+        [picture, { ...picture, id: 'two' }, { ...picture, id: 'three' }],
+    ];
+    for (const value of invalid) assert.equal(parseMenuContent(value, ['coffee']), null);
 });
 
 test('layout preserves text formatting and ordering and rejects invalid or duplicate section items', () => {
@@ -285,6 +298,19 @@ test('table QR responses use the current root design, and root previews are view
     await getPublicMenu(req, res);
     assert.deepEqual(result.body.menu.design, design);
     assert.equal(result.body.menu.orderingEnabled, false);
+});
+
+test('public menus expose inventory descriptions only when the published design shows them', async (t) => {
+    const fields: string[] = [];
+    let published: any = { _id: 'root', businessId: 'business', name: 'Cafe', productIds: ['coffee'], design, content, tableName: '' };
+    t.mock.method(publications, 'getPublication', async () => ({ menu: publications.menuSnapshot(published) }));
+    t.mock.method(DigitalMenu, 'findOne', () => ({ lean: async () => published }));
+    t.mock.method(Product, 'find', () => ({ select: (value: string) => { fields.push(value); return { lean: async () => [] }; } }));
+    await getPublicMenu(staffRequest(), response().res);
+    published = { ...published, design: { ...design, showDescriptions: true } };
+    await getPublicMenu(staffRequest(), response().res);
+    assert.equal(fields[0].includes('description'), false); assert.ok(fields[0].includes('imageUrl'));
+    assert.ok(fields[1].split(' ').includes('description'));
 });
 
 test('drafts can save unfinished menus but publication rejects empty menus and foreign or missing products', async (t) => {

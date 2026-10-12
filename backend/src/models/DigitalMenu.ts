@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import { MENU_TEMPLATE_IDS, type MenuDesign } from '../utils/menuDesign';
-import type { MenuBlock } from '../utils/menuContent';
+import { MAX_MENU_PICTURE_LENGTH, type MenuBlock } from '../utils/menuContent';
 import { parseMenuPrices, type MenuPrices } from '../utils/menuPrices';
 
 export interface IDigitalMenu extends Document {
@@ -37,7 +37,12 @@ const DigitalMenuSchema = new Schema<IDigitalMenu>({
     dealPrice: { type: Number, min: 0 },
     content: { type: [new Schema<MenuBlock>({
         id: { type: String, required: true, match: /^[a-z0-9_-]{1,80}$/i },
-        type: { type: String, enum: ['title', 'section', 'heading', 'label'], required: true },
+        type: { type: String, enum: ['title', 'section', 'heading', 'label', 'image'], required: true },
+        imageUrl: { type: String, maxlength: MAX_MENU_PICTURE_LENGTH },
+        source: { type: new Schema({
+            imageId: { type: String, required: true }, box: { type: [Number], required: true }, headingBox: { type: [Number], default: undefined },
+            originalText: { type: String, maxlength: 160 }, originalProductIds: [String], originalPrices: [Number], pricePrefix: { type: String, maxlength: 8 },
+        }, { _id: false }), default: undefined },
         text: { type: String, trim: true, maxlength: 500 },
         fontSize: { type: Number, min: 10, max: 96, required: true },
         color: { type: String, match: /^#[0-9a-f]{6}$/i, required: true },
@@ -58,6 +63,7 @@ const DigitalMenuSchema = new Schema<IDigitalMenu>({
         layout: { type: String, enum: ['list', 'grid'], required: true },
         fontStyle: { type: String, enum: ['sans', 'serif'], required: true },
         showImages: { type: Boolean, required: true },
+        showDescriptions: { type: Boolean },
         pageSize: { type: String, enum: ['a4', 'a5', 'letter'] },
         orientation: { type: String, enum: ['portrait', 'landscape'] },
         visualStyle: { type: String, enum: ['classic', 'cards', 'minimal', 'editorial'] },
