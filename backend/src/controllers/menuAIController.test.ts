@@ -21,7 +21,7 @@ function keys(t: TestContext) {
 test('capabilities expose supported style requests without running the AI provider', t => {
     const provider = t.mock.method(ai, 'suggestInventoryMenu', async () => { throw new Error('Must not call'); });
     const { res, result } = response(); menuAICapabilities(req(), res);
-    assert.deepEqual(result.body, { features: ['custom-menu-style', 'template-menu-style', 'custom-menu-copy', 'menu-inspiration'] }); assert.equal(provider.mock.callCount(), 0);
+    assert.deepEqual(result.body, { features: ['custom-menu-style', 'template-menu-style', 'custom-menu-copy', 'menu-inspiration', 'section-images'] }); assert.equal(provider.mock.callCount(), 0);
 });
 
 test('custom style requests validate merchant branding and do not pass branding when style is disabled', async t => {

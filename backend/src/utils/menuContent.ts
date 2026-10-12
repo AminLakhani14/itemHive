@@ -3,6 +3,7 @@ export interface MenuBlock {
     type: 'title' | 'section' | 'heading' | 'label' | 'image';
     text: string;
     imageUrl?: string;
+    sectionImage?: { url: string; alt: string };
     source?: PictureSectionSource;
     headingStyle?: { backgroundColor: string; color: string; align: 'left' | 'center' | 'right' };
     fontSize: number;
@@ -34,6 +35,15 @@ function parsePictureSource(value: unknown): PictureSectionSource | null {
 export const MAX_MENU_PICTURE_LENGTH = 1_100_000;
 export const MAX_MENU_PICTURES = 2;
 const MENU_PICTURE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+export const MAX_SECTION_IMAGE_LENGTH = 200_000;
+export const MAX_MENU_IMAGE_LENGTH = 2_400_000;
+export function parseSectionImage(input: unknown): MenuBlock['sectionImage'] | null {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+    const image = input as Record<string, unknown>;
+    if (typeof image.url !== 'string' || image.url.length > MAX_SECTION_IMAGE_LENGTH || !(MENU_PICTURE.test(image.url) || /^\/menu-images\/(main-course|appetizers|drinks|desserts)\.webp$/.test(image.url))) return null;
+    if (typeof image.alt !== 'string' || !image.alt.trim() || image.alt.length > 160) return null;
+    return { url: image.url, alt: image.alt.trim() };
+}
 
 export const parseMenuPageCount = (value: unknown): number | undefined | null => value === undefined ? undefined : typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 20 ? value : null;
 
@@ -46,6 +56,7 @@ export const parseMenuContent = (value: unknown, productIds: string[], allowEmpt
     const allowedProducts = new Set(productIds);
     let hasTitle = false;
     let pictures = 0;
+    let imageLength = 0;
     for (const raw of value) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
         const block = raw as Record<string, unknown>;
@@ -53,6 +64,10 @@ export const parseMenuContent = (value: unknown, productIds: string[], allowEmpt
         if (!['title', 'section', 'heading', 'label', 'image'].includes(String(block.type))) return null;
         const source = block.source === undefined ? undefined : block.type === 'section' ? parsePictureSource(block.source) : null;
         if (source === null) return null;
+        const sectionImage = block.sectionImage === undefined ? undefined : block.type === 'section' ? parseSectionImage(block.sectionImage) : null;
+        if (sectionImage === null) return null;
+        imageLength += (typeof block.imageUrl === 'string' ? block.imageUrl.length : 0) + (sectionImage?.url.length ?? 0);
+        if (imageLength > MAX_MENU_IMAGE_LENGTH) return null;
         let headingStyle: MenuBlock['headingStyle'];
         if (block.headingStyle !== undefined) {
             const style = block.headingStyle as Record<string, unknown>;
@@ -76,7 +91,7 @@ export const parseMenuContent = (value: unknown, productIds: string[], allowEmpt
             items.push(id);
         }
         ids.add(block.id);
-        result.push({ id: block.id, type: block.type as MenuBlock['type'], text: block.text.trim(), fontSize: block.fontSize, color: block.color, align: block.align as MenuBlock['align'], productIds: items, ...(source ? { source } : {}), ...(headingStyle ? { headingStyle } : {}), ...(block.type === 'image' ? { imageUrl: block.imageUrl as string } : {}), ...(block.page !== undefined ? { page: block.page as number } : {}), ...(block.span !== undefined ? { span: block.span as MenuBlock['span'] } : {}) });
+        result.push({ id: block.id, type: block.type as MenuBlock['type'], text: block.text.trim(), fontSize: block.fontSize, color: block.color, align: block.align as MenuBlock['align'], productIds: items, ...(sectionImage ? { sectionImage } : {}), ...(source ? { source } : {}), ...(headingStyle ? { headingStyle } : {}), ...(block.type === 'image' ? { imageUrl: block.imageUrl as string } : {}), ...(block.page !== undefined ? { page: block.page as number } : {}), ...(block.span !== undefined ? { span: block.span as MenuBlock['span'] } : {}) });
     }
     if (result.some(block => block.source && !result.some(image => image.id === block.source!.imageId && image.type === 'image' && (image.page ?? 1) === (block.page ?? 1)))) return null;
     return result;

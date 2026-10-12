@@ -8,6 +8,24 @@ const inventory = [{ id: 'pizza', name: 'Pizza', category: 'Food', price: 500 },
 const suggestion = () => ({ summary: 'Food and drinks.', sections: [{ name: 'Pizzas', reason: 'Main dishes', productIds: ['pizza'] }, { name: 'Drinks', reason: 'Refreshing sides', productIds: ['drink'] }], deals: [{ name: 'Pizza + Pepsi', reason: 'Lunch combo', productIds: ['pizza', 'drink'], dealPrice: 550.556 }] });
 const style = { backgroundColor: '#fff8ed', textColor: '#222222', accentColor: '#783925', headerColor: '#783925', surfaceColor: '#fff8ed', fontStyle: 'serif' as const, decoration: 'corners' as const, visualStyle: 'cards' as const, sectionColumns: 2 as const, reason: 'Warm restaurant colors with subtle corners.' };
 
+test('AI selects section photos from the supplied library, honors opt-out and rejects invented or missing choices', async t => {
+    const original = process.env.GEMINI_API_KEYS; process.env.GEMINI_API_KEYS = 'test-key';
+    t.after(() => { if (original === undefined) delete process.env.GEMINI_API_KEYS; else process.env.GEMINI_API_KEYS = original; });
+    let imageKey: string | undefined = 'main-course'; let enabled = true;
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)); const schema = body.generationConfig.responseSchema.properties.sections.items;
+        assert.equal(schema.required.includes('imageKey'), enabled);
+        if (enabled) { assert.match(body.contents[0].parts[0].text, /illustrative AI-created library photos/); assert.ok(schema.properties.imageKey.enum.includes('none')); }
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: 'Photo menu', sections: [{ name: 'Main course', reason: 'Meals', productIds: ['p1'], imageKey }], deals: [] }) }] } }] }));
+    });
+    const options = { menuName: '', brief: '', includeDeals: false, existingSections: [], includeSectionImages: true };
+    assert.equal((await suggestInventoryMenu(inventory, options)).sections[0].imageKey, 'main-course');
+    imageKey = 'none'; assert.equal((await suggestInventoryMenu(inventory, options)).sections[0].imageKey, 'none');
+    imageKey = 'https://fake.example/image.jpg'; await assert.rejects(() => suggestInventoryMenu(inventory, options), /Invalid AI/);
+    imageKey = undefined; await assert.rejects(() => suggestInventoryMenu(inventory, options), /Missing AI section image/);
+    enabled = false; imageKey = 'drinks'; assert.equal((await suggestInventoryMenu(inventory, { ...options, includeSectionImages: false })).sections[0].imageKey, undefined);
+});
+
 test('custom menus request a complete modern palette with no branding, theme only, logo only or both', async t => {
     const original = process.env.GEMINI_API_KEYS;
     process.env.GEMINI_API_KEYS = 'test-key';

@@ -341,7 +341,9 @@ test('drafts can save unfinished menus but publication rejects empty menus and f
 
 test('draft saves preserve the live snapshot, publishing switches one workspace menu and existing table QRs, and previews remain private', async (t) => {
     const businessId = '507f1f77bcf86cd799439012';
-    const roots: any[] = ['first', 'second'].map(_id => ({ _id, name: _id, businessId, menuType: 'menu', status: 'draft', productIds: ['coffee'], content, design, isActive: true, save: async () => {} }));
+    const sectionImage = { url: '/menu-images/drinks.webp', alt: 'Illustrative drinks' };
+    const photoContent = content.map(block => block.type === 'section' ? { ...block, sectionImage } : block);
+    const roots: any[] = ['first', 'second'].map(_id => ({ _id, name: _id, businessId, menuType: 'menu', status: 'draft', productIds: ['coffee'], content: photoContent, design, isActive: true, save: async () => {} }));
     const table = { _id: 'table', token: 'table-qr', sourceMenuId: 'first', businessId, tableName: 'Table 1', orderingEnabled: true };
     let live: any = { menu: null };
     t.mock.method(publications, 'getPublication', async () => live);
@@ -362,6 +364,7 @@ test('draft saves preserve the live snapshot, publishing switches one workspace 
     const req = staffRequest(); req.params.id = 'first';
     await publishDigitalMenu(req, res);
     assert.equal(live.menu._id, 'first');
+    assert.deepEqual(live.menu.content.find((block: MenuBlock) => block.type === 'section').sectionImage, sectionImage);
     req.body = { name: 'Edited draft', productIds: [], content: [], status: 'draft' };
     await updateDigitalMenu(req, res);
     assert.equal(roots[0].name, 'Edited draft');
@@ -369,6 +372,7 @@ test('draft saves preserve the live snapshot, publishing switches one workspace 
     await getPublicMenu(req, res);
     assert.equal(result.body.menu.name, 'first');
     assert.deepEqual(result.body.menu.productIds, ['coffee']);
+    assert.deepEqual(result.body.menu.content.find((block: MenuBlock) => block.type === 'section').sectionImage, sectionImage);
     await previewDigitalMenu(req, res);
     assert.equal(result.body.menu.name, 'Edited draft');
     assert.equal(result.body.menu.orderingEnabled, false);

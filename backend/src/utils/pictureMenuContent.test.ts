@@ -7,6 +7,20 @@ import { validateExtractedMenu } from '../services/oldMenuImport';
 const image: MenuBlock = { id: 'picture', type: 'image', imageUrl: 'data:image/jpeg;base64,aGVsbG8=', text: 'Food Menu', fontSize: 16, color: '#222222', align: 'left', productIds: [], page: 1 };
 const section: MenuBlock = { id: 'main', type: 'section', text: 'Main Course', fontSize: 26, color: '#ffaa00', align: 'left', productIds: ['rice', 'extra'], page: 1, source: { imageId: 'picture', box: [240, 55, 365, 470], headingBox: [175, 55, 225, 470], originalText: 'Main Course', originalProductIds: ['rice'], originalPrices: [10], pricePrefix: '$' } };
 
+test('uploaded and library section photos survive validation and saving independently from item photos', async () => {
+    for (const url of ['/menu-images/main-course.webp', 'data:image/webp;base64,aGVsbG8=']) {
+        const block: MenuBlock = { ...section, source: undefined, sectionImage: { url, alt: 'Main course photo' } };
+        assert.deepEqual(parseMenuContent([block], ['rice', 'extra'])?.[0].sectionImage, block.sectionImage);
+        const model = new DigitalMenu({ name: 'Photo menu', token: 'section-photo', productIds: ['rice', 'extra'], content: [block] });
+        await model.validate(); assert.deepEqual(model.toObject().content?.[0].sectionImage, block.sectionImage);
+    }
+    for (const sectionImage of [{ url: 'javascript:alert(1)', alt: 'Bad' }, { url: 'https://example.com/image.png', alt: 'Bad' }, { url: '/menu-images/unknown.webp', alt: 'Bad' }, { url: '/menu-images/drinks.webp', alt: '' }, { url: '/menu-images/drinks.webp', alt: 'x'.repeat(161) }]) assert.equal(parseMenuContent([{ ...section, source: undefined, sectionImage }], ['rice', 'extra']), null);
+    assert.equal(parseMenuContent([{ ...image, sectionImage: { url: '/menu-images/drinks.webp', alt: 'Drinks' } }], []), null);
+    const large = 'data:image/webp;base64,' + 'a'.repeat(199000);
+    const many = Array.from({ length: 13 }, (_, index) => ({ ...section, source: undefined, id: `photo-${index}`, productIds: [], sectionImage: { url: large, alt: 'Food' } }));
+    assert.equal(parseMenuContent(many, []), null);
+});
+
 test('picture section positions and price snapshots survive validation and model serialization', async () => {
     assert.deepEqual(parseMenuContent([image, section], ['rice', 'extra']), [image, section]);
     const model = new DigitalMenu({ name: 'Food Menu', token: 'picture-test', productIds: ['rice', 'extra'], content: [image, section] });

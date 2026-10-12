@@ -39,6 +39,7 @@ const DigitalMenuSchema = new Schema<IDigitalMenu>({
         id: { type: String, required: true, match: /^[a-z0-9_-]{1,80}$/i },
         type: { type: String, enum: ['title', 'section', 'heading', 'label', 'image'], required: true },
         imageUrl: { type: String, maxlength: MAX_MENU_PICTURE_LENGTH },
+        sectionImage: { type: new Schema({ url: { type: String, maxlength: 200_000, required: true }, alt: { type: String, maxlength: 160, required: true } }, { _id: false }), default: undefined },
         source: { type: new Schema({
             imageId: { type: String, required: true }, box: { type: [Number], required: true }, headingBox: { type: [Number], default: undefined },
             originalText: { type: String, maxlength: 160 }, originalProductIds: [String], originalPrices: [Number], pricePrefix: { type: String, maxlength: 8 },
