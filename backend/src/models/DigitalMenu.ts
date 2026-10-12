@@ -42,7 +42,9 @@ const DigitalMenuSchema = new Schema<IDigitalMenu>({
         source: { type: new Schema({
             imageId: { type: String, required: true }, box: { type: [Number], required: true }, headingBox: { type: [Number], default: undefined },
             originalText: { type: String, maxlength: 160 }, originalProductIds: [String], originalPrices: [Number], pricePrefix: { type: String, maxlength: 8 },
+            templateOnly: { type: Boolean, default: undefined },
         }, { _id: false }), default: undefined },
+        headingStyle: { type: new Schema({ backgroundColor: { type: String, match: /^#[0-9a-f]{6}$/i }, color: { type: String, match: /^#[0-9a-f]{6}$/i }, align: { type: String, enum: ['left', 'center', 'right'] } }, { _id: false }), default: undefined },
         text: { type: String, trim: true, maxlength: 500 },
         fontSize: { type: Number, min: 10, max: 96, required: true },
         color: { type: String, match: /^#[0-9a-f]{6}$/i, required: true },

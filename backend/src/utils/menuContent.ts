@@ -4,6 +4,7 @@ export interface MenuBlock {
     text: string;
     imageUrl?: string;
     source?: PictureSectionSource;
+    headingStyle?: { backgroundColor: string; color: string; align: 'left' | 'center' | 'right' };
     fontSize: number;
     color: string;
     align: 'left' | 'center' | 'right';
@@ -13,7 +14,7 @@ export interface MenuBlock {
 }
 
 export type PictureBox = [number, number, number, number];
-export type PictureSectionSource = { imageId: string; box: PictureBox; headingBox?: PictureBox; originalText: string; originalProductIds: string[]; originalPrices: number[]; pricePrefix?: string };
+export type PictureSectionSource = { imageId: string; box: PictureBox; headingBox?: PictureBox; originalText: string; originalProductIds: string[]; originalPrices: number[]; pricePrefix?: string; templateOnly?: boolean };
 export const validPictureBox = (value: unknown): value is PictureBox => Array.isArray(value) && value.length === 4 && value.every(edge => typeof edge === 'number' && Number.isFinite(edge) && edge >= 0 && edge <= 1000) && value[2] > value[0] && value[3] > value[1];
 
 function parsePictureSource(value: unknown): PictureSectionSource | null {
@@ -25,7 +26,8 @@ function parsePictureSource(value: unknown): PictureSectionSource | null {
     if (!Array.isArray(source.originalProductIds) || !Array.isArray(source.originalPrices) || source.originalProductIds.length > 200 || source.originalProductIds.length !== source.originalPrices.length) return null;
     if (source.originalProductIds.some(id => typeof id !== 'string' || !id || id.length > 160) || new Set(source.originalProductIds).size !== source.originalProductIds.length || source.originalPrices.some(price => typeof price !== 'number' || !Number.isFinite(price * 100) || price < 0)) return null;
     if (source.pricePrefix !== undefined && (typeof source.pricePrefix !== 'string' || source.pricePrefix.length > 8)) return null;
-    return { imageId: source.imageId, box: source.box, originalText: source.originalText, originalProductIds: source.originalProductIds as string[], originalPrices: source.originalPrices as number[], ...(source.headingBox ? { headingBox: source.headingBox as PictureBox } : {}), ...(source.pricePrefix !== undefined ? { pricePrefix: source.pricePrefix as string } : {}) };
+    if (source.templateOnly !== undefined && typeof source.templateOnly !== 'boolean') return null;
+    return { imageId: source.imageId, box: source.box, originalText: source.originalText, originalProductIds: source.originalProductIds as string[], originalPrices: source.originalPrices as number[], ...(source.headingBox ? { headingBox: source.headingBox as PictureBox } : {}), ...(source.pricePrefix !== undefined ? { pricePrefix: source.pricePrefix as string } : {}), ...(source.templateOnly !== undefined ? { templateOnly: source.templateOnly as boolean } : {}) };
 }
 
 // A picture block shows an uploaded menu page as-is; its text is the picture's description.
@@ -51,6 +53,12 @@ export const parseMenuContent = (value: unknown, productIds: string[], allowEmpt
         if (!['title', 'section', 'heading', 'label', 'image'].includes(String(block.type))) return null;
         const source = block.source === undefined ? undefined : block.type === 'section' ? parsePictureSource(block.source) : null;
         if (source === null) return null;
+        let headingStyle: MenuBlock['headingStyle'];
+        if (block.headingStyle !== undefined) {
+            const style = block.headingStyle as Record<string, unknown>;
+            if (block.type !== 'section' || !style || typeof style !== 'object' || Array.isArray(style) || ![style.backgroundColor, style.color].every(color => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) || !['left', 'center', 'right'].includes(String(style.align))) return null;
+            headingStyle = { backgroundColor: style.backgroundColor as string, color: style.color as string, align: style.align as 'left' | 'center' | 'right' };
+        }
         if (block.type === 'image' ? typeof block.imageUrl !== 'string' || block.imageUrl.length > MAX_MENU_PICTURE_LENGTH || !MENU_PICTURE.test(block.imageUrl) || ++pictures > MAX_MENU_PICTURES : block.imageUrl !== undefined) return null;
         if (block.type === 'title') { if (hasTitle) return null; hasTitle = true; }
         if (typeof block.text !== 'string' || (!allowEmptyText && !block.text.trim()) || block.text.length > (block.type === 'label' ? 500 : 160)) return null;
@@ -68,7 +76,7 @@ export const parseMenuContent = (value: unknown, productIds: string[], allowEmpt
             items.push(id);
         }
         ids.add(block.id);
-        result.push({ id: block.id, type: block.type as MenuBlock['type'], text: block.text.trim(), fontSize: block.fontSize, color: block.color, align: block.align as MenuBlock['align'], productIds: items, ...(source ? { source } : {}), ...(block.type === 'image' ? { imageUrl: block.imageUrl as string } : {}), ...(block.page !== undefined ? { page: block.page as number } : {}), ...(block.span !== undefined ? { span: block.span as MenuBlock['span'] } : {}) });
+        result.push({ id: block.id, type: block.type as MenuBlock['type'], text: block.text.trim(), fontSize: block.fontSize, color: block.color, align: block.align as MenuBlock['align'], productIds: items, ...(source ? { source } : {}), ...(headingStyle ? { headingStyle } : {}), ...(block.type === 'image' ? { imageUrl: block.imageUrl as string } : {}), ...(block.page !== undefined ? { page: block.page as number } : {}), ...(block.span !== undefined ? { span: block.span as MenuBlock['span'] } : {}) });
     }
     if (result.some(block => block.source && !result.some(image => image.id === block.source!.imageId && image.type === 'image' && (image.page ?? 1) === (block.page ?? 1)))) return null;
     return result;
