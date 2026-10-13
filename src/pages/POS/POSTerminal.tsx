@@ -57,6 +57,7 @@ import useAppCurrency from '../../hooks/useAppCurrency';
 import api from '../../api/axios';
 import { getRegionalIdLabel } from '../../lib/regional';
 import { DEFAULT_APP_SETTINGS } from '../../features/settings/settingsSlice';
+import { hasInstallmentAccess } from '../../lib/screenPermissions';
 import DocumentBanner from '../../components/Common/DocumentBanner';
 import InvoiceLetterhead from '../../components/Common/InvoiceLetterhead';
 import InvoiceItemsTable from '../../components/Common/InvoiceItemsTable';
@@ -115,7 +116,7 @@ const POSTerminal: React.FC = () => {
     const appSettings = app || DEFAULT_APP_SETTINGS;
     const { formatCurrency, currencySymbol } = useAppCurrency();
     const canOverridePrice = user?.role === 'super_admin' || user?.role === 'admin';
-    const canAccessInstallments = user?.role === 'super_admin' || Boolean(appSettings.installmentsEnabled && user?.installmentAccess);
+    const canAccessInstallments = hasInstallmentAccess(user, appSettings.installmentsEnabled);
     const regionalIdLabel = getRegionalIdLabel(country);
     const taxRate = Number(appSettings.salesTaxRate || 0) / 100;
     const taxLabel = `Tax (${Number(appSettings.salesTaxRate || 0).toLocaleString()}%)`;

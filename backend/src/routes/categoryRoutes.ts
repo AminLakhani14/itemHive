@@ -10,7 +10,7 @@ const defaults = ['Snacks & Candy', 'Gum & Mints', 'Health & Personal', 'Accesso
 const clean = (value: unknown) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
 const router = Router();
 router.use(protect);
-router.get('/', requireScreenAccess('inventory', 'inventory_categories', 'inventory_add', 'inventory_import', 'pos', 'orders'), async (req: AuthRequest, res) => {
+router.get('/', requireScreenAccess('inventory', 'inventory_categories', 'inventory_add', 'inventory_import', 'pos', 'orders', 'digital_menus'), async (req: AuthRequest, res) => {
     try {
         const [saved, existing] = await Promise.all([
             Category.find({ businessId: getTenantObjectId(req.user!) }).lean(),

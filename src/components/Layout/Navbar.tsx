@@ -36,7 +36,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { buildNotifications, type InstallmentNotificationPlan, type NotificationItem } from '../../lib/notifications';
 import type { AppDispatch } from '../../store';
-import { hasScreenAccess } from '../../lib/screenPermissions';
+import { hasInstallmentAccess, hasScreenAccess } from '../../lib/screenPermissions';
 import { useLogoPlate } from '../../lib/logoVisibility';
 
 interface NavbarProps {
@@ -85,7 +85,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     const { orders } = useSelector((state: RootState) => state.orders);
     const { products } = useSelector((state: RootState) => state.inventory);
     const { notifications, app } = useSelector((state: RootState) => state.settings);
-    const canAccessInstallments = (user?.role === 'super_admin' || Boolean(app?.installmentsEnabled && user?.installmentAccess))
+    const canAccessInstallments = hasInstallmentAccess(user, app?.installmentsEnabled)
         && hasScreenAccess(user, 'notifications');
     const canAccessNotes = hasScreenAccess(user, 'notes');
     const canAccessNotifications = hasScreenAccess(user, 'notifications');

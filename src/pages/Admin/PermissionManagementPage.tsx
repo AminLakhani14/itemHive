@@ -198,7 +198,7 @@ const PermissionManagementPage: React.FC = () => {
                                 </Stack>
                             </Stack>
                             <Alert severity="info" sx={{ my: 2.5 }}>
-                                Changes apply to this Admin only. Their direct routes and protected API requests will be denied after saving.
+                                Selected screens take priority over separate account access settings. Unselected screens are denied in direct routes and protected API requests.
                             </Alert>
                             <Stack spacing={2.5}>
                                 {groups.map(([group, permissions]) => (

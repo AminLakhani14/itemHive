@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import Business from '../models/Business';
-import { normalizeRole } from '../utils/accessControl';
+import { getDigitalMenuAccess, hasExplicitScreenPermission, normalizeRole } from '../utils/accessControl';
 import { ensureUserBusiness, getCachedAppSettingsForTenant } from '../utils/tenancy';
 import type { AdminScreenPermission } from '../utils/screenPermissions';
 
@@ -86,9 +86,9 @@ const attachUserFromToken = async (req: AuthRequest) => {
         name: user.name,
         isActive: user.isActive,
         isVisible: user.isVisible,
-        installmentAccess: normalizedRole === 'super_admin' || Boolean(user.installmentAccess),
-        discountAccess: normalizedRole === 'super_admin' || Boolean(user.discountAccess),
-        digitalMenuAccess: normalizedRole === 'super_admin' ? 'pos' : user.digitalMenuAccess || 'none',
+        installmentAccess: normalizedRole === 'super_admin' || hasExplicitScreenPermission(user, 'installments') || Boolean(user.installmentAccess),
+        discountAccess: normalizedRole === 'super_admin' || hasExplicitScreenPermission(user, 'settings') || Boolean(user.discountAccess),
+        digitalMenuAccess: getDigitalMenuAccess(user),
         screenPermissions: user.screenPermissions == null ? null : [...user.screenPermissions],
         userCreationLimit: user.userCreationLimit ?? 0,
         businessId: String(business._id),
@@ -139,7 +139,7 @@ export const authorize = (...roles: string[]) => {
 };
 
 export const requireInstallmentAccess = async (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (req.user?.role === 'super_admin') {
+    if (req.user?.role === 'super_admin' || hasExplicitScreenPermission(req.user, 'installments')) {
         next();
         return;
     }

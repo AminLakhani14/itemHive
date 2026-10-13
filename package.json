@@ -11,6 +11,7 @@
     "test:menu-ai": "node --test scripts/test-menu-ai.mjs",
     "test:picture-menu": "node --test scripts/test-picture-menu.mjs",
     "test:auth": "node --test scripts/test-auth.mjs",
+    "test:permissions": "npm --prefix backend run build && node --test scripts/test-screen-permissions.mjs backend/dist/utils/digitalMenuAccess.test.js",
     "test:api-url": "node --test scripts/test-api-url.mjs"
   },
   "dependencies": {

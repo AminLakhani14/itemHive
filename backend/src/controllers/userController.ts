@@ -431,7 +431,7 @@ export const updateUserCreationLimit = async (req: AuthRequest, res: Response) =
 export const getAdminPermissionAssignments = async (_req: AuthRequest, res: Response) => {
     try {
         const admins = await User.find({ role: 'admin' })
-            .select('name email role isActive businessId screenPermissions')
+            .select('name email role isActive businessId screenPermissions digitalMenuAccess')
             .sort({ name: 1, email: 1 });
 
         return res.json(await serializeUsersWithBusinessNames(admins));

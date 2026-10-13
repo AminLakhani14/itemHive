@@ -28,6 +28,7 @@ import api from '../../api/axios';
 import type { RootState } from '../../store';
 import useAppCurrency from '../../hooks/useAppCurrency';
 import { DEFAULT_APP_SETTINGS } from '../../features/settings/settingsSlice';
+import { hasInstallmentAccess } from '../../lib/screenPermissions';
 import { printElement } from '../../lib/printReceipt';
 import { shiftReportPrintCss } from '../../lib/shiftReportPrintCss';
 import { downloadShiftReportPdf } from '../../lib/shiftReportPdf';
@@ -76,8 +77,7 @@ const POSShiftReportsPage: React.FC = () => {
     const { user } = useSelector((state: RootState) => state.auth);
     const { app } = useSelector((state: RootState) => state.settings);
     const appSettings = app || DEFAULT_APP_SETTINGS;
-    const canAccessInstallments = user?.role === 'super_admin'
-        || Boolean(appSettings.installmentsEnabled && user?.installmentAccess);
+    const canAccessInstallments = hasInstallmentAccess(user, appSettings.installmentsEnabled);
     const [currentShift, setCurrentShift] = React.useState<POSShift | null>(null);
     const [history, setHistory] = React.useState<POSShift[]>([]);
     const [liveReport, setLiveReport] = React.useState<ShiftReport | null>(null);

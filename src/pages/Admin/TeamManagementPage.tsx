@@ -44,7 +44,7 @@ import type { BusinessType } from '../../types/businessType';
 import type { User, UserRole } from '../../features/auth/authSlice';
 import api from '../../api/axios';
 import CreateLoginDialog, { type LoginTarget } from '../../components/Employees/CreateLoginDialog';
-import { hasScreenAccess } from '../../lib/screenPermissions';
+import { hasExplicitScreenPermission, hasScreenAccess } from '../../lib/screenPermissions';
 import { getInitials } from '../../lib/employees';
 
 const EmployeeProfilePage = React.lazy(() => import('../Employees/EmployeeProfilePage'));
@@ -598,9 +598,9 @@ const TeamManagementPage: React.FC = () => {
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
                                 <FormControlLabel label="Active" control={<Switch checked={Boolean(settingsUser.isActive)} disabled={!canManageSettings || settingsBusy} onChange={(_, checked) => handleStatusChange(settingsUser, { isActive: checked })} />} />
                                 <FormControlLabel label="Visible" control={<Switch checked={Boolean(settingsUser.isVisible)} disabled={!canManageSettings || settingsBusy} onChange={(_, checked) => handleStatusChange(settingsUser, { isVisible: checked })} />} />
-                                <FormControlLabel label="Installments" control={<Switch checked={Boolean(settingsUser.installmentAccess)} disabled={!canManageSettings || settingsBusy} onChange={(_, checked) => handleStatusChange(settingsUser, { installmentAccess: checked })} />} />
+                                <FormControlLabel label={hasExplicitScreenPermission(settingsUser, 'installments') ? 'Installments (enabled in Permissions)' : 'Installments'} control={<Switch checked={Boolean(settingsUser.installmentAccess)} disabled={!canManageSettings || settingsBusy || hasExplicitScreenPermission(settingsUser, 'installments')} onChange={(_, checked) => handleStatusChange(settingsUser, { installmentAccess: checked })} />} />
                                 <Box>
-                                    <FormControlLabel label="Discount Access" control={<Switch checked={Boolean(settingsUser.discountAccess)} disabled={!canManageSettings || settingsUser.role !== 'admin' || settingsBusy} onChange={(_, checked) => handleStatusChange(settingsUser, { discountAccess: checked })} />} />
+                                    <FormControlLabel label={hasExplicitScreenPermission(settingsUser, 'settings') ? 'Discount Access (enabled in Permissions)' : 'Discount Access'} control={<Switch checked={Boolean(settingsUser.discountAccess)} disabled={!canManageSettings || settingsUser.role !== 'admin' || settingsBusy || hasExplicitScreenPermission(settingsUser, 'settings')} onChange={(_, checked) => handleStatusChange(settingsUser, { discountAccess: checked })} />} />
                                     {settingsUser.role !== 'admin' && <Typography variant="caption" color="text.secondary" display="block">Managed on the business admin account.</Typography>}
                                 </Box>
                             </Box>
@@ -611,7 +611,7 @@ const TeamManagementPage: React.FC = () => {
                                 {(settingsUser.businessTypeId || settingsUser.restaurantEnabled) && !businessTypes.some((type) => type.id === (settingsUser.businessTypeId || 'restaurant')) && <MenuItem value={settingsUser.businessTypeId || 'restaurant'} disabled>{settingsUser.restaurantEnabled ? 'Restaurant / KOT' : 'Selected business type'}</MenuItem>}
                             </TextField>
                             <Divider />
-                            <TextField select fullWidth label="Digital Menu Access" value={settingsUser.digitalMenuAccess || 'none'} disabled={!canManageSettings || settingsBusy} onChange={(event) => handleStatusChange(settingsUser, { digitalMenuAccess: event.target.value as 'none' | 'menu' | 'pos' })} helperText={settingsUser.role === 'super_admin' ? 'Assigned to admin and user accounts.' : 'Changes are saved automatically.'}>
+                            <TextField select fullWidth label="Digital Menu Access" value={settingsUser.digitalMenuAccess || 'none'} disabled={!canManageSettings || settingsBusy || (settingsUser.role === 'admin' && settingsUser.screenPermissions != null)} onChange={(event) => handleStatusChange(settingsUser, { digitalMenuAccess: event.target.value as 'none' | 'menu' | 'pos' })} helperText={settingsUser.role === 'admin' && settingsUser.screenPermissions != null ? 'Access is controlled in Permission Management.' : settingsUser.role === 'super_admin' ? 'Assigned to admin and user accounts.' : 'Changes are saved automatically.'}>
                                 <MenuItem value="none">No access</MenuItem>
                                 <MenuItem value="menu">Menu only — manage and show QR menus</MenuItem>
                                 <MenuItem value="pos">Menu + Add to POS — send table bills to billing</MenuItem>

@@ -42,7 +42,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../store';
 import { toggleSidebar } from '../../features/theme/themeSlice';
-import { hasScreenAccess, type ScreenPermission } from '../../lib/screenPermissions';
+import { getDigitalMenuAccess, hasInstallmentAccess, hasScreenAccess, type ScreenPermission } from '../../lib/screenPermissions';
 import { useLogoPlate } from '../../lib/logoVisibility';
 
 const drawerWidth = 260;
@@ -83,7 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
     const logoPlate = useLogoPlate(logo, sidebarColor || theme.palette.background.paper, [theme.palette.background.default]);
     const currentWidth = isSidebarCollapsed ? collapsedWidth : drawerWidth;
     const currentRole = user?.role || 'user';
-    const canAccessInstallments = user?.role === 'super_admin' || Boolean(app?.installmentsEnabled && user?.installmentAccess);
+    const canAccessInstallments = hasInstallmentAccess(user, app?.installmentsEnabled);
 
     const menuItems: Array<{ text: string; icon: React.ReactNode; path: string; roles: string[]; permission?: ScreenPermission; requiresInstallmentAccess?: boolean; requiresDigitalMenuAccess?: boolean; requiresSignupApproval?: boolean }> = [
         { text: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/', roles: ['super_admin', 'admin', 'user'], permission: 'dashboard' },
@@ -200,7 +200,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                         .filter(item => item.roles.includes(currentRole)
                             && (!item.permission || hasScreenAccess(user, item.permission))
                             && (!item.requiresInstallmentAccess || canAccessInstallments)
-                            && (!item.requiresDigitalMenuAccess || currentRole === 'super_admin' || user?.digitalMenuAccess !== 'none')
+                            && (!item.requiresDigitalMenuAccess || getDigitalMenuAccess(user) !== 'none')
                             && (!item.requiresSignupApproval || !app?.autoRegistrationEnabled))
                         .map((item) => {
                             const isActive = location.pathname === item.path || (['/employees', '/digital-menus'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
