@@ -1,3 +1,4 @@
+import { menuItemStyle, menuPriceStyle, modernMenu } from './menuAppearance';
 import React from 'react';
 import { Alert, Box, Button, CircularProgress, IconButton, Paper, Stack, Typography, alpha } from '@mui/material';
 import { CheckCircle2, ChevronRight, Minus, Plus, UtensilsCrossed } from 'lucide-react';
@@ -5,10 +6,12 @@ import { useParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import api from '../../api/axios';
 import MenuContent from './MenuContentView';
+import MenuDealsSection from './MenuDealsSection';
+import { MenuItemDetails } from './MenuPageContent';
 import type { MenuBlock } from './menuContent';
 import { getMenuDesign, contrastingText, menuFont, type MenuDesign } from './menuTemplates';
 
-type Item = { id: string; name: string; category?: string; salePrice?: number; price?: number; imageUrl?: string };
+type Item = { id: string; name: string; category?: string; salePrice?: number; price?: number; imageUrl?: string; description?: string };
 type Menu = { name: string; tableName: string; menuType?: 'menu' | 'deal'; productIds?: string[]; orderingEnabled?: boolean; design?: MenuDesign; content?: MenuBlock[]; pageCount?: number };
 type Deal = { id: string; name: string; productIds: string[]; dealPrice: number };
 const errorMessage = (error: unknown, fallback: string) => isAxiosError<{ message?: string }>(error) ? error.response?.data?.message || fallback : fallback;
@@ -45,10 +48,25 @@ const PublicMenuPage: React.FC = () => {
     const itemGroups = categoryGroups;
     const renderMenuItem = (item: Item) => {
                     const quantity = cart[item.id] || 0;
-                    return <Box key={item.id} sx={{ minHeight: 30, display: 'flex', alignItems: 'center', gap: .75, borderBottom: '1px solid', borderColor: quantity ? design.accentColor : borderColor, bgcolor: quantity ? alpha(design.accentColor, .08) : 'transparent' }}>
-                        <Typography sx={{ overflowWrap: 'anywhere', minWidth: 0, flex: 1, fontSize: 14, lineHeight: 1.3 }}>{item.name}</Typography><Typography sx={{ flexShrink: 0, fontSize: 14, fontWeight: 700 }}>Rs. {item.salePrice ?? item.price ?? 0}</Typography>
+                    return <Box key={item.id} sx={{ ...menuItemStyle(design), display: 'flex', alignItems: 'center', gap: .75, borderColor: quantity ? design.accentColor : borderColor, bgcolor: quantity ? alpha(design.accentColor, .08) : 'transparent' }}>
+                        <MenuItemDetails product={item} design={design} /><Typography sx={menuPriceStyle(design)}>Rs. {item.salePrice ?? item.price ?? 0}</Typography>
                         {canOrder && (quantity ? <Stack direction="row" alignItems="center" spacing={0} sx={{ border: '1px solid', borderColor: alpha(design.accentColor,.4), borderRadius: 1.5 }}><IconButton aria-label={`Remove one ${item.name}`} size="small" onClick={() => change(item.id, -1)} sx={{ p: .45, color: design.accentColor }}><Minus size={14} /></IconButton><Typography fontWeight={900} sx={{ minWidth: 16, textAlign: 'center', fontSize: '.85rem' }}>{quantity}</Typography><IconButton aria-label={`Add one ${item.name}`} size="small" onClick={() => change(item.id, 1)} sx={{ p: .45, color: design.accentColor }}><Plus size={14} /></IconButton></Stack> : <IconButton aria-label={`Add ${item.name}`} onClick={() => change(item.id, 1)} sx={{ width: 30, height: 30, color: onAccent, bgcolor: design.accentColor, '&:hover': { bgcolor: design.accentColor, filter: 'brightness(.9)' } }}><Plus size={16} /></IconButton>)}
                     </Box>;
+    };
+    const renderMenuDeal = (deal: Deal) => {
+        const quantity = dealCart[deal.id] || 0;
+        const included = deal.productIds.map(id => items.find(item => item.id === id));
+        const available = included.length > 0 && included.every(Boolean);
+        return <Box sx={{ ...menuItemStyle(design), py: modernMenu(design) ? 1.5 : .75, borderColor: quantity ? design.accentColor : borderColor, bgcolor: quantity ? alpha(design.accentColor, .08) : 'transparent' }}>
+            <Stack direction="row" alignItems="center" gap={1}>
+                <Typography sx={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, overflowWrap: 'anywhere' }}>{deal.name}</Typography>
+                <Typography sx={menuPriceStyle(design)}>Rs. {deal.dealPrice.toLocaleString('en-PK', { maximumFractionDigits: 2 })}</Typography>
+                {!available ? <Typography variant="caption" color="error">Unavailable</Typography> : canOrder && (quantity ? <Stack direction="row" alignItems="center" sx={{ border: '1px solid', borderColor: alpha(design.accentColor, .4), borderRadius: 1.5 }}>
+                    <IconButton aria-label={`Remove one ${deal.name}`} size="small" sx={{ color: design.accentColor }} onClick={() => changeDeal(deal.id, -1)}><Minus size={14} /></IconButton><Typography fontWeight={900}>{quantity}</Typography><IconButton aria-label={`Add one ${deal.name}`} size="small" sx={{ color: design.accentColor }} onClick={() => changeDeal(deal.id, 1)}><Plus size={14} /></IconButton>
+                </Stack> : <IconButton aria-label={`Add deal ${deal.name}`} onClick={() => changeDeal(deal.id, 1)} sx={{ width: 30, height: 30, color: onAccent, bgcolor: design.accentColor, '&:hover': { bgcolor: design.accentColor, filter: 'brightness(.9)' } }}><Plus size={16} /></IconButton>)}
+            </Stack>
+            <Typography sx={{ fontSize: 12, lineHeight: 1.4, opacity: .75 }}>{included.map(item => item?.name || 'Unavailable item').join(' + ')}</Typography>
+        </Box>;
     };
     return <Box sx={{ minHeight: '100dvh', bgcolor: design.backgroundColor, pb: canOrder ? { xs: 13, sm: 14 } : 3, color: design.textColor }}>
         <Box sx={{ position: 'relative', overflow: 'hidden', px: { xs: 2, sm: 3 }, pt: { xs: 2.25, sm: 3 }, pb: { xs: 4, sm: 5 }, color: contrastingText(design.headerColor), background: `linear-gradient(135deg, ${design.headerColor}, ${design.headerColor}ee)` }}>
@@ -64,35 +82,14 @@ const PublicMenuPage: React.FC = () => {
             <Paper elevation={0} sx={{ p: { xs: 1.6, sm: 2 }, borderRadius: { xs: 3, sm: 4 }, bgcolor: design.surfaceColor, color: design.textColor, border: '1px solid', borderColor, boxShadow: '0 12px 34px rgba(42,45,32,.08)' }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="end" sx={{ mb: 1.5 }}><Box><Typography variant="overline" sx={{ color: alpha(design.textColor, .65), letterSpacing: 1.1, fontWeight: 800 }}>{canOrder ? 'ORDER FROM THE MENU' : 'VIEW OUR MENU'}</Typography><Typography variant="h6" fontWeight={900} sx={{fontFamily:menuFont(design)}}>What are you craving?</Typography></Box>{canOrder && <Typography variant="caption" sx={{color:alpha(design.textColor,.65)}}>Tap + to add</Typography>}</Stack>
                 <Stack spacing={{ xs: 2.5, sm: 3 }}>
-                    {menu.content?.length ? <MenuContent content={menu.content.map(block => block.type === 'title' ? { ...block, text: menu.name } : block)} products={regularItems} design={design} pageCount={menu.pageCount} renderProduct={renderMenuItem} deals={deals} /> : itemGroups.map(group => <Box key={group.category} component="section" aria-labelledby={`menu-category-${group.category.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>
+                    {menu.content?.length ? <MenuContent content={menu.content.map(block => block.type === 'title' ? { ...block, text: menu.name } : block)} products={regularItems} design={design} pageCount={menu.pageCount} renderProduct={renderMenuItem} deals={deals} renderDeal={renderMenuDeal} showPrint={Boolean(previewId)} /> : itemGroups.map(group => <Box key={group.category} component="section" aria-labelledby={`menu-category-${group.category.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>
                         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.15 }}>
                             <Typography id={`menu-category-${group.category.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`} component="h2" sx={{ color: design.accentColor, fontSize: { xs: '1rem', sm: '1.12rem' }, fontWeight: 900, fontFamily: menuFont(design), letterSpacing: '.02em', textTransform: 'uppercase' }}>{group.category}</Typography>
                             <Box sx={{ height: 1, flex: 1, bgcolor: borderColor }} />
                         </Stack>
                         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0 }}>{group.items.map(renderMenuItem)}</Box>
                     </Box>)}
-                    {deals.length > 0 && <Box component="section" aria-labelledby="menu-deals" sx={{ order: -1 }}>
-                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.15 }}><Typography id="menu-deals" component="h2" sx={{ color: design.accentColor, fontSize: '1.12rem', fontWeight: 900 }}>OUR DEALS</Typography><Box sx={{ height: 1, flex: 1, bgcolor: borderColor }} /></Stack>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5 }}>
-                            {deals.map(deal => {
-                                const quantity = dealCart[deal.id] || 0;
-                                const included = deal.productIds.map(id => items.find(item => item.id === id));
-                                const available = included.length > 0 && included.every(Boolean);
-                                return <Box key={deal.id} sx={{ p: 1.5, border: '1px solid', borderColor: quantity ? design.accentColor : borderColor, borderRadius: 2.5, bgcolor: alpha(design.accentColor, .06) }}>
-                                    <Typography component="h3" fontWeight={900} sx={{ fontSize: '1rem' }}>{deal.name}</Typography>
-                                    <Stack spacing={.75} sx={{ my: 1.25 }}>{included.map((item, index) => <Stack key={deal.productIds[index]} direction="row" spacing={1} alignItems="center">
-                                        <Typography variant="body2">1 × {item?.name || 'Unavailable item'}</Typography>
-                                    </Stack>)}</Stack>
-                                    <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} sx={{ pt: 1, borderTop: '1px solid', borderColor }}>
-                                        <Box><Typography sx={{ color: design.accentColor, fontWeight: 900 }}>Rs. {deal.dealPrice.toLocaleString('en-PK', { maximumFractionDigits: 2 })}</Typography><Typography variant="caption" sx={{ color: alpha(design.textColor,.7) }}>For the whole deal</Typography></Box>
-                                        {!available ? <Typography variant="caption" color="error">Unavailable</Typography> : canOrder && (quantity ? <Stack direction="row" alignItems="center" sx={{ border: '1px solid', borderColor: alpha(design.accentColor,.4), borderRadius: 1.5 }}>
-                                            <IconButton aria-label={`Remove one ${deal.name}`} size="small" sx={{color:design.accentColor}} onClick={() => changeDeal(deal.id, -1)}><Minus size={14} /></IconButton><Typography fontWeight={900}>{quantity}</Typography><IconButton aria-label={`Add one ${deal.name}`} size="small" sx={{color:design.accentColor}} onClick={() => changeDeal(deal.id, 1)}><Plus size={14} /></IconButton>
-                                        </Stack> : <Button size="small" variant="contained" startIcon={<Plus size={15} />} onClick={() => changeDeal(deal.id, 1)} sx={{ color: onAccent, bgcolor: design.accentColor, '&:hover': { bgcolor: design.accentColor, filter: 'brightness(.9)' } }}>Add deal</Button>)}
-                                    </Stack>
-                                </Box>;
-                            })}
-                        </Box>
-                    </Box>}
+                    {!menu.content?.length && <MenuDealsSection deals={deals} products={items} design={design} renderDeal={renderMenuDeal} />}
                 </Stack>
             </Paper>
         </Box>

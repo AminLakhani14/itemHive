@@ -1,0 +1,159 @@
+{
+  "name": "",
+  "design": {
+    "templateId": "custom",
+    "visualStyle": "cards",
+    "sectionColumns": 2,
+    "fontStyle": "sans",
+    "decoration": "glow",
+    "backgroundColor": "#ffffff",
+    "textColor": "#1a1a1a",
+    "accentColor": "#a06707",
+    "headerColor": "#1e293b",
+    "surfaceColor": "#f8fafc"
+  },
+  "pages": [
+    [
+      {
+        "align": "left",
+        "color": "rgb(26, 26, 26)",
+        "fontSize": "40px",
+        "id": "adce57b1-2e9e-4546-860d-031676054ba1",
+        "items": [],
+        "page": 1,
+        "span": "span 6",
+        "text": "Your menu name"
+      },
+      {
+        "align": "left",
+        "color": "rgb(160, 103, 7)",
+        "fontSize": "28px",
+        "id": "962d8e0b-f9f2-47d6-88c0-b5bcdd16ea2f",
+        "items": [
+          {
+            "id": "a7erdbxn6",
+            "name": "Cadbury Dairy Milk",
+            "price": "6"
+          },
+          {
+            "id": "7m1ycllpc",
+            "name": "Lays Cheese",
+            "price": "2"
+          },
+          {
+            "id": "uhwqiq62z",
+            "name": "Kitkat",
+            "price": "500"
+          },
+          {
+            "id": "trn26nlc4",
+            "name": "galaxy choclate",
+            "price": "120"
+          },
+          {
+            "id": "eokecl5ao",
+            "name": "Lays ",
+            "price": "100"
+          },
+          {
+            "id": "7a4w0w9hu",
+            "name": "kitkat",
+            "price": "230"
+          },
+          {
+            "id": "i735bl1dy",
+            "name": "candyland Bear Jelly",
+            "price": "15"
+          },
+          {
+            "id": "f097x75ts",
+            "name": "Burger",
+            "price": "100"
+          }
+        ],
+        "page": 1,
+        "span": "span 3",
+        "text": "Snacks & Candy"
+      },
+      {
+        "align": "left",
+        "color": "rgb(160, 103, 7)",
+        "fontSize": "28px",
+        "id": "5972c373-b60c-4406-9a9c-a137713d2cec",
+        "items": [
+          {
+            "id": "6tzev3g1o",
+            "name": "pepsi",
+            "price": "60"
+          },
+          {
+            "id": "mskx59ptuvctga",
+            "name": "Pepsi 1.5L",
+            "price": "180"
+          },
+          {
+            "id": "pxfdwi6my",
+            "name": "Sprite",
+            "price": "100"
+          },
+          {
+            "id": "owwx99vdn",
+            "name": "Fanta",
+            "price": "100"
+          },
+          {
+            "id": "626mtmpi9",
+            "name": "Coke",
+            "price": "150"
+          }
+        ],
+        "page": 1,
+        "span": "span 3",
+        "text": "Beverages"
+      },
+      {
+        "align": "left",
+        "color": "rgb(160, 103, 7)",
+        "fontSize": "28px",
+        "id": "3121ceb5-0810-4653-af15-bb4b8329cc61",
+        "items": [
+          {
+            "id": "mskx59ptbmelq8",
+            "name": "Fresh Milk 1L",
+            "price": "280"
+          },
+          {
+            "id": "wd0wx5zhc",
+            "name": "Bread",
+            "price": "80"
+          }
+        ],
+        "page": 1,
+        "span": "span 3",
+        "text": "Dairy & Bakery"
+      }
+    ],
+    [
+      {
+        "id": "1326c134-6ce7-4d5a-86b2-75d3c60a0f55",
+        "items": [],
+        "page": 2,
+        "text": "Dairy & Bakery"
+      }
+    ]
+  ],
+  "combos": [
+    {
+      "contents": "Burger + pepsi",
+      "id": "e2e98a2d-64e2-49e6-816f-8a19efc3f1c5",
+      "name": "Snack & Drink Combo",
+      "price": "140"
+    },
+    {
+      "contents": "Cadbury Dairy Milk + Fanta",
+      "id": "b6b6331d-3944-4795-b1c8-5d3a5213c12b",
+      "name": "Sweet Tooth Deal",
+      "price": "95"
+    }
+  ]
+}

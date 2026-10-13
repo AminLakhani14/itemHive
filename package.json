@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:menu-ai": "node --test scripts/test-menu-ai.mjs",
+    "test:picture-menu": "node --test scripts/test-picture-menu.mjs",
     "test:auth": "node --test scripts/test-auth.mjs",
     "test:api-url": "node --test scripts/test-api-url.mjs"
   },
@@ -23,6 +24,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.575.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-redux": "^9.2.0",

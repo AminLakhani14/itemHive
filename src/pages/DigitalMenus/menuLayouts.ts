@@ -30,7 +30,7 @@ export const createTemplatePage = (design: MenuDesign, name: string, page: numbe
         block('label', preset.eyebrow, 12, design.accentColor),
         block(page === 1 ? 'title' : 'heading', page === 1 ? name || 'Your menu name' : 'More from our menu', preset.titleSize, design.textColor),
         block('label', preset.subtitle, 16, design.textColor),
-        ...preset.sections.map(value => block('section', value.text, 26, design.accentColor, preset.sectionAlign ?? 'left', value.span)),
+        ...preset.sections.map(value => block('section', value.text, 26, design.accentColor, preset.sectionAlign ?? 'left', design.sectionColumns ? (6 / design.sectionColumns) as 2 | 3 | 6 : value.span)),
     ];
 };
 
@@ -38,7 +38,7 @@ export const createMenuLayout = (design: MenuDesign, name: string, productIds: s
     const preset = MENU_LAYOUTS[design.templateId];
     if (!preset) {
         const content = ensureMenuTitle([], name, design.textColor);
-        if (productIds.length) content.push({ ...newMenuBlock('section', design.accentColor, 'Menu items'), span: 6, productIds: [...productIds] });
+        if (productIds.length) content.push({ ...newMenuBlock('section', design.accentColor, 'Menu items'), span: (6 / (design.sectionColumns ?? 1)) as 2 | 3 | 6, productIds: [...productIds] });
         return content;
     }
     const content = Array.from({ length: pages }, (_, index) => createTemplatePage(design, name, index + 1)).flat();

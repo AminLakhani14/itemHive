@@ -18,7 +18,7 @@ import {
     Typography,
     alpha,
 } from '@mui/material';
-import { Clock3, FilePenLine, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import { Clock3, FilePenLine, Plus, QrCode, ShoppingBag, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import api from '../../api/axios';
@@ -27,6 +27,7 @@ import type { AppDispatch } from '../../store';
 import { clearCart } from '../../features/pos/posSlice';
 import useAppCurrency from '../../hooks/useAppCurrency';
 import type { OrderDraft } from '../../types/orderDraft';
+import { useOrderDrafts } from '../../hooks/useTableOrders';
 
 const getRequestErrorMessage = (error: unknown, fallback: string) =>
     (error as { response?: { data?: { message?: string } } }).response?.data?.message || fallback;
@@ -44,28 +45,10 @@ const OrderDraftsPage: React.FC = () => {
     const dispatch = useDispatch<AppDispatch>();
     const { formatCurrency } = useAppCurrency();
     const { app } = useSelector((state: RootState) => state.settings);
-    const [drafts, setDrafts] = React.useState<OrderDraft[]>([]);
-    const [loading, setLoading] = React.useState(true);
+    const { orders: drafts, loading, error: loadError, removeLocalDraft } = useOrderDrafts(true);
     const [error, setError] = React.useState('');
     const [deleting, setDeleting] = React.useState<OrderDraft | null>(null);
     const [deleteBusy, setDeleteBusy] = React.useState(false);
-
-    const loadDrafts = React.useCallback(async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const response = await api.get<OrderDraft[]>('/order-drafts');
-            setDrafts(response.data);
-        } catch (requestError: unknown) {
-            setError(getRequestErrorMessage(requestError, 'Order drafts could not be loaded.'));
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    React.useEffect(() => {
-        void loadDrafts();
-    }, [loadDrafts]);
 
     const getDraftTotal = (draft: OrderDraft) => {
         const subtotal = draft.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
@@ -88,7 +71,8 @@ const OrderDraftsPage: React.FC = () => {
         setDeleteBusy(true);
         try {
             await api.delete(`/order-drafts/${deleting._id}`);
-            setDrafts((current) => current.filter((draft) => draft._id !== deleting._id));
+            removeLocalDraft(deleting._id);
+            window.dispatchEvent(new Event('itemhive-order-drafts-changed'));
             setDeleting(null);
         } catch (requestError: unknown) {
             setError(getRequestErrorMessage(requestError, 'Order draft could not be deleted.'));
@@ -102,7 +86,7 @@ const OrderDraftsPage: React.FC = () => {
             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
                 <Box>
                     <Typography variant="h4" fontWeight={900}>Order Drafts</Typography>
-                    <Typography color="text.secondary">Continue incomplete POS orders and take payment when they are ready.</Typography>
+                    <Typography color="text.secondary">Review table QR orders and saved POS orders, then open them in POS for billing. Table orders appear automatically.</Typography>
                 </Box>
                 <Button variant="contained" startIcon={<Plus size={19} />} onClick={handleNewOrder} sx={{ borderRadius: 2.5, px: 2.5, py: 1.1, fontWeight: 800 }}>
                     New POS Order
@@ -110,6 +94,7 @@ const OrderDraftsPage: React.FC = () => {
             </Stack>
 
             {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+            {loadError && <Alert severity="warning" sx={{ mb: 2 }}>{loadError}</Alert>}
 
             {loading ? (
                 <Box sx={{ minHeight: 300, display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>
@@ -118,7 +103,7 @@ const OrderDraftsPage: React.FC = () => {
                     <CardContent>
                         <ShoppingBag size={48} style={{ opacity: 0.35 }} />
                         <Typography variant="h6" fontWeight={800} sx={{ mt: 1 }}>No saved drafts</Typography>
-                        <Typography color="text.secondary" sx={{ mb: 2 }}>Use Save as Draft from the POS cart to keep an order open.</Typography>
+                        <Typography color="text.secondary" sx={{ mb: 2 }}>Orders placed through table QR menus and drafts saved from POS will appear here.</Typography>
                         <Button variant="contained" onClick={handleNewOrder}>Open POS Terminal</Button>
                     </CardContent>
                 </Card>
@@ -131,6 +116,17 @@ const OrderDraftsPage: React.FC = () => {
                                     <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                                         <Box>
                                             <Typography variant="h6" fontWeight={900}>{draft.draftCode}</Typography>
+                                            {draft.digitalMenuTable?.trim() && (
+                                                <Stack spacing={0.5} sx={{ my: 1 }}>
+                                                    <Chip
+                                                        icon={<QrCode size={18} />}
+                                                        label={`Placed from ${draft.digitalMenuTable.trim()}`}
+                                                        color="warning"
+                                                        sx={{ alignSelf: 'flex-start', height: 'auto', fontSize: '1rem', fontWeight: 800, '& .MuiChip-label': { py: 0.75, whiteSpace: 'normal', overflowWrap: 'anywhere' } }}
+                                                    />
+                                                    <Typography variant="caption" color="text.secondary">Table QR order</Typography>
+                                                </Stack>
+                                            )}
                                             <Stack direction="row" spacing={0.75} alignItems="center" color="text.secondary">
                                                 <Clock3 size={14} />
                                                 <Typography variant="caption">Updated {new Date(draft.updatedAt).toLocaleString()}</Typography>
@@ -141,7 +137,7 @@ const OrderDraftsPage: React.FC = () => {
 
                                     <Stack spacing={0.8} sx={{ my: 2 }}>
                                         {draft.items.slice(0, 4).map((item) => (
-                                            <Stack key={item.productId} direction="row" justifyContent="space-between" spacing={2}>
+                                            <Stack key={`${item.productId}:${item.sizeId || ''}`} direction="row" justifyContent="space-between" spacing={2}>
                                                 <Typography variant="body2" noWrap>{item.quantity} × {item.productName}</Typography>
                                                 <Typography variant="body2" fontWeight={700}>{formatCurrency(item.quantity * item.unitPrice)}</Typography>
                                             </Stack>
@@ -162,7 +158,7 @@ const OrderDraftsPage: React.FC = () => {
                                 </CardContent>
                                 <CardActions sx={{ px: 2, pb: 2, pt: 0 }}>
                                     <Button fullWidth variant="contained" startIcon={<FilePenLine size={18} />} onClick={() => navigate(`/pos?draft=${draft._id}`)} sx={{ fontWeight: 800 }}>
-                                        Edit Order
+                                        {draft.digitalMenuTable?.trim() ? `Open ${draft.digitalMenuTable} in POS` : 'Edit Order'}
                                     </Button>
                                     <IconButton color="error" aria-label={`Delete ${draft.draftCode}`} onClick={() => setDeleting(draft)}>
                                         <Trash2 size={19} />

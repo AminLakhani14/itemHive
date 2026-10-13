@@ -65,6 +65,7 @@ import { buildInvoicePdfBlob, shareOrDownloadPdf } from '../../lib/invoicePdf';
 import { thermalInvoicePrintCss } from '../../lib/thermalPrintCss';
 import { printCheckoutCopies, printReceipt } from '../../lib/printReceipt';
 import type { OrderDraft } from '../../types/orderDraft';
+import TableOrdersPanel from '../../components/Orders/TableOrdersPanel';
 
 const productCardFallback = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><g fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M80 35 119 57v46l-39 22-39-22V57z"/><path d="m41 57 39 23 39-23M80 80v45M60 46l39 23v17"/></g></svg>')}`;
 import type { POSShift } from '../../types/posShift';
@@ -153,6 +154,9 @@ const POSTerminal: React.FC = () => {
     const [savingDraft, setSavingDraft] = useState(false);
     const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
     const [activeDraftCode, setActiveDraftCode] = useState('');
+    const [activeDraftTable, setActiveDraftTable] = useState('');
+    const [activeDraftUpdatedAt, setActiveDraftUpdatedAt] = useState('');
+    const [draftReloadVersion, setDraftReloadVersion] = useState(0);
     const loadedDraftRef = React.useRef<string | null>(null);
     // This is the last saved version of an open draft. It lets an update KOT
     // contain only the items (or additional quantities) newly sent to kitchen.
@@ -263,6 +267,7 @@ const POSTerminal: React.FC = () => {
             loadedDraftRef.current = null;
             setActiveDraftId(null);
             setActiveDraftCode('');
+            setActiveDraftTable('');
             return;
         }
         if (!productsLoaded || loadedDraftRef.current === requestedDraftId) return;
@@ -295,6 +300,8 @@ const POSTerminal: React.FC = () => {
                 setPendingMethod('cash');
                 setActiveDraftId(response.data._id);
                 setActiveDraftCode(response.data.draftCode);
+                setActiveDraftTable(response.data.digitalMenuTable?.trim() || '');
+                setActiveDraftUpdatedAt(response.data.updatedAt);
                 savedDraftItemsRef.current = response.data.items;
                 loadedDraftRef.current = requestedDraftId;
                 if (unavailableNames.length > 0) {
@@ -311,7 +318,7 @@ const POSTerminal: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [dispatch, navigate, products, productsLoaded, requestedDraftId]);
+    }, [dispatch, navigate, products, productsLoaded, requestedDraftId, draftReloadVersion]);
 
     React.useEffect(() => {
         if (!draftKot) return;
@@ -521,6 +528,7 @@ const POSTerminal: React.FC = () => {
                 // Keep the cart intact until saving succeeds so failures can
                 // be retried without losing edits or replacing another order.
                 const response = await api.put<OrderDraft>(`/order-drafts/${draftId}`, payload);
+                window.dispatchEvent(new Event('itemhive-order-drafts-changed'));
                 const savedQuantities = new Map(originalDraftItems.map((item) => [cartLineId(item.productId, item.sizeId), item.quantity]));
                 const addedItems = response.data.items.flatMap((item) => {
                     const addedQuantity = item.quantity - (savedQuantities.get(cartLineId(item.productId, item.sizeId)) || 0);
@@ -553,6 +561,7 @@ const POSTerminal: React.FC = () => {
             }
 
             const response = await api.post<OrderDraft>('/order-drafts', payload);
+            window.dispatchEvent(new Event('itemhive-order-drafts-changed'));
 
             if (isRestaurant) {
                 setDraftKot({
@@ -588,8 +597,10 @@ const POSTerminal: React.FC = () => {
         if (!activeDraftId) return;
         try {
             await api.delete(`/order-drafts/${activeDraftId}`);
+            window.dispatchEvent(new Event('itemhive-order-drafts-changed'));
             setActiveDraftId(null);
             setActiveDraftCode('');
+            setActiveDraftTable('');
             loadedDraftRef.current = null;
             navigate('/pos', { replace: true });
         } catch {
@@ -838,6 +849,7 @@ const POSTerminal: React.FC = () => {
 
     const handleCloseOrder = () => {
         if (paymentCommitPending) return;
+        setActiveDraftTable('');
         dispatch(clearCart());
         setOrderDone(false);
         setPrintingReceipt(false);
@@ -935,6 +947,12 @@ const POSTerminal: React.FC = () => {
         >
             {/* Left Side: Product Selection */}
             <Box inert={savingDraft} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+                <TableOrdersPanel compact activeDraftId={activeDraftId} activeDraftUpdatedAt={activeDraftUpdatedAt} confirmSwitch={cart.length > 0 && !orderDone} busy={savingDraft || confirmingPayment || paymentCommitPending} onOpenOrder={(draft) => {
+                    setOrderDone(false);
+                    loadedDraftRef.current = null;
+                    setDraftReloadVersion(version => version + 1);
+                    navigate(`/pos?draft=${draft._id}`);
+                }} />
                 <Paper sx={{ p: { xs: 1.25, sm: 1.5 }, mb: 1, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                     <TextField
                         fullWidth
@@ -1063,7 +1081,7 @@ const POSTerminal: React.FC = () => {
                         <Box sx={{ display: 'grid', placeItems: 'center', width: 38, height: 38, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12), color: 'primary.main' }}><ShoppingCart size={19} /></Box>
                         <Box>
                             <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ letterSpacing: '0.08em', fontSize: '0.62rem' }}>CHECKOUT</Typography>
-                            <Typography variant="subtitle1" fontWeight={850} lineHeight={1.15}>Current Order</Typography>
+                            <Typography variant="subtitle1" fontWeight={850} lineHeight={1.15}>{activeDraftTable ? `Order from ${activeDraftTable}` : 'Current Order'}</Typography>
                             {activeDraftCode && <Typography variant="caption" color="text.secondary">Editing {activeDraftCode}</Typography>}
                         </Box>
                     </Box>

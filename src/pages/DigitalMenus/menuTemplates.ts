@@ -8,8 +8,12 @@ export type MenuDesign = {
     layout: 'list' | 'grid';
     fontStyle: 'sans' | 'serif';
     showImages: boolean;
+    showDescriptions?: boolean;
     pageSize?: 'a4' | 'a5' | 'letter';
     orientation?: 'portrait' | 'landscape';
+    decoration?: 'none' | 'border' | 'corners' | 'dots' | 'glow';
+    visualStyle?: 'classic' | 'cards' | 'minimal' | 'editorial';
+    sectionColumns?: 1 | 2 | 3;
 };
 
 export type MenuTemplate = { name: string; description: string; design: MenuDesign };
@@ -38,9 +42,32 @@ export const PLAIN_MENU_DESIGN: MenuDesign = {
     backgroundColor: '#ffffff', surfaceColor: '#ffffff', textColor: '#20221f',
     layout: 'list', fontStyle: 'sans', showImages: false,
     pageSize: 'a4', orientation: 'portrait',
+    visualStyle: 'classic', sectionColumns: 1, decoration: 'none',
 };
-export const getMenuDesign = (design?: Partial<MenuDesign>): MenuDesign => ({ ...DEFAULT_MENU_DESIGN, ...design, showImages: false });
+export const getMenuDesign = (design?: Partial<MenuDesign>): MenuDesign => ({ ...DEFAULT_MENU_DESIGN, ...design });
 export const menuFont = (design: MenuDesign) => design.fontStyle === 'serif' ? 'Georgia, "Times New Roman", serif' : 'inherit';
+
+// Subtle decorations are shared by the builder, customer menu and print preview.
+export const menuDecoration = (design: MenuDesign) => {
+    const color = design.accentColor;
+    switch (design.decoration) {
+        case 'glow': return {
+            backgroundImage: `radial-gradient(ellipse at 100% 0%, ${color}18, transparent 45%), radial-gradient(ellipse at 0% 100%, ${color}0c, transparent 40%)`,
+        };
+        case 'border': return { outline: `2px solid ${color}`, outlineOffset: '-12px' };
+        case 'corners': return {
+            backgroundImage: `linear-gradient(${color}, ${color}), linear-gradient(${color}, ${color}), linear-gradient(${color}, ${color}), linear-gradient(${color}, ${color})`,
+            backgroundSize: '48px 3px, 3px 48px, 48px 3px, 3px 48px',
+            backgroundPosition: '12px 12px, 12px 12px, calc(100% - 12px) calc(100% - 12px), calc(100% - 12px) calc(100% - 12px)',
+            backgroundRepeat: 'no-repeat',
+        };
+        case 'dots': return {
+            backgroundImage: `radial-gradient(circle, ${color}30 1px, transparent 1px)`,
+            backgroundSize: '18px 18px',
+        };
+        default: return {};
+    }
+};
 export const contrastingText = (hex: string) => {
     const rgb = hex.replace('#', '');
     const luminance = [0, 2, 4].reduce((sum, offset, index) => sum + parseInt(rgb.slice(offset, offset + 2), 16) * [0.299, 0.587, 0.114][index], 0);

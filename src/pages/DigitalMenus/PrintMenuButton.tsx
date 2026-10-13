@@ -3,8 +3,9 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, 
 import { Printer } from 'lucide-react';
 import { MenuPageContent } from './MenuPageContent';
 import { menuPageCount, type MenuBlock, type MenuProduct } from './menuContent';
-import { menuPageDimensions, type MenuDesign } from './menuTemplates';
+import { menuDecoration, menuPageDimensions, type MenuDesign } from './menuTemplates';
 import type { MenuDeal } from './aiMenu';
+import MenuDealsSection from './MenuDealsSection';
 
 type Props = { content: MenuBlock[]; products: MenuProduct[]; design: MenuDesign; pageCount?: number; disabled?: boolean; deals?: MenuDeal[] };
 
@@ -46,8 +47,8 @@ function A4MenuPage({ content, products, design, page, deals = [] }: Props & { p
         <Typography className="menu-print-controls" variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: 'center' }}>Page {page} - A4 (210 x 297 mm)</Typography>
         {scales.content < .99 && <Alert className="menu-print-controls" severity="info" sx={{ mb: 1 }}>Page {page} is scaled to {Math.floor(scales.content * 100)}% to fit A4. Move items to another menu page to print larger text.</Alert>}
         <Box className="menu-print-paper-wrap" sx={{ width: dimensions.width * scales.view, height: dimensions.height * scales.view, mx: 'auto', position: 'relative' }}>
-            <Box className="menu-print-page" data-menu-print-page={page} data-width-mm="210" data-height-mm="297" sx={{ width: dimensions.width, height: dimensions.height, p: '32px', boxSizing: 'border-box', bgcolor: design.backgroundColor, color: design.textColor, transform: `scale(${scales.view})`, transformOrigin: 'top left', overflow: 'hidden', boxShadow: '0 2px 12px #00000020' }}>
-                <Box ref={body} data-menu-print-content sx={{ transform: `scale(${scales.content})`, transformOrigin: 'top center' }}><MenuPageContent content={content} products={products} design={design} page={page} print />{Boolean(deals.length) && <Box sx={{ mt: 3 }}><Typography sx={{ fontSize: 26, fontWeight: 800, color: design.accentColor, mb: 1 }}>Deals / combos</Typography>{deals.map(deal => <Box key={deal.id} sx={{ py: .75, borderBottom: 1, borderColor: `${design.textColor}30` }}><Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}><Typography fontWeight={600}>{deal.name}</Typography><Typography sx={{ whiteSpace: 'nowrap' }}>Rs. {deal.dealPrice.toLocaleString()}</Typography></Box></Box>)}</Box>}</Box>
+            <Box className="menu-print-page" data-menu-print-page={page} data-width-mm="210" data-height-mm="297" sx={{ width: dimensions.width, height: dimensions.height, p: '32px', boxSizing: 'border-box', bgcolor: design.backgroundColor, color: design.textColor, transform: `scale(${scales.view})`, transformOrigin: 'top left', overflow: 'hidden', boxShadow: '0 2px 12px #00000020', ...menuDecoration(design) }}>
+                <Box ref={body} data-menu-print-content sx={{ transform: `scale(${scales.content})`, transformOrigin: 'top center' }}><MenuPageContent content={content} products={products} design={design} page={page} print /><MenuDealsSection deals={deals} products={products} design={design} /></Box>
             </Box>
         </Box>
     </Box>;
@@ -62,7 +63,7 @@ export default function PrintMenuButton({ content, products, design, pageCount =
             {open && <style>{printStyles}</style>}
             <DialogTitle className="menu-print-controls">A4 print preview</DialogTitle>
             <DialogContent sx={{ bgcolor: '#f1f3f5', py: 3 }}>
-                <Typography className="menu-print-controls" variant="body2" color="text.secondary" sx={{ mb: 2 }}>All {count} menu {count === 1 ? 'page' : 'pages'} will print on A4 paper, with names and prices only.</Typography>
+                <Typography className="menu-print-controls" variant="body2" color="text.secondary" sx={{ mb: 2 }}>All {count} menu {count === 1 ? 'page' : 'pages'} will print on A4 paper, exactly as shown on your menu.</Typography>
                 {open && Array.from({ length: count }, (_, index) => <A4MenuPage key={index} content={content} products={products} design={design} page={index + 1} deals={index === count - 1 ? deals : []} />)}
             </DialogContent>
             <DialogActions className="menu-print-controls"><Button onClick={() => setOpen(false)}>Close</Button><Button variant="contained" startIcon={<Printer size={18} />} onClick={() => window.print()}>Print A4</Button></DialogActions>

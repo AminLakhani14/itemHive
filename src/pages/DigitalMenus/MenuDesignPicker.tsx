@@ -1,17 +1,18 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Box, Button, ButtonBase, Grid, MenuItem, Paper, Stack, TextField, Typography, alpha } from '@mui/material';
+import { Box, Button, ButtonBase, Grid, Stack, Typography, alpha } from '@mui/material';
 import { Check, LayoutTemplate, Palette } from 'lucide-react';
 import MenuContent from './MenuContentView';
 import { createMenuLayout } from './menuLayouts';
 import { sectionProducts, type MenuBlock, type MenuProduct } from './menuContent';
 import { MENU_TEMPLATES, PLAIN_MENU_DESIGN, menuFont, type MenuDesign } from './menuTemplates';
+import type { MenuDeal } from './aiMenu';
 
 type PreviewProduct = MenuProduct;
-type Props = { design: MenuDesign; onChange: (design: MenuDesign) => void; name: string; products: PreviewProduct[]; initialView?: 'templates' | 'custom'; content?: MenuBlock[]; extraAction?: ReactNode };
+type Props = { design: MenuDesign; onChange: (design: MenuDesign) => void; name: string; products: PreviewProduct[]; initialView?: 'templates' | 'custom'; content?: MenuBlock[]; extraAction?: ReactNode; deals?: MenuDeal[]; pageCount?: number };
 
-export const MenuPreview = ({ design, name, products, content, compact = false }: Omit<Props, 'onChange'> & { compact?: boolean }) => {
+export const MenuPreview = ({ design, name, products, content, deals, pageCount, compact = false }: Omit<Props, 'onChange'> & { compact?: boolean }) => {
     const layout = useMemo(() => content?.length ? content : createMenuLayout(design, name, products.map(product => product.id), products), [content, design, name, products]);
-    if (!compact) return <MenuContent content={layout.map(block => block.type === 'title' ? { ...block, text: name || 'Your menu name' } : block)} products={products} design={design} />;
+    if (!compact) return <MenuContent content={layout.map(block => block.type === 'title' ? { ...block, text: name || 'Your menu name' } : block)} products={products} design={design} deals={deals} pageCount={pageCount} />;
     const page = Math.min(...layout.map(block => block.page ?? 1));
     return <Box sx={{ bgcolor: design.backgroundColor, color: design.textColor, borderRadius: 2, width: '100%', p: compact ? 1.25 : 3, boxSizing: 'border-box', minHeight: compact ? 245 : 320, border: '1px solid', borderColor: alpha(design.textColor, .12) }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: compact ? .75 : 1.5 }}>
@@ -29,7 +30,7 @@ export const MenuPreview = ({ design, name, products, content, compact = false }
     </Box>;
 };
 
-export default function MenuDesignPicker({ design, onChange, name, products, initialView, content, extraAction }: Props) {
+export default function MenuDesignPicker({ design, onChange, name, products, initialView, content, extraAction, deals, pageCount }: Props) {
     const isCustom = design.templateId === 'custom';
     const [showTemplates, setShowTemplates] = useState(initialView ? initialView === 'templates' : !isCustom);
     const showGallery = showTemplates || !isCustom;
@@ -49,10 +50,7 @@ export default function MenuDesignPicker({ design, onChange, name, products, ini
                 </ButtonBase></Grid>;
             })}
         </Grid>}
-        {isCustom && !showTemplates && <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}><Typography fontWeight={800} sx={{ mb: 1.5 }}>Customize your menu</Typography><Grid container spacing={1.5}>
-            {(['headerColor', 'accentColor', 'backgroundColor', 'surfaceColor', 'textColor'] as const).map(key => <Grid key={key} size={{ xs: 6, sm: 4 }}><TextField fullWidth label={{ headerColor: 'Header colour', accentColor: 'Accent colour', backgroundColor: 'Background colour', surfaceColor: 'Card colour', textColor: 'Text colour' }[key]} type="color" value={design[key]} onChange={e => onChange({ ...design, [key]: e.target.value })} slotProps={{ htmlInput: { style: { height: 32, padding: 6 } }, inputLabel: { shrink: true } }} /></Grid>)}
-            <Grid size={{ xs: 6, sm: 4 }}><TextField fullWidth select label="Heading font" value={design.fontStyle} onChange={e => onChange({ ...design, fontStyle: e.target.value as MenuDesign['fontStyle'] })}><MenuItem value="sans">Modern</MenuItem><MenuItem value="serif">Classic</MenuItem></TextField></Grid>
-        </Grid><Button size="small" sx={{ mt: 1 }} onClick={() => onChange({ ...PLAIN_MENU_DESIGN })}>Reset custom design</Button></Paper>}
-        <Box><Typography fontWeight={800} sx={{ mb: 1 }}>Live preview</Typography><Box sx={{ maxWidth: 800 }}><MenuPreview design={design} name={name} products={products} content={content} /></Box><Typography variant="caption" color="text.secondary">{isCustom ? 'Set your sections per row, title position, and pages in Make your menu.' : 'These headings and sections will be ready to edit. New pages start with the same template layout.'}</Typography></Box>
+        {isCustom && !showTemplates && <Typography color="text.secondary">Your custom menu is selected. In Make your menu, choose colors, fonts and layout yourself or let AI suggest a complete design.</Typography>}
+        <Box><Typography fontWeight={800} sx={{ mb: 1 }}>Live preview</Typography><Box sx={{ maxWidth: 800 }}><MenuPreview design={design} name={name} products={products} content={content} deals={deals} pageCount={pageCount} /></Box><Typography variant="caption" color="text.secondary">{isCustom ? 'Set your sections per row, title position, and pages in Make your menu.' : 'These headings and sections will be ready to edit. New pages start with the same template layout.'}</Typography></Box>
     </Stack>;
 }

@@ -1,7 +1,14 @@
 export type MenuBlock = {
     id: string;
-    type: 'title' | 'section' | 'heading' | 'label';
+    type: 'title' | 'section' | 'heading' | 'label' | 'image';
+    /** For pictures, this is the picture's description. */
     text: string;
+    imageUrl?: string;
+    /** A decorative photo attached to this section, independent of item photos. */
+    sectionImage?: import('./sectionImages').SectionImage;
+    /** Links editable items to their printed area on an original menu picture. */
+    source?: PictureSectionSource;
+    headingStyle?: PictureHeadingStyle;
     fontSize: number;
     color: string;
     align: 'left' | 'center' | 'right';
@@ -10,7 +17,16 @@ export type MenuBlock = {
     span?: 2 | 3 | 6;
 };
 
-export type MenuProduct = { id: string; name: string; category?: string; salePrice?: number; price?: number; imageUrl?: string };
+export type PictureBox = [number, number, number, number]; // top, left, bottom, right; 0–1000
+export type PictureHeadingStyle = { backgroundColor: string; color: string; align: 'left' | 'center' | 'right' };
+export type PictureSectionSource = {
+    imageId: string; box: PictureBox; headingBox?: PictureBox; originalText: string;
+    originalProductIds: string[]; originalPrices: number[]; pricePrefix?: string;
+    /** New section borrowing this printed section's visual style, without a second printed copy. */
+    templateOnly?: boolean;
+};
+
+export type MenuProduct = { id: string; name: string; category?: string; salePrice?: number; price?: number; imageUrl?: string; description?: string };
 export type MenuPrices = Record<string, number>;
 export const menuItemPrice = (product: MenuProduct, prices: MenuPrices = {}) => Object.hasOwn(prices, product.id) ? prices[product.id] : product.salePrice ?? product.price ?? 0;
 
@@ -60,7 +76,7 @@ export const continueSectionOnPage = (content: MenuBlock[], sectionId: string, p
     const next = [...content, ...(page > pageCount ? newPageBlocks : [])];
     let target = next.find(block => block.type === 'section' && (block.page ?? 1) === page && block.text === source.text);
     if (!target) {
-        target = { ...source, id: crypto.randomUUID(), page, productIds: [] };
+        target = { ...source, source: undefined, id: crypto.randomUUID(), page, productIds: [] };
         next.push(target);
     }
     if (next.length > 100) return null;
