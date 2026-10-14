@@ -1,6 +1,6 @@
 # ItemHive finance management implementation plan
 
-Status: the initial expense register is implemented at `/expenses` and `/api/expenses`: personal submissions, receipts, independent admin review, partial payments, reversals, audit history and POS drawer paid-outs/refunds. The broader accounting and finance design below remains proposed; no shared ledger or financial statements are implemented.
+Status (2026-10-13): Payroll, Finance and My Workspace now have separate task screens. The implemented foundation includes tenant-scoped Chart of Accounts, explicit starting date, opening/manual journals, independent posting, reversals, posting period locks, accounting reports, expense accrual/payment accounting and new payroll/loan accounting. Expenses have separate submission, register, review and payment screens, account selection, duplicate invoice checks, returns and unpaid approval voids. Employee requests and financial screens/actions require explicit permissions. See `PAYROLL_FINANCE_USER_MANUAL.md` for usage and `PAYROLL_FINANCE_IMPLEMENTATION_AUDIT.md` for validation and remaining scope. The broader phases below remain a roadmap: sales/receivables, inventory costing, purchasing, bank reconciliation, assets, budgets, taxes and historical cutover reconciliation are not automatically implemented by this foundation.
 Prepared: 6 October 2026.
 
 ## 1. Objective and proposed defaults

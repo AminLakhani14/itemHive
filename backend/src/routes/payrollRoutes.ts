@@ -39,13 +39,16 @@ import {
   type Structure,
 } from "../services/payrollCalculator";
 
+import { financialAccess, canFinancial } from '../middleware/financialAccess';
+import { FinancePolicy } from '../models/Finance';
+import { businessDate, postSource, systemAccount, sourceSettlement, reverseSource } from '../services/financeService';
 const id = Joi.string().hex().length(24);
 const date = Joi.string().custom((v, h) =>
   validDate(v) ? v : h.error("any.invalid"),
 );
 const month = Joi.string().pattern(/^\d{4}-(0[1-9]|1[0-2])$/);
 const text = Joi.string().trim().min(1).max(500);
-const amount = Joi.number().min(0).max(1_000_000_000).precision(2);
+const amount = Joi.number().min(0).max(1_000_000_000).precision(2).strict();
 const schedule = Joi.object({
   workingDays: Joi.array()
     .items(Joi.number().integer().min(0).max(6))
@@ -101,6 +104,12 @@ const permission = (key: string) => (req: AuthRequest, res: any, next: any) => {
     .json({ message: `Explicit ${key} permission is required` });
 };
 const tenant = (req: AuthRequest) => payrollTenant(req.user!.businessId);
+const requestAccess = financialAccess('payroll_hr', 'payroll_leave_requests', 'payroll_loan_requests', 'payroll_work_requests');
+const managedRequestKinds = (req: AuthRequest) => canFinancial(req, 'payroll_hr') ? ['leave', 'loan', 'advance', 'overtime', 'attendance'] : [
+  ...(canFinancial(req, 'payroll_leave_requests') ? ['leave'] : []),
+  ...(canFinancial(req, 'payroll_loan_requests') ? ['loan', 'advance'] : []),
+  ...(canFinancial(req, 'payroll_work_requests') ? ['overtime', 'attendance'] : []),
+];
 const auditFor = (
   req: AuthRequest,
   action: string,
@@ -180,7 +189,7 @@ payrollRouter.use(protect, authorize("super_admin", "admin"));
 // Sales staff use a separate slim endpoint below, not employee/profile permissions.
 payrollRouter.get(
   "/settings",
-  permission("payroll_view"),
+  financialAccess('payroll_view', 'payroll_settings', 'payroll_hr', 'payroll_pay', 'payroll_reports', 'payroll_prepare', 'payroll_approve', 'payroll_leave_requests', 'payroll_loan_requests', 'payroll_work_requests', 'payroll_loans_view', 'payroll_loans_manage', 'payroll_payment_reverse'),
   handler(async (req, res) => res.json(await policyFor(req.user!.businessId))),
 );
 payrollRouter.put(
@@ -265,7 +274,7 @@ payrollRouter.post(
 );
 payrollRouter.get(
   "/employees",
-  permission("payroll_view"),
+  financialAccess('payroll_view', 'payroll_settings', 'payroll_reports', 'payroll_pay', 'payroll_prepare', 'payroll_approve', 'payroll_loans_view', 'payroll_loans_manage', 'payroll_payment_reverse'),
   handler(async (req, res) => {
     const employees = await Employee.find(tenant(req))
       .sort({ fullName: 1 })
@@ -292,7 +301,7 @@ payrollRouter.get(
 );
 payrollRouter.get(
   "/employees/:id",
-  permission("payroll_view"),
+  financialAccess('payroll_view', 'payroll_settings'),
   handler(async (req, res) => {
     const e = await employeeFor(req, String(req.params.id));
     const structures = await SalaryStructure.find({
@@ -307,6 +316,10 @@ payrollRouter.get(
     const profile = {
       _id: e._id,
       fullName: e.fullName,
+      joiningDate: e.joiningDate,
+      salary: e.salary,
+      salaryType: e.salaryType,
+      payrollRevision: e.payrollRevision,
       payrollEnrolled: e.payrollEnrolled,
       department: e.department,
       employmentEndDate: e.employmentEndDate,
@@ -332,6 +345,7 @@ payrollRouter.put(
   validate(
     Joi.object({
       payrollEnrolled: Joi.boolean().required(),
+      payrollRevision: Joi.number().integer().min(0).optional(),
       department: Joi.string().trim().allow("").max(80).required(),
       employmentEndDate: date.allow("").required(),
       paymentMethod: Joi.string().valid("cash", "bank").required(),
@@ -343,6 +357,7 @@ payrollRouter.put(
   handler(async (req, res) => {
     const result = await transaction(async (session) => {
       const e = await employeeFor(req, String(req.params.id), session);
+      if (req.body.payrollRevision !== undefined && req.body.payrollRevision !== e.payrollRevision) throw new Error('Payroll profile changed. Refresh before saving');
       if (
         req.body.employmentEndDate &&
         req.body.employmentEndDate < e.joiningDate
@@ -376,9 +391,10 @@ payrollRouter.put(
         (!req.body.bankAccount || !req.body.bankName)
       )
         throw new Error("Bank name and account are required for bank payments");
-      const { reason, ...data } = req.body;
+      const { reason, payrollRevision, ...data } = req.body;
       const before = maskProfile(e.toObject());
       e.set(data);
+      e.payrollRevision++;
       await e.save({ session });
       await auditFor(
         req,
@@ -454,6 +470,7 @@ payrollRouter.post(
 );
 
 const requestSchema = Joi.object({
+  key: text.optional(),
   employeeId: id.optional(),
   kind: Joi.string()
     .valid("leave", "overtime", "loan", "advance", "attendance")
@@ -478,6 +495,7 @@ const requestSchema = Joi.object({
   }).required(),
 });
 async function createRequest(req: AuthRequest, self: boolean) {
+  if (!self && !managedRequestKinds(req).includes(req.body.kind)) throw Object.assign(new Error('This HR request type has not been shared with your account'), { status: 403 });
   const e = await employeeFor(req, self ? undefined : req.body.employeeId);
   if (self && req.body.kind === "attendance")
     throw new Error("Attendance review is restricted to payroll managers");
@@ -503,36 +521,32 @@ async function createRequest(req: AuthRequest, self: boolean) {
     d.installment > d.amount
   )
     throw new Error("Valid amount, installment and start month are required");
-  const r = await PayrollRequest.create({
-    ...tenant(req),
-    employeeId: e._id,
-    kind: req.body.kind,
-    data: d,
-    reason: req.body.reason,
-    createdBy: req.user!.id,
+  return transaction(async session => {
+    if (req.body.key) {
+      const existing = await PayrollRequest.findOne({ ...tenant(req), key: req.body.key }).session(session);
+      if (existing) {
+        if (String(existing.employeeId) !== String(e._id) || String(existing.createdBy) !== req.user!.id || existing.kind !== req.body.kind || existing.reason !== req.body.reason || JSON.stringify(existing.data) !== JSON.stringify(d)) throw new Error('Request key belongs to different details');
+        return existing;
+      }
+    }
+    const [r] = await PayrollRequest.create([{ ...tenant(req), ...(req.body.key ? { key: req.body.key } : {}), employeeId: e._id, kind: req.body.kind, data: d, reason: req.body.reason, createdBy: req.user!.id }], { session });
+    await auditFor(req, 'request.create', String(r._id), req.body.reason, null, r.toObject(), session);
+    return r;
   });
-  await auditFor(
-    req,
-    "request.create",
-    String(r._id),
-    req.body.reason,
-    null,
-    r.toObject(),
-  );
-  return r;
 }
+payrollRouter.get('/request-employees', requestAccess, handler(async (req, res) => res.json(await Employee.find(tenant(req)).select('fullName employeeCode department designation status joiningDate employmentEndDate').sort({ fullName: 1 }).lean())));
 payrollRouter.get(
   "/requests",
-  permission("payroll_hr"),
+  requestAccess,
   handler(async (req, res) =>
     res.json(
-      await PayrollRequest.find(tenant(req)).sort({ createdAt: -1 }).lean(),
+      await PayrollRequest.find({ ...tenant(req), kind: { $in: managedRequestKinds(req) } }).sort({ createdAt: -1 }).lean(),
     ),
   ),
 );
 payrollRouter.post(
   "/requests",
-  permission("payroll_hr"),
+  requestAccess,
   validate(requestSchema),
   handler(async (req, res) => {
     if (!req.body.employeeId) throw new Error("Employee is required");
@@ -541,7 +555,7 @@ payrollRouter.post(
 );
 payrollRouter.post(
   "/requests/:id/decision",
-  permission("payroll_hr"),
+  requestAccess,
   validate(
     Joi.object({
       status: Joi.string()
@@ -556,6 +570,7 @@ payrollRouter.post(
         const r = await PayrollRequest.findOne({
           ...tenant(req),
           _id: req.params.id,
+          kind: { $in: managedRequestKinds(req) },
         }).session(session);
         if (
           !r ||
@@ -569,7 +584,9 @@ payrollRouter.post(
           throw new Error(
             "Only pending requests or unposted approved HR requests can be decided",
           );
+        if (req.body.status === 'approved' && String(r.createdBy) === req.user!.id) throw new Error('Another authorized admin must approve this request');
         const e = await employeeFor(req, String(r.employeeId), session);
+        if (req.body.status === 'approved' && String(e.userId || '') === req.user!.id) throw new Error('An employee cannot approve their own request');
         const d = r.data;
         if (req.body.status === "cancelled" && r.status === "approved") {
           const from = d.startDate || d.dateKey;
@@ -739,7 +756,7 @@ payrollRouter.post(
 
 payrollRouter.get(
   "/loans",
-  permission("payroll_view"),
+  financialAccess('payroll_view', 'payroll_loans_view', 'payroll_loans_manage'),
   handler(async (req, res) =>
     res.json({
       loans: await PayrollLoan.find(tenant(req)).sort({ createdAt: -1 }).lean(),
@@ -751,7 +768,7 @@ payrollRouter.get(
 );
 payrollRouter.post(
   "/loans/:id/movements",
-  permission("payroll_pay"),
+  financialAccess('payroll_pay', 'payroll_loans_manage'),
   validate(
     Joi.object({
       kind: Joi.string()
@@ -826,6 +843,11 @@ payrollRouter.post(
           ],
           { session },
         );
+        if (value && (req.body.kind === 'disbursement' || l.journalEntryId) && await FinancePolicy.exists(tenant(req)).session(session)) {
+          const policy = await policyFor(req.user!.businessId);
+          const j = await sourceSettlement(req.user!.businessId, req.user!.id, 'loan:movement:' + movement[0]._id, businessDate(policy.timeZone), policy.currency, req.body.reference, 'employee_loan', String(l._id), value, req.body.kind === 'disbursement' ? 'employee_loans' : 'cash', req.body.kind === 'disbursement' ? 'cash' : 'employee_loans', session);
+          if (req.body.kind === 'disbursement' && j) { l.journalEntryId = j._id; await l.save({ session }); }
+        }
         await auditFor(
           req,
           `loan.${req.body.kind}`,
@@ -843,7 +865,7 @@ payrollRouter.post(
 
 payrollRouter.get(
   "/runs",
-  permission("payroll_view"),
+  financialAccess('payroll_view', 'payroll_prepare', 'payroll_approve', 'payroll_pay', 'payroll_reports'),
   handler(async (req, res) =>
     res.json(
       await PayrollRun.find(tenant(req))
@@ -921,7 +943,7 @@ payrollRouter.post(
 );
 payrollRouter.get(
   "/runs/:id",
-  permission("payroll_view"),
+  financialAccess('payroll_view', 'payroll_prepare', 'payroll_approve', 'payroll_pay'),
   handler(async (req, res) => {
     const run = await PayrollRun.findOne({
       ...tenant(req),
@@ -962,7 +984,7 @@ payrollRouter.put(
             amount: Joi.number()
               .min(-1_000_000_000)
               .max(1_000_000_000)
-              .precision(2)
+              .precision(2).strict()
               .required(),
             reason: text.required(),
             loanId: id.optional(),
@@ -1141,6 +1163,7 @@ for (const action of ["calculate", "submit", "approve", "return"])
                     balanceMinor: { $gte: line.amountMinor },
                   }).session(session);
                   if (!l) throw new Error("Loan balance changed");
+                  if (!l.journalEntryId && await FinancePolicy.exists(tenant(req)).session(session)) throw new Error('Allocate the historical loan to reviewed opening balances before payroll recovery');
                   l.balanceMinor -= line.amountMinor;
                   if (!l.balanceMinor) l.status = "settled";
                   await l.save({ session });
@@ -1181,6 +1204,23 @@ for (const action of ["calculate", "submit", "approve", "return"])
                     );
                 }
               }
+              if (await FinancePolicy.exists(tenant(req)).session(session)) {
+                const amounts: Record<string, number> = { payroll_expense: 0, salary_payable: 0, employee_loans: 0, deductions_payable: 0, employer_payable: 0 };
+                for (const item of run.items) {
+                  const recovery = item.lines.filter((l: any) => l.kind === 'recovery').reduce((n: number, l: any) => n + l.amountMinor, 0);
+                  amounts.payroll_expense += item.employerCostMinor;
+                  amounts.salary_payable += item.netMinor;
+                  amounts.employee_loans += recovery;
+                  amounts.deductions_payable += item.deductionsMinor - recovery;
+                  amounts.employer_payable += item.employerCostMinor - item.grossMinor;
+                }
+                const lines = [];
+                for (const [key, value] of Object.entries(amounts)) if (value) lines.push({ accountId: await systemAccount(req.user!.businessId, key, session), debitMinor: key === 'payroll_expense' ? value : 0, creditMinor: key === 'payroll_expense' ? 0 : value });
+                if (lines.length) {
+                  const entry = await postSource({ businessId: req.user!.businessId, actorId: req.user!.id, key: 'payroll:' + run._id + ':approval', dateKey: businessDate(run.policy.timeZone), currency: run.policy.currency, description: 'Payroll ' + run.month + ' / ' + run.kind, source: 'payroll', sourceId: String(run._id), lines }, session);
+                  run.journalEntryId = entry._id;
+                }
+              }
               run.status = "approved";
               run.approvedBy = req.user!.id;
               run.approvedAt = new Date();
@@ -1205,7 +1245,7 @@ for (const action of ["calculate", "submit", "approve", "return"])
 
 payrollRouter.get(
   "/payments",
-  permission("payroll_pay"),
+  financialAccess('payroll_pay', 'payroll_payment_reverse'),
   handler(async (req, res) =>
     res.json(
       await PayrollPayment.find(tenant(req)).sort({ createdAt: -1 }).lean(),
@@ -1245,6 +1285,7 @@ payrollRouter.post(
               String(existing.runId) !== data.runId ||
               String(existing.employeeId) !== data.employeeId ||
               existing.amountMinor !== value
+              || existing.method !== data.method || existing.dateKey !== data.dateKey || existing.reference !== data.reference
             )
               throw new Error("Idempotency key belongs to a different payment");
             result.push(existing);
@@ -1282,6 +1323,7 @@ payrollRouter.post(
             ],
             { session },
           );
+          if (run.journalEntryId) await sourceSettlement(req.user!.businessId, req.user!.id, 'payroll:payment:' + created[0]._id, data.dateKey, run.policy.currency, data.reference, 'payroll_payment', String(created[0]._id), value, 'salary_payable', data.method, session);
           await auditFor(
             req,
             "payment.record",
@@ -1300,8 +1342,8 @@ payrollRouter.post(
 );
 payrollRouter.post(
   "/payments/:id/reverse",
-  permission("payroll_pay"),
-  validate(Joi.object({ reason: text.required() })),
+  permission('payroll_payment_reverse'),
+  validate(Joi.object({ reason: text.required(), dateKey: date.optional() })),
   handler(async (req, res) => {
     res.json(
       await transaction(async (session) => {
@@ -1316,6 +1358,9 @@ payrollRouter.post(
           { $inc: { version: 1 } },
           { session },
         );
+        const reversalDate = req.body.dateKey || businessDate((await policyFor(req.user!.businessId)).timeZone);
+        if (reversalDate < p.dateKey) throw new Error('Reversal date cannot precede payment date');
+        await reverseSource(req.user!.businessId, req.user!.id, 'payroll:payment:' + p._id, reversalDate, req.body.reason, session);
         p.reversedAt = new Date();
         p.reversedBy = req.user!.id;
         p.reversalReason = req.body.reason;
@@ -1444,8 +1489,18 @@ payrollRouter.get(
 
 export const myPayrollRouter = Router();
 myPayrollRouter.use(protect);
+const ownRequestKinds = (req: AuthRequest) => [
+  ...(canFinancial(req, 'self_leave') ? ['leave'] : []),
+  ...(canFinancial(req, 'self_loan') ? ['loan', 'advance'] : []),
+  ...(canFinancial(req, 'self_overtime') ? ['overtime'] : []),
+];
+myPayrollRouter.get('/requests-meta', financialAccess('self_leave', 'self_loan', 'self_overtime'), handler(async (req, res) => {
+  const e = await employeeFor(req); const p = await policyFor(req.user!.businessId);
+  res.json({ employee: { _id: e._id, fullName: e.fullName }, currency: p.currency, kinds: ownRequestKinds(req), balances: canFinancial(req, 'self_leave') ? await leaveBalances(req.user!.businessId, e, businessDate(p.timeZone)) : {}, requests: await PayrollRequest.find({ ...tenant(req), employeeId: e._id, kind: { $in: ownRequestKinds(req) } }).sort({ createdAt: -1 }).lean(), loans: canFinancial(req, 'self_loan') ? await PayrollLoan.find({ ...tenant(req), employeeId: e._id }).lean() : [] });
+}));
 myPayrollRouter.get(
   "/",
+  financialAccess('self_payroll'),
   handler(async (req, res) => {
     const e = await employeeFor(req);
     const policy = await policyFor(req.user!.businessId);
@@ -1479,30 +1534,33 @@ myPayrollRouter.get(
       payments: await PayrollPayment.find({ ...tenant(req), employeeId: e._id })
         .sort({ createdAt: -1 })
         .lean(),
-      requests: await PayrollRequest.find({ ...tenant(req), employeeId: e._id })
+      requests: await PayrollRequest.find({ ...tenant(req), employeeId: e._id, kind: { $in: ownRequestKinds(req) } })
         .sort({ createdAt: -1 })
         .lean(),
-      loans: await PayrollLoan.find({
+      loans: canFinancial(req, 'self_loan') ? await PayrollLoan.find({
         ...tenant(req),
         employeeId: e._id,
-      }).lean(),
-      balances: await leaveBalances(
+      }).lean() : [],
+      balances: canFinancial(req, 'self_leave') ? await leaveBalances(
         req.user!.businessId,
         e,
         new Date().toISOString().slice(0, 10),
-      ),
+      ) : {},
     });
   }),
 );
 myPayrollRouter.post(
   "/requests",
+  financialAccess('self_leave', 'self_loan', 'self_overtime'),
   validate(requestSchema),
-  handler(async (req, res) =>
-    res.status(201).json(await createRequest(req, true)),
-  ),
+  handler(async (req, res) => {
+    if (!ownRequestKinds(req).includes(req.body.kind)) throw Object.assign(new Error('This request feature has not been shared with your account'), { status: 403 });
+    res.status(201).json(await createRequest(req, true));
+  }),
 );
 myPayrollRouter.post(
   "/requests/:id/cancel",
+  financialAccess('self_leave', 'self_loan', 'self_overtime'),
   handler(async (req, res) => {
     const e = await employeeFor(req);
     const r = await PayrollRequest.findOneAndUpdate(
@@ -1511,6 +1569,7 @@ myPayrollRouter.post(
         _id: req.params.id,
         employeeId: e._id,
         status: "pending",
+        kind: { $in: ownRequestKinds(req) },
       },
       {
         $set: { status: "cancelled", decisionReason: "Cancelled by employee" },

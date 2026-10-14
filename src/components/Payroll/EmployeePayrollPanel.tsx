@@ -47,6 +47,7 @@ export default function EmployeePayrollPanel({
 }) {
   const user = useSelector((s: RootState) => s.auth.user);
   const canEdit = hasScreenAccess(user, "payroll_settings");
+  const canView = hasScreenAccess(user, 'payroll_view') || (view === 'profile' && canEdit);
   const [profile, setProfile] = React.useState<PayrollProfile>();
   const [loans, setLoans] = React.useState<PayrollLoan[]>([]);
   const [runs, setRuns] = React.useState<PayrollRun[]>([]);
@@ -55,6 +56,11 @@ export default function EmployeePayrollPanel({
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [reason, setReason] = React.useState("");
+  const [profileReason, setProfileReason] = React.useState('');
+  const [notice, setNotice] = React.useState('');
+  const [savedEnrollment, setSavedEnrollment] = React.useState<boolean>();
+  const salaryInitialized = React.useRef('');
+  const generation = React.useRef(0);
   const [salary, setSalary] = React.useState({
     effectiveDate: dateToday(),
     base: 0,
@@ -66,14 +72,23 @@ export default function EmployeePayrollPanel({
     leaveRules: {} as NonNullable<SalaryStructure["leaveRules"]>,
   });
   const load = React.useCallback(async () => {
-    if (!hasScreenAccess(user, "payroll_view")) return;
+    if (!canView) return false;
+    const current = ++generation.current;
     try {
       setError("");
       const p = (
         await api.get<PayrollProfile>(`/payroll/employees/${employeeId}`)
       ).data;
+      if (current !== generation.current) return false;
       setProfile(p);
+      setSavedEnrollment(p.profile.payrollEnrolled);
+      if (salaryInitialized.current !== employeeId) {
+        salaryInitialized.current = employeeId;
+        const latest = p.structures[0];
+        setSalary({ effectiveDate: latest ? dateToday() : p.profile.joiningDate || dateToday(), base: latest ? latest.baseMinor / 100 : p.profile.salary || 0, salaryType: latest?.salaryType || p.profile.salaryType || 'monthly', commissionPercent: latest?.commissionPercent || 0, schedule: latest?.schedule || defaultSchedule, components: latest?.components || [], leavePolicyName: latest?.leavePolicyName || 'Business default', leaveRules: latest?.leaveRules || {} });
+      }
       const settings = (await api.get("/payroll/settings")).data;
+      if (current !== generation.current) return false;
       setCurrency(settings.currency);
       if (view === "loans")
         setLoans(
@@ -88,15 +103,21 @@ export default function EmployeePayrollPanel({
               r.status === "approved" && r.employeeIds.includes(employeeId),
           ),
         );
+      return true;
     } catch (e) {
-      setError(requestError(e));
+      if (current === generation.current) setError(requestError(e));
+      return false;
     }
-  }, [employeeId, view, user]);
+  }, [employeeId, view, canView]);
   React.useEffect(() => {
-    void load();
+    setProfile(undefined); setSavedEnrollment(undefined); setNotice(''); void load();
+    const changed = () => { generation.current++; salaryInitialized.current = ''; setProfile(undefined); setSavedEnrollment(undefined); setLoans([]); setRuns([]); setNotice(''); void load(); };
+    window.addEventListener('itemhive-workspace-changed', changed);
+    return () => { generation.current++; window.removeEventListener('itemhive-workspace-changed', changed); };
   }, [load]);
   const save = async (structure: boolean) => {
     setBusy(true);
+    setError(''); setNotice('');
     try {
       if (structure)
         await api.post(`/payroll/employees/${employeeId}/structures`, {
@@ -105,13 +126,18 @@ export default function EmployeePayrollPanel({
         });
       else
         await api.put(`/payroll/employees/${employeeId}`, {
-          ...profile!.profile,
-          _id: undefined,
-          fullName: undefined,
-          reason,
+          payrollEnrolled: profile!.profile.payrollEnrolled,
+          payrollRevision: profile!.profile.payrollRevision,
+          department: profile!.profile.department || '',
+          employmentEndDate: profile!.profile.employmentEndDate || '',
+          paymentMethod: profile!.profile.paymentMethod || 'cash',
+          bankName: profile!.profile.bankName || '',
+          bankAccount: profile!.profile.bankAccount || '',
+          reason: profileReason,
         });
-      setReason("");
-      await load();
+      if (structure) setReason(''); else setProfileReason('');
+      const refreshed = await load();
+      setNotice(!refreshed ? 'Saved, but the refreshed profile could not be loaded. Refresh before continuing.' : structure ? 'Salary version saved. Save payroll enrollment separately when ready.' : 'Payroll profile and enrollment saved.');
       window.dispatchEvent(
         new CustomEvent("itemhive-payroll-profile-updated", {
           detail: employeeId,
@@ -123,7 +149,7 @@ export default function EmployeePayrollPanel({
       setBusy(false);
     }
   };
-  if (!hasScreenAccess(user, "payroll_view"))
+  if (!canView)
     return (
       <Alert severity="info">
         Explicit payroll permission is required to view compensation records.
@@ -205,9 +231,12 @@ export default function EmployeePayrollPanel({
   return (
     <Stack gap={3}>
       {error && <Alert severity="error">{error}</Alert>}
+      {notice && <Alert severity="success">{notice}</Alert>}
       {profile && (
         <>
           <Typography variant="h6">Payroll enrollment</Typography>
+          <Chip sx={{ alignSelf: 'flex-start' }} color={savedEnrollment ? 'success' : 'default'} label={savedEnrollment ? 'Saved status: Enrolled' : 'Saved status: Not enrolled'} />
+          {savedEnrollment !== profile.profile.payrollEnrolled && <Alert severity="warning">Enrollment has an unsaved change. Enter a profile change reason and save below.</Alert>}
           <Alert severity="info">
             Salary history drives payroll. Create the opening salary effective
             on the joining date, then enroll this employee. Currency: {currency}
@@ -284,12 +313,16 @@ export default function EmployeePayrollPanel({
             ))}
           </Box>
           {canEdit && (
+            <Stack gap={1}>
+            <TextField label="Reason for payroll profile change" required value={profileReason} onChange={e => setProfileReason(e.target.value)} />
             <Button
-              disabled={busy || !reason.trim()}
+              variant="contained"
+              disabled={busy || !profileReason.trim()}
               onClick={() => save(false)}
             >
               Save payroll profile
             </Button>
+            </Stack>
           )}
           <Typography variant="h6">Salary history</Typography>
           <PayrollTable
@@ -617,7 +650,7 @@ export default function EmployeePayrollPanel({
             Add component
           </Button>
           <TextField
-            label="Reason for profile/salary change"
+            label="Reason for salary change"
             required
             value={reason}
             onChange={(e) => setReason(e.target.value)}

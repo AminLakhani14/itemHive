@@ -29,7 +29,7 @@ import { useSelector } from "react-redux";
 import type { RootState } from "../../store";
 
 export const money = (value: number, currency = "PKR") =>
-  new Intl.NumberFormat("en", { style: "currency", currency }).format(
+  new Intl.NumberFormat("en", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
     (value || 0) / 100,
   );
 export const requestError = (e: unknown) => {
@@ -111,8 +111,12 @@ export function exportRows(
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(
     workbook,
-    XLSX.utils.json_to_sheet(rows),
-    "Payroll",
+    XLSX.utils.json_to_sheet(csv ? rows.map(row => Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key,
+        typeof value === 'string' && /^[\s]*[=+@-]|^[\t\r\n]/.test(value) ? "'" + value : value,
+      ]),
+    )) : rows),
+    "Report",
   );
   XLSX.writeFile(workbook, `${name}.${csv ? "csv" : "xlsx"}`);
 }
@@ -217,13 +221,16 @@ export function RequestForm({
   employees,
   self = false,
   initialKind = "leave",
+  allowedKinds,
   submit,
   busy,
 }: {
   employees: PayrollEmployee[];
   self?: boolean;
   initialKind?: string;
+  allowedKinds?: string[];
   submit: (data: {
+    key: string;
     employeeId?: string;
     kind: string;
     reason: string;
@@ -232,6 +239,7 @@ export function RequestForm({
   busy: boolean;
 }) {
   const [employeeId, setEmployee] = React.useState(employees[0]?._id || "");
+  const [key] = React.useState(() => crypto.randomUUID());
   const [kind, setKind] = React.useState(initialKind);
   const [reason, setReason] = React.useState("");
   const [data, setData] = React.useState({
@@ -281,13 +289,13 @@ export function RequestForm({
         value={kind}
         onChange={(e) => setKind(e.target.value)}
       >
-        {[
+        {(allowedKinds || [
           "leave",
           "overtime",
           "loan",
           "advance",
           ...(!self ? ["attendance"] : []),
-        ].map((k) => (
+        ]).map((k) => (
           <MenuItem key={k} value={k}>
             {k}
           </MenuItem>
@@ -347,9 +355,10 @@ export function RequestForm({
       />
       <Button
         variant="contained"
-        disabled={busy || !reason.trim() || (!self && !employeeId)}
+        disabled={busy || !reason.trim() || (!self && !employeeId) || (kind === 'leave' ? !data.startDate || !data.endDate || data.startDate > data.endDate || (data.fraction === 0.5 && data.startDate !== data.endDate) : ['loan', 'advance'].includes(kind) ? data.amount <= 0 || data.installment <= 0 || data.installment > data.amount || !data.startMonth : kind === 'overtime' ? data.minutes <= 0 || !data.dateKey : !data.dateKey)}
         onClick={() =>
           submit({
+            key,
             employeeId: self ? undefined : employeeId,
             kind,
             reason,

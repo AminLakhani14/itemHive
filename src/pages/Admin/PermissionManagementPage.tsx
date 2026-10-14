@@ -51,7 +51,7 @@ const PermissionManagementPage: React.FC = () => {
 
     const chooseAdmin = React.useCallback((admin: User) => {
         setSelectedAdminId(admin.id);
-        setSelectedPermissions(admin.screenPermissions == null ? [...ALL_ADMIN_SCREEN_KEYS] : [...admin.screenPermissions]);
+        setSelectedPermissions(admin.screenPermissions == null ? (admin.role === 'admin' ? ALL_ADMIN_SCREEN_KEYS.filter(k => !k.startsWith('finance_') && !k.startsWith('payroll_') && !k.startsWith('self_')) : []) : [...admin.screenPermissions]);
         setError('');
     }, []);
 
@@ -124,7 +124,7 @@ const PermissionManagementPage: React.FC = () => {
                         <Typography variant="h4" fontWeight={900}>Permission Management</Typography>
                     </Stack>
                     <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-                        Choose exactly which screens each Admin can open. Super Admin access is never restricted.
+                        Share only the screens and actions each client or employee needs. Super Admin access is never restricted.
                     </Typography>
                 </Box>
                 {selectedAdmin && (
@@ -139,13 +139,13 @@ const PermissionManagementPage: React.FC = () => {
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(260px, 0.34fr) minmax(0, 1fr)' }, gap: 2.5 }}>
                 <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
                     <Box sx={{ p: 2 }}>
-                        <Typography fontWeight={900}>Admin accounts</Typography>
+                        <Typography fontWeight={900}>Client & employee accounts</Typography>
                         <TextField
                             fullWidth
                             size="small"
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Search Admin or business"
+                            placeholder="Search account or business"
                             sx={{ mt: 1.5 }}
                             InputProps={{ startAdornment: <Search size={17} style={{ marginRight: 8 }} /> }}
                         />
@@ -166,13 +166,13 @@ const PermissionManagementPage: React.FC = () => {
                                     <Chip
                                         size="small"
                                         color={admin.screenPermissions == null ? 'default' : 'primary'}
-                                        label={admin.screenPermissions == null ? 'Full' : admin.screenPermissions.length}
+                                        label={admin.screenPermissions == null ? 'Legacy' : admin.screenPermissions.length}
                                     />
                                 </ListItemButton>
                             ))}
                             {!filteredAdmins.length && (
                                 <Box sx={{ px: 2, py: 5, textAlign: 'center', color: 'text.secondary' }}>
-                                    No Admin accounts found.
+                                    No accounts found.
                                 </Box>
                             )}
                         </List>
@@ -183,7 +183,7 @@ const PermissionManagementPage: React.FC = () => {
                     {!selectedAdmin ? (
                         <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 320, color: 'text.secondary' }}>
                             <ShieldOff size={38} />
-                            <Typography sx={{ mt: 1 }}>Select an Admin to manage access.</Typography>
+                            <Typography sx={{ mt: 1 }}>Select an account to manage access.</Typography>
                         </Stack>
                     ) : (
                         <>
@@ -193,19 +193,19 @@ const PermissionManagementPage: React.FC = () => {
                                     <Typography variant="body2" color="text.secondary">{selectedAdmin.email} · {selectedAdmin.businessName || 'No business assigned'}</Typography>
                                 </Box>
                                 <Stack direction="row" spacing={1}>
-                                    <Button size="small" startIcon={<CheckCheck size={16} />} onClick={() => setSelectedPermissions([...ALL_ADMIN_SCREEN_KEYS])}>Allow all</Button>
+                                    <Button size="small" startIcon={<CheckCheck size={16} />} onClick={() => setSelectedPermissions(selectedAdmin.role === 'admin' ? [...ALL_ADMIN_SCREEN_KEYS] : ALL_ADMIN_SCREEN_KEYS.filter(k => k.startsWith('self_') || k === 'finance_expense_create'))}>Allow all</Button>
                                     <Button size="small" color="inherit" startIcon={<ShieldOff size={16} />} onClick={() => setSelectedPermissions([])}>Clear all</Button>
                                 </Stack>
                             </Stack>
                             <Alert severity="info" sx={{ my: 2.5 }}>
-                                Changes apply to this Admin only. Their direct routes and protected API requests will be denied after saving.
+                                Financial and employee features require explicit grants. Viewing does not grant approval or payment rights. Changes apply to this account only, including direct routes and API requests.
                             </Alert>
                             <Stack spacing={2.5}>
                                 {groups.map(([group, permissions]) => (
                                     <Box key={group}>
                                         <Typography variant="overline" color="text.secondary" fontWeight={900}>{group}</Typography>
                                         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 0.5, mt: 0.5 }}>
-                                            {permissions.map((permission) => (
+                                            {permissions.filter(p => selectedAdmin.role === 'admin' || p.key.startsWith('self_') || p.key === 'finance_expense_create').map((permission) => (
                                                 <FormControlLabel
                                                     key={permission.key}
                                                     control={<Checkbox checked={selectedPermissions.includes(permission.key)} onChange={() => togglePermission(permission.key)} />}

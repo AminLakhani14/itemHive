@@ -43,6 +43,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../store';
 import { toggleSidebar } from '../../features/theme/themeSlice';
 import { hasScreenAccess, type ScreenPermission } from '../../lib/screenPermissions';
+import { payrollScreens, financeScreens, personalScreens } from '../../lib/workflowScreens';
 import { useLogoPlate } from '../../lib/logoVisibility';
 
 const drawerWidth = 260;
@@ -85,7 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
     const currentRole = user?.role || 'user';
     const canAccessInstallments = user?.role === 'super_admin' || Boolean(app?.installmentsEnabled && user?.installmentAccess);
 
-    const menuItems: Array<{ text: string; icon: React.ReactNode; path: string; roles: string[]; permission?: ScreenPermission; requiresInstallmentAccess?: boolean; requiresDigitalMenuAccess?: boolean; requiresSignupApproval?: boolean }> = [
+    const menuItems: Array<{ text: string; icon: React.ReactNode; path: string; roles: string[]; permission?: ScreenPermission; permissions?: ScreenPermission[]; requiresInstallmentAccess?: boolean; requiresDigitalMenuAccess?: boolean; requiresSignupApproval?: boolean }> = [
         { text: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/', roles: ['super_admin', 'admin', 'user'], permission: 'dashboard' },
         { text: 'POS Terminal', icon: <TerminalIcon size={20} />, path: '/pos', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
         { text: 'Shift Management', icon: <ChartNoAxesCombined size={20} />, path: '/pos-reports', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
@@ -101,9 +102,9 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
         { text: 'Credit Customers', icon: <WalletCards size={20} />, path: '/credits', roles: ['super_admin', 'admin', 'user'], permission: 'credits' },
         { text: 'Installments', icon: <CalendarClock size={20} />, path: '/installments', roles: ['super_admin', 'admin', 'user'], permission: 'installments', requiresInstallmentAccess: true },
         { text: 'Employees', icon: <IdCard size={20} />, path: '/employees', roles: ['super_admin', 'admin'], permission: 'employees' },
-        { text: 'Payroll', icon: <WalletCards size={20} />, path: '/payroll', roles: ['super_admin', 'admin'], permission: 'payroll_view' },
-        { text: 'My Payroll', icon: <ReceiptText size={20} />, path: '/my-payroll', roles: ['super_admin', 'admin', 'user'] },
-        { text: 'Finance · Expenses', icon: <WalletCards size={20} />, path: '/expenses', roles: ['super_admin', 'admin', 'user'] },
+        { text: 'Payroll', icon: <WalletCards size={20} />, path: '/payroll', roles: ['super_admin', 'admin'], permissions: payrollScreens.flatMap(s => s.permissions) },
+        { text: 'My Workspace', icon: <ReceiptText size={20} />, path: '/my', roles: ['super_admin', 'admin', 'user'], permissions: personalScreens.flatMap(s => s.permissions) },
+        { text: 'Finance', icon: <WalletCards size={20} />, path: '/finance', roles: ['super_admin', 'admin', 'user'], permissions: financeScreens.flatMap(s => s.permissions) },
         { text: 'Attendance', icon: <ScanFace size={20} />, path: '/attendance', roles: ['super_admin', 'admin', 'user'], permission: 'attendance' },
         { text: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['super_admin', 'admin'], permission: 'reports' },
         { text: 'Team', icon: <Users size={20} />, path: '/team', roles: ['super_admin', 'admin'], permission: 'team' },
@@ -199,11 +200,12 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                     {menuItems
                         .filter(item => item.roles.includes(currentRole)
                             && (!item.permission || hasScreenAccess(user, item.permission))
+                            && (!item.permissions || item.permissions.some(p => hasScreenAccess(user, p)))
                             && (!item.requiresInstallmentAccess || canAccessInstallments)
                             && (!item.requiresDigitalMenuAccess || currentRole === 'super_admin' || user?.digitalMenuAccess !== 'none')
                             && (!item.requiresSignupApproval || !app?.autoRegistrationEnabled))
                         .map((item) => {
-                            const isActive = location.pathname === item.path || (['/employees', '/digital-menus'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
+                            const isActive = location.pathname === item.path || (['/employees', '/digital-menus', '/payroll', '/finance', '/my'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
                             return (
                                 <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
                                     <ListItemButton
