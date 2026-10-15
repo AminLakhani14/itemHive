@@ -30,6 +30,15 @@ function loadComponent(path, state) {
 
 const modulePermissions = module.exports;
 
+test('Vendors and Vendor History appear with inventory request access and disappear when access is removed', () => {
+    const state = { auth: { isAuthenticated: true, user: { id: 'fixture', role: 'admin', screenPermissions: ['inventory_requests'] } }, theme: { isSidebarCollapsed: false }, themePreview: { value: null }, settings: { app: {} } };
+    const Sidebar = loadComponent('../src/components/Layout/Sidebar.tsx', state);
+    const sidebar = () => renderToStaticMarkup(React.createElement(Sidebar, { mobileOpen: false, onDrawerToggle: () => {} }));
+    assert.match(sidebar(), />Vendors</); assert.match(sidebar(), />Vendor History</);
+    state.auth.user.screenPermissions = [];
+    assert.doesNotMatch(sidebar(), />Vendors</); assert.doesNotMatch(sidebar(), />Vendor History</);
+});
+
 test('the actual sidebar shows Digital Menus and the protected route opens for the checked permission', () => {
     const state = { auth: { isAuthenticated: true, user: { id: 'fixture', role: 'admin', digitalMenuAccess: 'none', screenPermissions: ['digital_menus'] } }, theme: { isSidebarCollapsed: false }, themePreview: { value: null }, settings: { app: {} } };
     const Sidebar = loadComponent('../src/components/Layout/Sidebar.tsx', state);

@@ -93,6 +93,8 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
         { text: 'Inventory', icon: <Package size={20} />, path: '/inventory', roles: ['super_admin', 'admin', 'user'], permission: 'inventory' },
         { text: 'Product Units', icon: <Scale size={20} />, path: '/inventory/units', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_units' },
         { text: 'Inventory Requests', icon: <ClipboardCheck size={20} />, path: '/inventory/requests', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_requests' },
+        { text: 'Vendors', icon: <Contact size={20} />, path: '/vendors', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_requests' },
+        { text: 'Vendor History', icon: <History size={20} />, path: '/vendor-history', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_requests' },
         { text: 'Order Desk', icon: <ClipboardList size={20} />, path: '/orders', roles: ['super_admin', 'admin', 'user'], permission: 'orders' },
         { text: 'Digital Menus', icon: <QrCode size={20} />, path: '/digital-menus', roles: ['super_admin', 'admin', 'user'], permission: 'digital_menus', requiresDigitalMenuAccess: true },
         { text: 'Transactions', icon: <History size={20} />, path: '/transactions', roles: ['super_admin', 'admin', 'user'], permission: 'transactions' },

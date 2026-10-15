@@ -26,6 +26,8 @@ export interface InvoicePdfInput {
     totals?: Array<{ label: string; value: string; strong?: boolean }>;
     amountInWords?: string;
     footer?: string;
+    /** Split long tables into pages, repeating document details and column headings. */
+    rowsPerPage?: number;
 }
 
 const PAGE_WIDTH = 595;
@@ -332,8 +334,12 @@ export const buildInvoicePdfBlob = async (input: InvoicePdfInput): Promise<Blob>
         }
     }
 
-    const content = drawDocument(input, banner);
-    const contentBytes = latin1Bytes(content);
+    const pageSize = input.rowsPerPage ? Math.max(1, Math.floor(input.rowsPerPage)) : Math.max(1, input.rows.length);
+    const pageInputs: InvoicePdfInput[] = [];
+    for (let start = 0; start < Math.max(1, input.rows.length); start += pageSize) {
+        const last = start + pageSize >= input.rows.length;
+        pageInputs.push({ ...input, rows: input.rows.slice(start, start + pageSize), totals: last ? input.totals : [], amountInWords: last ? input.amountInWords : undefined, footer: last ? input.footer : undefined });
+    }
 
     const objects: Array<Uint8Array | string> = [];
     const push = (body: Uint8Array | string) => {
@@ -342,17 +348,9 @@ export const buildInvoicePdfBlob = async (input: InvoicePdfInput): Promise<Blob>
     };
 
     const catalogId = push('<< /Type /Catalog /Pages 2 0 R >>');
-    const pagesId = push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-    const pageId = push('');
+    const pagesId = push('');
     const fontId = push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
     const fontBoldId = push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
-
-    const streamHeader = `<< /Length ${contentBytes.length} >>\nstream\n`;
-    const contentId = push(new Uint8Array([
-        ...latin1Bytes(streamHeader),
-        ...contentBytes,
-        ...latin1Bytes('\nendstream'),
-    ]));
 
     let imageId = 0;
     if (banner) {
@@ -365,9 +363,17 @@ export const buildInvoicePdfBlob = async (input: InvoicePdfInput): Promise<Blob>
         ]));
     }
 
-    objects[pageId - 1] = `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] `
+    const pageIds = pageInputs.map(pageInput => {
+        const contentBytes = latin1Bytes(drawDocument(pageInput, banner));
+        const contentId = push(new Uint8Array([
+            ...latin1Bytes(`<< /Length ${contentBytes.length} >>\nstream\n`),
+            ...contentBytes, ...latin1Bytes('\nendstream'),
+        ]));
+        return push(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] `
         + `/Resources << /Font << /F1 ${fontId} 0 R /F2 ${fontBoldId} 0 R >>`
-        + `${imageId ? ` /XObject << /Im1 ${imageId} 0 R >>` : ''} >> /Contents ${contentId} 0 R >>`;
+        + `${imageId ? ` /XObject << /Im1 ${imageId} 0 R >>` : ''} >> /Contents ${contentId} 0 R >>`);
+    });
+    objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
 
     const chunks: Uint8Array[] = [];
     let length = 0;

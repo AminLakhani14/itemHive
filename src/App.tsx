@@ -48,6 +48,8 @@ const StickyNotes = React.lazy(() => import('./pages/Notes/StickyNotes'));
 const TeamManagementPage = React.lazy(() => import('./pages/Admin/TeamManagementPage'));
 const SignupRequestsPage = React.lazy(() => import('./pages/Admin/SignupRequestsPage'));
 const InventoryRequestsPage = React.lazy(() => import('./pages/Inventory/InventoryRequestsPage'));
+const VendorsPage = React.lazy(() => import('./pages/Inventory/VendorsPage'));
+const VendorHistoryPage = React.lazy(() => import('./pages/Inventory/VendorHistoryPage'));
 const PermissionManagementPage = React.lazy(() => import('./pages/Admin/PermissionManagementPage'));
 const AccessDeniedPage = React.lazy(() => import('./pages/Auth/AccessDeniedPage'));
 const DigitalMenusPage = React.lazy(() => import('./pages/DigitalMenus/DigitalMenusPage'));
@@ -108,6 +110,8 @@ const AppContent: React.FC = () => {
               <Route path="inventory/import" element={<ProtectedRoute requiredScreen="inventory_import"><ImportProducts /></ProtectedRoute>} />
               <Route path="inventory/units" element={<ProtectedRoute requiredScreen="inventory_units"><ProductUnitsPage /></ProtectedRoute>} />
               <Route path="inventory/requests" element={<ProtectedRoute requiredScreen="inventory_requests"><InventoryRequestsPage /></ProtectedRoute>} />
+              <Route path="vendors" element={<ProtectedRoute requiredScreen="inventory_requests"><VendorsPage /></ProtectedRoute>} />
+              <Route path="vendor-history" element={<ProtectedRoute requiredScreen="inventory_requests"><VendorHistoryPage /></ProtectedRoute>} />
               <Route path="inventory/reduce" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="inventory_reduce">
                   <ReduceStock />

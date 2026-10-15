@@ -12,7 +12,8 @@
     "test:picture-menu": "node --test scripts/test-picture-menu.mjs",
     "test:auth": "node --test scripts/test-auth.mjs",
     "test:permissions": "npm --prefix backend run build && node --test scripts/test-screen-permissions.mjs backend/dist/utils/digitalMenuAccess.test.js",
-    "test:api-url": "node --test scripts/test-api-url.mjs"
+    "test:api-url": "node --test scripts/test-api-url.mjs",
+    "test:inventory-requests": "npm --prefix backend run build && node --test scripts/test-inventory-requests.mjs backend/dist/controllers/inventoryRequestController.test.js backend/dist/controllers/inventoryVendorController.test.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
