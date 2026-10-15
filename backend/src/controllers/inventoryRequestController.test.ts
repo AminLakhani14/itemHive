@@ -9,7 +9,7 @@ import InventoryRequestReceipt from '../models/InventoryRequestReceipt';
 import { validateInventoryProductLink } from '../utils/inventoryProductLink';
 import * as categoryUnitsService from '../services/requestCategoryUnits';
 import { mergeRequestCategories, normalizeRequestUnits } from '../utils/requestCategoryUnits';
-import { createRestockRequest, reviewInventoryRequest, receiveInventoryRequest, saveInventoryVendors, getInventoryRequestHistory } from './inventoryRequestController';
+import { createRestockRequest, reviewInventoryRequest, receiveInventoryRequest, saveInventoryVendors, getInventoryRequestHistory, getInventoryRequests } from './inventoryRequestController';
 import { restockRequestSchema, inventoryVendorsSchema } from '../middleware/validate';
 import { receiptChanges } from '../utils/inventoryReceiving';
 import type { AuthRequest } from '../middleware/auth';
@@ -326,4 +326,34 @@ test('material requests persist the selected category and reject units outside i
     assert.equal(second.result.status, 400); assert.equal(saved, undefined);
     req.body.items[0].category = 'Unknown';
     const third = response(); await createRestockRequest(req, third.res); assert.equal(third.result.status, 400);
+});
+
+test('compact request list paginates and filters while counting the entire pending queue separately', async t => {
+    let filtered: any;
+    t.mock.method(InventoryRequest, 'find', (filter: any) => {
+        filtered = filter;
+        assert.equal(String(filter.$and[0].businessId), actor.businessId); assert.equal(filter.$and[0].requestedBy, actor.id);
+        assert.ok(filter.$and.some((clause: any) => clause.status === 'approved'));
+        assert.ok(filter.$and.some((clause: any) => clause.deliveryStatus === 'partial'));
+        return { sort: () => ({ skip: (skip: number) => { assert.equal(skip, 10); return { limit: (limit: number) => { assert.equal(limit, 10); return { lean: async () => [{ _id: 'request-1', status: 'approved' }] }; } }; } }) };
+    });
+    t.mock.method(InventoryRequest, 'countDocuments', async (filter: any) => {
+        if (filter.$and.some((clause: any) => clause.status === 'pending')) {
+            assert.equal(filter.$and.length, 2); assert.equal(String(filter.$and[0].businessId), actor.businessId); return 7;
+        }
+        assert.deepEqual(filter, filtered); return 20;
+    });
+    const req = request(); req.user!.role = 'user'; req.query = { page: '1', pageSize: '10', status: 'approved', deliveryStatus: 'partial', q: 'Buns (large)' };
+    const { res, result } = response(); await getInventoryRequests(req, res);
+    assert.equal(result.status, 200); assert.equal(result.body.total, 20); assert.equal(result.body.pendingCount, 7); assert.equal(result.body.requests.length, 1);
+});
+
+test('legacy callers can still retrieve the original request array without pagination parameters', async t => {
+    t.mock.method(InventoryRequest, 'find', (filter: any) => {
+        assert.equal(String(filter.businessId), actor.businessId);
+        return { sort: () => ({ lean: async () => [{ _id: 'legacy' }] }) };
+    });
+    const req = request(); req.query = {};
+    const { res, result } = response(); await getInventoryRequests(req, res);
+    assert.equal(result.status, 200); assert.deepEqual(result.body, [{ _id: 'legacy' }]);
 });

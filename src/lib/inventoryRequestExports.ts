@@ -18,6 +18,13 @@ export interface StockRequestData {
     __v?: number; deliveryStatus?: 'not_received' | 'partial' | 'complete'; receivedAt?: string; receivedByName?: string;
 }
 
+export interface InventoryRequestRecord extends StockRequestData {
+    requestType?: 'product' | 'restock';
+    status: 'pending' | 'approved' | 'rejected';
+    reviewedByName?: string;
+    productData?: { sku: string; name: string; category: string; purchasePrice: number; salePrice: number; stock: number; minStock: number; description?: string };
+}
+
 // Continuation rows keep long vendor details and remarks readable in the PDF.
 const wrapPdfRows = (rows: string[][]) => rows.flatMap(row => {
     const cells = row.map((value, index) => {

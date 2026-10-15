@@ -1,316 +1,82 @@
 import React from 'react';
-import {
-    Alert,
-    Box,
-    Button,
-    Card,
-    CardContent,
-    Chip,
-    CircularProgress,
-    Grid,
-    Snackbar,
-    Stack,
-    TextField,
-    Typography,
-} from '@mui/material';
-import { CheckCircle2, ClipboardCheck, History, Printer, XCircle } from 'lucide-react';
-import { useDispatch, useSelector } from 'react-redux';
-import type { AppDispatch, RootState } from '../../store';
+import { Alert, Box, Button, Card, Chip, CircularProgress, Grid, MenuItem, Snackbar, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material';
+import { Eye, History } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store';
 import api from '../../api/axios';
 import { StockRequestForm } from '../../components/Inventory/StockRequest';
-import StockRequestDetails from '../../components/Inventory/StockRequestDetails';
-import { downloadStockRequest, type RequestVendor, type RequestItem, type StockRequestData } from '../../lib/inventoryRequestExports';
-import { fetchProducts } from '../../features/inventory/inventorySlice';
-import StockRequestSlip from '../../components/Inventory/StockRequestSlip';
-import { printReceipt } from '../../lib/printReceipt';
-import InventoryRequestHistory from '../../components/Inventory/InventoryRequestHistory';
+import InventoryRequestDialog from '../../components/Inventory/InventoryRequestDialog';
+import type { InventoryRequestRecord } from '../../lib/inventoryRequestExports';
 
-interface InventoryRequest extends StockRequestData {
-    requestType?: 'product' | 'restock';
-    vendors?: RequestVendor[];
-    items?: RequestItem[];
-    _id: string;
-    requestedByName: string;
-    requestedByEmail: string;
-    status: 'pending' | 'approved' | 'rejected';
-    decisionNote?: string;
-    approvedProductId?: string;
-    createdAt: string;
-    reviewedByName?: string;
-    productData: {
-        sku: string;
-        name: string;
-        category: string;
-        purchasePrice: number;
-        salePrice: number;
-        stock: number;
-        minStock: number;
-        description?: string;
-    };
-}
+interface RequestsResponse { requests: InventoryRequestRecord[]; total: number; pendingCount: number }
 
-const requestErrorMessage = (error: unknown, fallback: string) =>
-    (error as { response?: { data?: { message?: string } } }).response?.data?.message || fallback;
-
-const InventoryRequestsPage: React.FC = () => {
-    const dispatch = useDispatch<AppDispatch>();
-    const { user } = useSelector((state: RootState) => state.auth);
-    const shopName = useSelector((state: RootState) => state.settings.app?.shopName || 'ItemHive');
+export default function InventoryRequestsPage() {
+    const user = useSelector((state: RootState) => state.auth.user);
     const isManager = user?.role === 'super_admin' || user?.role === 'admin';
-    const [requests, setRequests] = React.useState<InventoryRequest[]>([]);
-    const [notes, setNotes] = React.useState<Record<string, string>>({});
+    const [requests, setRequests] = React.useState<InventoryRequestRecord[]>([]);
+    const [selected, setSelected] = React.useState<InventoryRequestRecord | null>(null);
+    const [page, setPage] = React.useState(0);
+    const [pageSize, setPageSize] = React.useState(10);
+    const [total, setTotal] = React.useState(0);
+    const [pendingCount, setPendingCount] = React.useState(0);
+    const [query, setQuery] = React.useState('');
+    const [search, setSearch] = React.useState('');
+    const [status, setStatus] = React.useState('');
+    const [delivery, setDelivery] = React.useState('');
     const [loading, setLoading] = React.useState(true);
-    const [busyId, setBusyId] = React.useState('');
     const [error, setError] = React.useState('');
     const [snack, setSnack] = React.useState('');
+    const [refresh, setRefresh] = React.useState(0);
     const [formVersion, setFormVersion] = React.useState(0);
-    const [exporting, setExporting] = React.useState('');
-    const [printing, setPrinting] = React.useState('');
-    const [historyOpen, setHistoryOpen] = React.useState(false);
-
-    const printRequest = async (request: InventoryRequest) => {
-        if (printing) return;
-        setPrinting(request._id);
-        setError('');
-        try {
-            const slipId = `stock-request-slip-${request._id}`;
-            const slip = document.getElementById(slipId);
-            if (!slip) throw new Error('Request slip is unavailable. Please retry.');
-            await printReceipt(slip, `#${slipId}`, 58);
-        } catch {
-            setError('Unable to prepare this request slip for printing. Please retry.');
-        } finally { setPrinting(''); }
-    };
-
-    const download = async (request: InventoryRequest, format: 'pdf' | 'xlsx') => {
-        setExporting(request._id);
-        try { await downloadStockRequest(request, format); }
-        catch { setError('Unable to download the request. Please retry.'); }
-        finally { setExporting(''); }
-    };
-
-    const loadRequests = React.useCallback(async () => {
-        setLoading(true);
-        setError('');
-
-        try {
-            const response = await api.get('/inventory-requests');
-            setRequests(response.data as InventoryRequest[]);
-        } catch (requestError) {
-            setError(requestErrorMessage(requestError, 'Unable to load inventory requests right now.'));
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
+    React.useEffect(() => { const timer = setTimeout(() => { setSearch(query); setPage(0); }, 300); return () => clearTimeout(timer); }, [query]);
     React.useEffect(() => {
-        loadRequests();
-        const refresh = () => { setFormVersion(current => current + 1); setHistoryOpen(false); setRequests([]); setNotes({}); void loadRequests(); };
-        window.addEventListener('itemhive-workspace-changed', refresh);
-        return () => window.removeEventListener('itemhive-workspace-changed', refresh);
-    }, [loadRequests]);
-
-    const handleReview = async (requestId: string, status: 'approved' | 'rejected') => {
-        setBusyId(requestId);
-
-        try {
-            await api.patch(`/inventory-requests/${requestId}/review`, {
-                status,
-                decisionNote: notes[requestId] || '',
-            });
-            await loadRequests();
-            setSnack(`Request ${status} successfully.`);
-        } catch (requestError) {
-            setError(requestErrorMessage(requestError, 'Unable to review this request.'));
-        } finally {
-            setBusyId('');
-        }
-    };
-
-    const pendingCount = requests.filter((request) => request.status === 'pending').length;
-
-    return (
-        <Box>
-            {historyOpen && <InventoryRequestHistory requests={requests.filter(request => request.requestType === 'restock')} onClose={() => setHistoryOpen(false)} />}
-            <Snackbar
-                open={Boolean(snack)}
-                autoHideDuration={2600}
-                onClose={() => setSnack('')}
-                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-            >
-                <Alert onClose={() => setSnack('')} severity="success" sx={{ width: '100%' }}>
-                    {snack}
-                </Alert>
-            </Snackbar>
-
-            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Box>
-                    <Typography variant="h4" fontWeight={800}>Inventory Requests</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        {isManager
-                            ? `${pendingCount} request${pendingCount === 1 ? '' : 's'} waiting for review.`
-                            : 'Track the inventory requests you have sent for approval.'}
-                    </Typography>
-                </Box>
-                <Button variant="outlined" startIcon={<History size={18} />} disabled={loading} onClick={() => setHistoryOpen(true)}>Order & Receiving History</Button>
-            </Box>
-
-            {error && (
-                <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-                    {error}
-                </Alert>
-            )}
-
-            <StockRequestForm key={formVersion} onSaved={() => { setSnack('Stock request submitted successfully.'); void loadRequests(); }} />
-            <Typography variant="h6" fontWeight={800} sx={{ mb: 2 }}>Submitted Requests</Typography>
-
-            {loading ? (
-                <Box sx={{ minHeight: 240, display: 'grid', placeItems: 'center' }}>
-                    <CircularProgress />
-                </Box>
-            ) : (
-                <Grid container spacing={3}>
-                    {requests.map((request) => {
-                        const isBusy = busyId === request._id;
-
-                        return (
-                            <Grid key={request._id} size={{ xs: 12, lg: request.requestType === 'restock' ? 12 : 6 }}>
-                                <Card sx={{ borderRadius: 4, height: '100%' }}>
-                                    <CardContent sx={{ p: 3 }}>
-                                        <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
-                                            <Box>
-                                                <Typography variant="h6" fontWeight={800}>{request.requestType === 'restock' ? `Stock Request (${request.items?.length || 0} items)` : request.productData.name}</Typography>
-                                                {request.requestType === 'restock' ? <Typography variant="body2" color="text.secondary">Request #{request._id}</Typography> :
-                                                <Typography variant="body2" color="text.secondary">
-                                                    SKU {request.productData.sku} • {request.productData.category}
-                                                </Typography>}
-                                            </Box>
-                                            <Chip
-                                                label={request.status}
-                                                color={request.status === 'approved' ? 'success' : request.status === 'rejected' ? 'error' : 'warning'}
-                                                sx={{ textTransform: 'capitalize', fontWeight: 700 }}
-                                            />
-                                        </Stack>
-
-                                        {request.requestType === 'restock' ? <StockRequestDetails key={`${request._id}-${request.__v || 0}`} request={request} onUpdated={(updated) => {
-                                            setRequests(current => current.map(row => row._id === updated._id ? { ...row, ...updated } as InventoryRequest : row));
-                                            setSnack('Delivery and receiving record saved.');
-                                            void dispatch(fetchProducts({ force: true }));
-                                        }} /> : <Grid container spacing={1.5} sx={{ mt: 2 }}>
-                                            <Grid size={{ xs: 6 }}>
-                                                <Typography variant="caption" color="text.secondary">Purchase Price</Typography>
-                                                <Typography variant="body2" fontWeight={700}>{request.productData.purchasePrice}</Typography>
-                                            </Grid>
-                                            <Grid size={{ xs: 6 }}>
-                                                <Typography variant="caption" color="text.secondary">Sale Price</Typography>
-                                                <Typography variant="body2" fontWeight={700}>{request.productData.salePrice}</Typography>
-                                            </Grid>
-                                            <Grid size={{ xs: 6 }}>
-                                                <Typography variant="caption" color="text.secondary">Requested Stock</Typography>
-                                                <Typography variant="body2" fontWeight={700}>{request.productData.stock}</Typography>
-                                            </Grid>
-                                            <Grid size={{ xs: 6 }}>
-                                                <Typography variant="caption" color="text.secondary">Min Stock</Typography>
-                                                <Typography variant="body2" fontWeight={700}>{request.productData.minStock}</Typography>
-                                            </Grid>
-                                        </Grid>}
-
-                                        <Box sx={{ mt: 2 }}>
-                                            <Typography variant="caption" color="text.secondary">Requested By</Typography>
-                                            <Typography variant="body2" fontWeight={700}>
-                                                {request.requestedByName} • {request.requestedByEmail}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {new Date(request.createdAt).toLocaleString()}
-                                            </Typography>
-                                        </Box>
-
-                                        {request.requestType !== 'restock' && request.productData.description && (
-                                            <Box sx={{ mt: 2, p: 2, borderRadius: 3, bgcolor: 'action.hover' }}>
-                                                <Typography variant="caption" color="text.secondary">Description</Typography>
-                                                <Typography variant="body2">{request.productData.description}</Typography>
-                                            </Box>
-                                        )}
-
-                                        {request.requestType === 'restock' && <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 2 }}>
-                                            <Button variant="outlined" disabled={exporting === request._id} onClick={() => void download(request, 'pdf')}>Download PDF</Button>
-                                            <Button variant="outlined" disabled={exporting === request._id} onClick={() => void download(request, 'xlsx')}>Download Excel</Button>
-                                            <Button variant="outlined" startIcon={<Printer size={16} />} disabled={Boolean(printing)} onClick={() => void printRequest(request)}>{printing === request._id ? 'Preparing...' : 'Print Slip'}</Button>
-                                        </Stack>}
-
-                                        {request.requestType === 'restock' && <StockRequestSlip request={request} shopName={shopName} />}
-
-                                        {isManager && request.status === 'pending' && (
-                                            <Stack spacing={1.5} sx={{ mt: 2.5 }}>
-                                                <TextField
-                                                    label="Decision note"
-                                                    size="small"
-                                                    value={notes[request._id] || ''}
-                                                    onChange={(event) => setNotes((current) => ({
-                                                        ...current,
-                                                        [request._id]: event.target.value,
-                                                    }))}
-                                                />
-                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                                                    <Button
-                                                        fullWidth
-                                                        variant="contained"
-                                                        color="success"
-                                                        startIcon={<CheckCircle2 size={16} />}
-                                                        onClick={() => handleReview(request._id, 'approved')}
-                                                        disabled={isBusy}
-                                                    >
-                                                        Approve
-                                                    </Button>
-                                                    <Button
-                                                        fullWidth
-                                                        variant="outlined"
-                                                        color="error"
-                                                        startIcon={<XCircle size={16} />}
-                                                        onClick={() => handleReview(request._id, 'rejected')}
-                                                        disabled={isBusy}
-                                                    >
-                                                        Reject
-                                                    </Button>
-                                                </Stack>
-                                            </Stack>
-                                        )}
-
-                                        {request.status !== 'pending' && (
-                                            <Box sx={{ mt: 2.5, p: 2, borderRadius: 3, bgcolor: 'action.hover' }}>
-                                                <Typography variant="subtitle2" fontWeight={700}>
-                                                    Reviewed by {request.reviewedByName || 'Admin'}
-                                                </Typography>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    {request.decisionNote || 'No review note was added.'}
-                                                </Typography>
-                                            </Box>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                        );
-                    })}
-
-                    {!requests.length && (
-                        <Grid size={12}>
-                            <Card sx={{ borderRadius: 4 }}>
-                                <CardContent sx={{ p: 4, textAlign: 'center' }}>
-                                    <ClipboardCheck size={38} style={{ opacity: 0.45, marginBottom: 12 }} />
-                                    <Typography variant="h6" fontWeight={800}>No inventory requests yet</Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        {isManager
-                                            ? 'Requests from users will appear here as soon as they are submitted.'
-                                            : 'Create your first inventory request in Stock Required above.'}
-                                    </Typography>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                    )}
-                </Grid>
-            )}
-        </Box>
-    );
-};
-
-export default InventoryRequestsPage;
+        let active = true;
+        setLoading(true); setError('');
+        api.get<RequestsResponse>('/inventory-requests', { params: { page, pageSize, q: search, status, deliveryStatus: delivery } })
+            .then(({ data }) => {
+                if (!active) return;
+                if (!Array.isArray(data.requests)) throw new Error('The connected inventory service needs to be updated.');
+                setTotal(data.total); setPendingCount(data.pendingCount);
+                if (page > 0 && page * pageSize >= data.total) setPage(Math.max(0, Math.ceil(data.total / pageSize) - 1));
+                else setRequests(data.requests);
+            })
+            .catch(failure => { if (active) { setRequests([]); setTotal(0); setError(failure?.response?.data?.message || failure?.message || 'Unable to load inventory requests. Please retry.'); } })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, [page, pageSize, search, status, delivery, refresh]);
+    React.useEffect(() => {
+        const reset = () => { setSelected(null); setRequests([]); setTotal(0); setPendingCount(0); setPage(0); setQuery(''); setSearch(''); setStatus(''); setDelivery(''); setFormVersion(value => value + 1); setRefresh(value => value + 1); };
+        window.addEventListener('itemhive-workspace-changed', reset);
+        return () => window.removeEventListener('itemhive-workspace-changed', reset);
+    }, []);
+    return <Box>
+        {selected && <InventoryRequestDialog key={selected._id} request={selected} onClose={() => setSelected(null)} onChanged={(updated, notice) => { setSelected(updated); setSnack(notice); setRefresh(value => value + 1); }} />}
+        <Snackbar open={Boolean(snack)} autoHideDuration={3000} onClose={() => setSnack('')} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}><Alert severity="success" onClose={() => setSnack('')}>{snack}</Alert></Snackbar>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={2} sx={{ mb: 3 }}><Box><Typography variant="h4" fontWeight={800}>Inventory Requests</Typography><Typography variant="body2" color="text.secondary">{isManager ? `${pendingCount} request${pendingCount === 1 ? '' : 's'} waiting for review.` : 'Track your inventory orders and receiving records.'}</Typography></Box><Button component={Link} to="/vendor-history" variant="outlined" startIcon={<History size={18} />}>Order & Receiving History</Button></Stack>
+        <StockRequestForm key={formVersion} onSaved={() => { setSnack('Stock request submitted successfully.'); setPage(0); setRefresh(value => value + 1); }} />
+        <Typography variant="h6" fontWeight={800} sx={{ mb: 2 }}>Submitted Requests</Typography>
+        {error && <Alert severity="error" action={<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button>} sx={{ mb: 2 }}>{error}</Alert>}
+        <Card sx={{ borderRadius: 3 }}>
+            <Grid container spacing={2} sx={{ p: 2 }}><Grid size={{ xs: 12, md: 6 }}><TextField fullWidth size="small" label="Search request, item, vendor or requester" value={query} onChange={event => setQuery(event.target.value)} /></Grid><Grid size={{ xs: 6, md: 3 }}><TextField select fullWidth size="small" label="Approval status" value={status} onChange={event => { setStatus(event.target.value); setPage(0); }}><MenuItem value="">All requests</MenuItem><MenuItem value="pending">Pending</MenuItem><MenuItem value="approved">Approved</MenuItem><MenuItem value="rejected">Rejected</MenuItem></TextField></Grid><Grid size={{ xs: 6, md: 3 }}><TextField select fullWidth size="small" label="Delivery status" value={delivery} onChange={event => { setDelivery(event.target.value); setPage(0); }}><MenuItem value="">All deliveries</MenuItem><MenuItem value="not_received">Not received</MenuItem><MenuItem value="partial">Partial</MenuItem><MenuItem value="complete">Complete</MenuItem></TextField></Grid></Grid>
+            {loading ? <Box sx={{ textAlign: 'center', p: 4 }}><CircularProgress size={30} /></Box> : <TableContainer><Table size="small" sx={{ minWidth: 900 }}><TableHead><TableRow>{['Request / Date', 'Items', 'Vendors', 'Approval', 'Delivery', 'Requested by', ''].map((label, index) => <TableCell key={index}>{label}</TableCell>)}</TableRow></TableHead><TableBody>
+                {requests.map(request => {
+                    const restock = request.requestType === 'restock';
+                    const names = restock ? (request.items || []).map(item => item.name) : [request.productData?.name || 'Product request'];
+                    const vendors = request.vendors || [];
+                    return <TableRow key={request._id} hover>
+                        <TableCell sx={{ py: 1.5 }}><Typography fontWeight={700} variant="body2">#{request._id.slice(-8).toUpperCase()}</Typography><Typography variant="caption" color="text.secondary">{new Date(request.createdAt).toLocaleDateString()}</Typography></TableCell>
+                        <TableCell><Typography variant="body2" noWrap sx={{ maxWidth: 220 }} title={names.join(', ')}>{names.slice(0, 2).join(', ')}{names.length > 2 ? ` +${names.length - 2} more` : ''}</Typography><Typography variant="caption" color="text.secondary">{restock ? `${names.length} item${names.length === 1 ? '' : 's'}` : request.productData?.sku}</Typography></TableCell>
+                        <TableCell><Typography noWrap variant="body2" sx={{ maxWidth: 180 }} title={vendors.map(vendor => vendor.name).join(', ')}>{vendors[0]?.name || '-'}{vendors.length > 1 ? ` +${vendors.length - 1}` : ''}</Typography></TableCell>
+                        <TableCell><Chip size="small" label={request.status} color={request.status === 'approved' ? 'success' : request.status === 'rejected' ? 'error' : 'warning'} sx={{ textTransform: 'capitalize' }} /></TableCell>
+                        <TableCell>{restock ? <Chip size="small" variant="outlined" label={request.deliveryStatus === 'complete' ? 'Complete' : request.deliveryStatus === 'partial' ? 'Partial' : 'Not received'} color={request.deliveryStatus === 'complete' ? 'success' : request.deliveryStatus === 'partial' ? 'warning' : 'default'} /> : '-'}</TableCell>
+                        <TableCell><Typography variant="body2" noWrap sx={{ maxWidth: 140 }}>{request.requestedByName}</Typography></TableCell>
+                        <TableCell align="right"><Button size="small" startIcon={<Eye size={16} />} onClick={() => setSelected(request)} sx={{ whiteSpace: 'nowrap' }}>View Details</Button></TableCell>
+                    </TableRow>;
+                })}
+                {!requests.length && <TableRow><TableCell colSpan={7}><Typography align="center" color="text.secondary" sx={{ py: 4 }}>No requests found. Adjust your filters or create a stock request above.</Typography></TableCell></TableRow>}
+            </TableBody></Table></TableContainer>}
+            <TablePagination component="div" count={total} page={page} rowsPerPage={pageSize} rowsPerPageOptions={[10, 25, 50]} onPageChange={(_, value) => setPage(value)} onRowsPerPageChange={event => { setPageSize(Number(event.target.value)); setPage(0); }} />
+        </Card>
+    </Box>;
+}

@@ -54,6 +54,32 @@ export const getInventoryRequests = async (req: AuthRequest, res: Response) => {
             ? { requestedBy: req.user?.id, ...buildTenantFilter(req.user!) }
             : buildTenantFilter(req.user!);
 
+        if (req.query.page !== undefined || req.query.pageSize !== undefined) {
+            const page = Number.isFinite(Number(req.query.page)) ? Math.min(1_000_000, Math.max(0, Math.floor(Number(req.query.page)))) : 0;
+            const pageSize = Number.isFinite(Number(req.query.pageSize)) ? Math.min(100, Math.max(1, Math.floor(Number(req.query.pageSize)))) : 10;
+            const q = String(req.query.q || '').trim().slice(0, 120);
+            const status = String(req.query.status || '');
+            const deliveryStatus = String(req.query.deliveryStatus || '');
+            const clauses: Record<string, unknown>[] = [query];
+            if (['pending', 'approved', 'rejected'].includes(status)) clauses.push({ status });
+            if (['complete', 'partial'].includes(deliveryStatus)) clauses.push({ requestType: 'restock', deliveryStatus });
+            if (deliveryStatus === 'not_received') clauses.push({ requestType: 'restock', $or: [{ deliveryStatus: 'not_received' }, { deliveryStatus: { $exists: false } }] });
+            if (q) {
+                const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                clauses.push({ $or: [
+                    ...['items.name', 'vendors.name', 'productData.name', 'productData.sku', 'requestedByName', 'requestedByEmail'].map(field => ({ [field]: { $regex: escaped, $options: 'i' } })),
+                    { $expr: { $regexMatch: { input: { $toString: '$_id' }, regex: escaped, options: 'i' } } },
+                ] });
+            }
+            const filter = { $and: clauses };
+            const [requests, total, pendingCount] = await Promise.all([
+                InventoryRequest.find(filter).sort({ createdAt: -1, _id: -1 }).skip(page * pageSize).limit(pageSize).lean(),
+                InventoryRequest.countDocuments(filter),
+                InventoryRequest.countDocuments({ $and: [query, { status: 'pending' }] }),
+            ]);
+            return res.json({ requests, total, pendingCount, page, pageSize });
+        }
+
         const requests = await InventoryRequest.find(query).sort({ createdAt: -1 }).lean();
         return res.json(requests);
     } catch (error: any) {

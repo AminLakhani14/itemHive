@@ -86,5 +86,6 @@ const InventoryRequestSchema = new Schema<IInventoryRequest>({
 }, { timestamps: true });
 
 InventoryRequestSchema.index({ businessId: 1, requestType: 1, 'items.vendorId': 1, createdAt: -1 });
+InventoryRequestSchema.index({ businessId: 1, status: 1, createdAt: -1 });
 
 export default mongoose.model<IInventoryRequest>('InventoryRequest', InventoryRequestSchema);
