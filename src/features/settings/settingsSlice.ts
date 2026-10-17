@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import api from '../../api/axios';
+import type { BusinessProductField } from '../../types/businessType';
 
 interface NotificationSettings {
     orderUpdates: boolean;
@@ -7,6 +8,9 @@ interface NotificationSettings {
 }
 
 export interface AppSettings {
+    businessTypeId?: string;
+    businessTypeName?: string;
+    productFields?: BusinessProductField[];
     salesTaxRate: number;
     shopName: string;
     shopPhone: string;
@@ -116,7 +120,11 @@ export const saveSettings = createAsyncThunk(
         { rejectWithValue }
     ) => {
         try {
-            const response = await api.put('/settings', payload);
+            const editableApp = { ...payload.app };
+            delete editableApp.businessTypeId;
+            delete editableApp.businessTypeName;
+            delete editableApp.productFields;
+            const response = await api.put('/settings', { ...payload, app: editableApp });
             return response.data as {
                 country: CountryCode;
                 currency: CurrencyCode;

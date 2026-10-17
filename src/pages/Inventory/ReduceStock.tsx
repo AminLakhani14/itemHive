@@ -42,12 +42,13 @@ import { DEFAULT_APP_SETTINGS } from '../../features/settings/settingsSlice';
 import { amountToWords } from '../../lib/numberToWords';
 import { buildInvoicePdfBlob, shareOrDownloadPdf } from '../../lib/invoicePdf';
 import { thermalInvoicePrintCss } from '../../lib/thermalPrintCss';
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 
 const ReduceStock: React.FC = () => {
     const dispatch = useDispatch<AppDispatch>();
     const { products } = useSelector((state: RootState) => state.inventory);
     const { user } = useSelector((state: RootState) => state.auth);
-    const { app } = useSelector((state: RootState) => state.settings);
+    const app = useSelector(selectPrintSettings);
     const appSettings = app || DEFAULT_APP_SETTINGS;
     const { formatCurrency } = useAppCurrency();
 

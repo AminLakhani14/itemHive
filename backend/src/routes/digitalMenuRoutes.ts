@@ -1,14 +1,21 @@
 import { Router } from 'express';
-import { createDigitalMenu, deleteDigitalMenu, getDigitalMenus, getPublicMenu, getTableDrafts, submitPublicOrder, updateDigitalMenu } from '../controllers/digitalMenuController';
+import { createDigitalMenu, deleteDigitalMenu, getDigitalMenus, getPublicMenu, getTableDrafts, previewDigitalMenu, publishDigitalMenu, submitPublicOrder, updateDigitalMenu } from '../controllers/digitalMenuController';
 import { authorize, protect, requireScreenAccess } from '../middleware/auth';
+import { menuAICapabilities, recommendMenu } from '../controllers/menuAIController';
+import { importOldMenu } from '../controllers/menuImportController';
 
 const router = Router();
 router.get('/public/:token', getPublicMenu);
 router.post('/public/:token/order', submitPublicOrder);
 router.use(protect, authorize('super_admin', 'admin', 'user'), requireScreenAccess('digital_menus'));
+router.get('/ai/capabilities', menuAICapabilities);
+router.post('/ai/suggest', recommendMenu);
+router.post('/ai/import', importOldMenu);
 router.get('/', getDigitalMenus);
 router.post('/', createDigitalMenu);
 router.put('/:id', updateDigitalMenu);
+router.post('/:id/publish', publishDigitalMenu);
+router.get('/:id/preview', previewDigitalMenu);
 router.get('/table-drafts', getTableDrafts);
 router.delete('/:id', deleteDigitalMenu);
 export default router;

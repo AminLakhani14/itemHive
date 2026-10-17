@@ -1,6 +1,6 @@
 export interface OrderDraftItem {
     sizeId?: string;
-    selectedSize?: number;
+    selectedSize?: number | string;
     productUnit?: string;
     productId: string;
     productName: string;
@@ -9,6 +9,7 @@ export interface OrderDraftItem {
 }
 
 export interface OrderDraft {
+    salespersonEmployeeId?: string;
     _id: string;
     draftCode: string;
     items: OrderDraftItem[];

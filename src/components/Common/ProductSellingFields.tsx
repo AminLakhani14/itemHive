@@ -7,9 +7,9 @@ const units = [{ code: 'litre', label: 'Liter' }, { code: 'milliliter', label: '
 
 function SizeNumberField({ label, value, whole, onChange }: { label: string; value: number; whole: boolean; onChange: (value: number) => void }) {
     const [text, setText] = useState(Number.isFinite(value) ? String(value) : '');
-    return <TextField required label={label} value={text} slotProps={{ htmlInput: { inputMode: whole ? 'numeric' : 'decimal' } }} sx={{ flex: '1 1 130px' }} onChange={e => {
+    return <TextField label={label} value={text} slotProps={{ htmlInput: { inputMode: whole ? 'numeric' : 'decimal' } }} sx={{ flex: '1 1 130px' }} onChange={e => {
         setText(e.target.value);
-        onChange(e.target.value.trim() === '' ? NaN : Number(e.target.value));
+        onChange(e.target.value.trim() === '' ? 0 : Number(e.target.value));
     }} />;
 }
 
@@ -29,12 +29,13 @@ export default function ProductSellingFields({ value, onChange }: { value: Selli
             </TextField>
             {value.sellingType === 'quantity' && <Typography variant="body2">Enter purchase/sale price per {value.productUnit || 'unit'} and stock in {value.productUnit || 'units'} below. Customers enter their own quantity at POS.</Typography>}
             {value.sellingType === 'fixed' && <>
-                <Typography variant="body2">Define your own sizes. Stock is the number of bottles/packs for each size.</Typography>
+                <Typography variant="body2">Add variants such as Small, Large or 500 ml. Only the variant is required; blank prices and stock are saved as 0.</Typography>
                 {sizes.map((size, index) => <Box key={size.id} sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {(['size', 'purchasePrice', 'salePrice', 'stock'] as const).map(field => <SizeNumberField key={field} whole={field === 'stock'} label={field === 'size' ? `Size (${value.productUnit || 'unit'})` : field === 'stock' ? 'Bottles/packs stock' : field === 'purchasePrice' ? 'Purchase price' : 'Sale price'} value={size[field]} onChange={number => onChange({ ...value, sizes: sizes.map((row, i) => i === index ? { ...row, [field]: number } : row) })} />)}
+                    <TextField required label="Variant" value={size.size ?? ''} sx={{ flex: '1 1 130px' }} onChange={e => onChange({ ...value, sizes: sizes.map((row, i) => i === index ? { ...row, size: e.target.value } : row) })} />
+                    {(['purchasePrice', 'salePrice', 'stock'] as const).map(field => <SizeNumberField key={field} whole={field === 'stock'} label={field === 'stock' ? 'Stock' : field === 'purchasePrice' ? 'Purchase price' : 'Sale price'} value={size[field]} onChange={number => onChange({ ...value, sizes: sizes.map((row, i) => i === index ? { ...row, [field]: number } : row) })} />)}
                     <Button color="error" onClick={() => onChange({ ...value, sizes: sizes.filter((_, i) => i !== index) })}>Remove</Button>
                 </Box>)}
-                <Button onClick={() => onChange({ ...value, sizes: [...sizes, { id: crypto.randomUUID(), size: NaN, purchasePrice: NaN, salePrice: NaN, stock: NaN }] })}>Add size</Button>
+                <Button onClick={() => onChange({ ...value, sizes: [...sizes, { id: crypto.randomUUID(), size: '', purchasePrice: 0, salePrice: 0, stock: 0 }] })}>Add variant</Button>
             </>}
         </>}
     </Stack>;

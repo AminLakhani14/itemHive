@@ -1,11 +1,8 @@
 import axios from 'axios';
-
-const defaultApiUrl = import.meta.env.DEV
-    ? 'http://localhost:5050/api'
-    : 'https://itemhive-8552.onrender.com/api';
+import { resolveApiUrl } from './apiUrl';
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || defaultApiUrl,
+    baseURL: resolveApiUrl(import.meta.env.DEV, import.meta.env.VITE_API_URL),
     headers: {
         'Content-Type': 'application/json'
     }
@@ -21,6 +18,11 @@ api.interceptors.request.use(
         const selectedWorkspaceId = localStorage.getItem('itemhive-workspace-id');
         if (selectedWorkspaceId) {
             config.headers['x-itemhive-workspace-id'] = selectedWorkspaceId;
+        }
+        // The branch chosen in the top bar (BRANCH_STORAGE_KEY in features/branch/branchSlice).
+        const selectedBranchId = localStorage.getItem('itemhive-branch-id');
+        if (selectedBranchId) {
+            config.headers['x-itemhive-branch-id'] = selectedBranchId;
         }
         return config;
     },

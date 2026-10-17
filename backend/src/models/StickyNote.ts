@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface IStickyNote extends Document {
     user: mongoose.Types.ObjectId;
@@ -23,4 +24,5 @@ const StickyNoteSchema: Schema = new Schema(
     { timestamps: true }
 );
 
+StickyNoteSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IStickyNote>('StickyNote', StickyNoteSchema);

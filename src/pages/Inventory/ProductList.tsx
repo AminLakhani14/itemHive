@@ -771,7 +771,7 @@ const ProductList: React.FC = () => {
 
                             {isFixedProduct(viewProduct) && <Stack spacing={1} sx={{ mb: 3 }}>
                                 {(viewProduct.sizes || []).map(size => <Box key={size.id} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 2 }}>
-                                    <Typography fontWeight={700}>{size.size} {viewProduct.productUnit}</Typography>
+                                    <Typography fontWeight={700}>{size.size} {typeof size.size === 'number' ? viewProduct.productUnit : ''}</Typography>
                                     <Typography variant="body2">Purchase: {formatCurrency(size.purchasePrice)} - Sale: {formatCurrency(size.salePrice)} - Stock: {size.stock} bottles/packs</Typography>
                                 </Box>)}
                             </Stack>}

@@ -4,7 +4,7 @@ import { protect, authorize, requireScreenAccess } from '../middleware/auth';
 import { validate, productSchema } from '../middleware/validate';
 
 const router = Router();
-const requireProductScreen = requireScreenAccess('dashboard', 'pos', 'inventory', 'inventory_add', 'inventory_import', 'inventory_units', 'inventory_reduce', 'orders', 'transactions', 'installments', 'reports');
+const requireProductScreen = requireScreenAccess('dashboard', 'pos', 'digital_menus', 'inventory', 'inventory_requests', 'inventory_add', 'inventory_import', 'inventory_units', 'inventory_reduce', 'orders', 'transactions', 'installments', 'reports');
 
 router.get('/', protect, requireProductScreen, getProducts);
 router.get('/image-suggestions', protect, requireScreenAccess('inventory_add'), getProductImageSuggestions);

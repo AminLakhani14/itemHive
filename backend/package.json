@@ -13,7 +13,10 @@
     "start": "node dist/server.js",
     "seed": "ts-node-dev src/seed.ts",
     "migrate:product-images": "npm run build && node dist/scripts/optimizeProductImages.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run build && node --test dist/services/payrollCalculator.test.js dist/services/payrollWorkflow.test.js dist/services/expenseWorkflow.test.js",
+    "test:expenses": "npm run build && node --test dist/services/expenseWorkflow.test.js",
+    "test:digital-menus": "npm run build && node --test dist/controllers/digitalMenuController.test.js dist/utils/dealPricing.test.js dist/utils/pictureMenuContent.test.js dist/services/inventoryMenuAI.test.js dist/controllers/menuAIController.test.js dist/services/oldMenuImport.test.js dist/controllers/menuImportController.test.js dist/services/geminiKeys.test.js dist/services/menuAIProvider.test.js",
+    "test:payroll": "npm run build && node --test dist/services/payrollCalculator.test.js dist/services/payrollWorkflow.test.js"
   },
   "keywords": [],
   "author": "",
@@ -38,6 +41,7 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "mongodb-memory-server": "^11.3.0",
     "ts-node-dev": "^2.0.0"
   }
 }

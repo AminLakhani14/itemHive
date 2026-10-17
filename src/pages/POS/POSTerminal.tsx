@@ -47,6 +47,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../store';
 import { addToCart, updateCartItemPrice, updateQuantity, clearCart, replaceCart, setCartDiscountPercent } from '../../features/pos/posSlice';
+import SalespersonSelect from '../../components/Payroll/SalespersonSelect';
 import { resolveProductImage, fetchProducts, placeholderFallback } from '../../features/inventory/inventorySlice';
 import { fetchTransactions } from '../../features/transactions/transactionSlice';
 import type { Product } from '../../features/inventory/inventorySlice';
@@ -56,6 +57,7 @@ import useAppCurrency from '../../hooks/useAppCurrency';
 import api from '../../api/axios';
 import { getRegionalIdLabel } from '../../lib/regional';
 import { DEFAULT_APP_SETTINGS } from '../../features/settings/settingsSlice';
+import { hasInstallmentAccess } from '../../lib/screenPermissions';
 import DocumentBanner from '../../components/Common/DocumentBanner';
 import InvoiceLetterhead from '../../components/Common/InvoiceLetterhead';
 import InvoiceItemsTable from '../../components/Common/InvoiceItemsTable';
@@ -64,9 +66,11 @@ import { buildInvoicePdfBlob, shareOrDownloadPdf } from '../../lib/invoicePdf';
 import { thermalInvoicePrintCss } from '../../lib/thermalPrintCss';
 import { printCheckoutCopies, printReceipt } from '../../lib/printReceipt';
 import type { OrderDraft } from '../../types/orderDraft';
+import TableOrdersPanel from '../../components/Orders/TableOrdersPanel';
 
 const productCardFallback = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><g fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M80 35 119 57v46l-39 22-39-22V57z"/><path d="m41 57 39 23 39-23M80 80v45M60 46l39 23v17"/></g></svg>')}`;
 import type { POSShift } from '../../types/posShift';
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 
 
 type CheckoutMethod = 'cash' | 'card' | 'credit' | 'installment';
@@ -109,11 +113,12 @@ const POSTerminal: React.FC = () => {
     const { user } = useSelector((state: RootState) => state.auth);
     const { products, loaded: productsLoaded, error: productsError } = useSelector((state: RootState) => state.inventory);
     const { cart, discountPercent } = useSelector((state: RootState) => state.pos);
-    const { app, country } = useSelector((state: RootState) => state.settings);
+    const { country } = useSelector((state: RootState) => state.settings);
+    const app = useSelector(selectPrintSettings);
     const appSettings = app || DEFAULT_APP_SETTINGS;
     const { formatCurrency, currencySymbol } = useAppCurrency();
     const canOverridePrice = user?.role === 'super_admin' || user?.role === 'admin';
-    const canAccessInstallments = user?.role === 'super_admin' || Boolean(appSettings.installmentsEnabled && user?.installmentAccess);
+    const canAccessInstallments = hasInstallmentAccess(user, appSettings.installmentsEnabled);
     const regionalIdLabel = getRegionalIdLabel(country);
     const taxRate = Number(appSettings.salesTaxRate || 0) / 100;
     const taxLabel = `Tax (${Number(appSettings.salesTaxRate || 0).toLocaleString()}%)`;
@@ -152,6 +157,9 @@ const POSTerminal: React.FC = () => {
     const [savingDraft, setSavingDraft] = useState(false);
     const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
     const [activeDraftCode, setActiveDraftCode] = useState('');
+    const [activeDraftTable, setActiveDraftTable] = useState('');
+    const [activeDraftUpdatedAt, setActiveDraftUpdatedAt] = useState('');
+    const [draftReloadVersion, setDraftReloadVersion] = useState(0);
     const loadedDraftRef = React.useRef<string | null>(null);
     // This is the last saved version of an open draft. It lets an update KOT
     // contain only the items (or additional quantities) newly sent to kitchen.
@@ -160,6 +168,7 @@ const POSTerminal: React.FC = () => {
     // State updates apply on the next render; this ref blocks a rapid double
     // click immediately, before the button visually becomes disabled.
     const checkoutInFlightRef = React.useRef(false);
+    const [salespersonEmployeeId, setSalespersonEmployeeId] = useState('');
     const [creditOpen, setCreditOpen] = useState(false);
     const [creditPaidInput, setCreditPaidInput] = useState('');
     const [creditPaidVia, setCreditPaidVia] = useState<'cash' | 'card'>('cash');
@@ -261,6 +270,7 @@ const POSTerminal: React.FC = () => {
             loadedDraftRef.current = null;
             setActiveDraftId(null);
             setActiveDraftCode('');
+            setActiveDraftTable('');
             return;
         }
         if (!productsLoaded || loadedDraftRef.current === requestedDraftId) return;
@@ -269,6 +279,7 @@ const POSTerminal: React.FC = () => {
         const loadDraft = async () => {
             try {
                 const response = await api.get<OrderDraft>(`/order-drafts/${requestedDraftId}`);
+                if (response.data.salespersonEmployeeId) setSalespersonEmployeeId(response.data.salespersonEmployeeId);
                 if (cancelled) return;
                 const unavailableNames: string[] = [];
                 const restoredCart = response.data.items.flatMap((draftItem) => {
@@ -292,6 +303,8 @@ const POSTerminal: React.FC = () => {
                 setPendingMethod('cash');
                 setActiveDraftId(response.data._id);
                 setActiveDraftCode(response.data.draftCode);
+                setActiveDraftTable(response.data.digitalMenuTable?.trim() || '');
+                setActiveDraftUpdatedAt(response.data.updatedAt);
                 savedDraftItemsRef.current = response.data.items;
                 loadedDraftRef.current = requestedDraftId;
                 if (unavailableNames.length > 0) {
@@ -308,7 +321,7 @@ const POSTerminal: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [dispatch, navigate, products, productsLoaded, requestedDraftId]);
+    }, [dispatch, navigate, products, productsLoaded, requestedDraftId, draftReloadVersion]);
 
     React.useEffect(() => {
         if (!draftKot) return;
@@ -324,7 +337,7 @@ const POSTerminal: React.FC = () => {
 
             try {
                 // A 58mm roll uses a 52mm receipt box, including its padding.
-                // printReceipt measures the items to determine the page height.
+                // Keep the ticket at thermal width on the selected printer paper.
                 await printReceipt(kitchenTicket, '#pos-draft-kot', 58);
                 if (!cancelled) setDraftKot(null);
             } catch {
@@ -499,6 +512,7 @@ const POSTerminal: React.FC = () => {
         setSavingDraft(true);
         try {
             const payload = {
+                salespersonEmployeeId: salespersonEmployeeId || undefined,
                 items: cart.map((item) => ({
                     productId: item.productId || item.id, sizeId: item.sizeId,
                     quantity: item.quantity,
@@ -517,6 +531,7 @@ const POSTerminal: React.FC = () => {
                 // Keep the cart intact until saving succeeds so failures can
                 // be retried without losing edits or replacing another order.
                 const response = await api.put<OrderDraft>(`/order-drafts/${draftId}`, payload);
+                window.dispatchEvent(new Event('itemhive-order-drafts-changed'));
                 const savedQuantities = new Map(originalDraftItems.map((item) => [cartLineId(item.productId, item.sizeId), item.quantity]));
                 const addedItems = response.data.items.flatMap((item) => {
                     const addedQuantity = item.quantity - (savedQuantities.get(cartLineId(item.productId, item.sizeId)) || 0);
@@ -549,6 +564,7 @@ const POSTerminal: React.FC = () => {
             }
 
             const response = await api.post<OrderDraft>('/order-drafts', payload);
+            window.dispatchEvent(new Event('itemhive-order-drafts-changed'));
 
             if (isRestaurant) {
                 setDraftKot({
@@ -584,8 +600,10 @@ const POSTerminal: React.FC = () => {
         if (!activeDraftId) return;
         try {
             await api.delete(`/order-drafts/${activeDraftId}`);
+            window.dispatchEvent(new Event('itemhive-order-drafts-changed'));
             setActiveDraftId(null);
             setActiveDraftCode('');
+            setActiveDraftTable('');
             loadedDraftRef.current = null;
             navigate('/pos', { replace: true });
         } catch {
@@ -729,6 +747,7 @@ const POSTerminal: React.FC = () => {
 
             try {
                 await api.post('/installments', {
+                    salespersonEmployeeId: salespersonEmployeeId || undefined,
                     planCode: `INS-${crypto.randomUUID()}`,
                     productId: item.productId || item.id, sizeId: item.sizeId,
                     productName: item.name,
@@ -775,6 +794,7 @@ const POSTerminal: React.FC = () => {
 
         try {
             await api.post('/transactions/checkout', {
+                salespersonEmployeeId: salespersonEmployeeId || undefined,
                 orderId: id,
                 draftId: activeDraftId || undefined,
                 shiftId: openShift._id,
@@ -832,6 +852,7 @@ const POSTerminal: React.FC = () => {
 
     const handleCloseOrder = () => {
         if (paymentCommitPending) return;
+        setActiveDraftTable('');
         dispatch(clearCart());
         setOrderDone(false);
         setPrintingReceipt(false);
@@ -929,6 +950,12 @@ const POSTerminal: React.FC = () => {
         >
             {/* Left Side: Product Selection */}
             <Box inert={savingDraft} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+                <TableOrdersPanel compact activeDraftId={activeDraftId} activeDraftUpdatedAt={activeDraftUpdatedAt} confirmSwitch={cart.length > 0 && !orderDone} busy={savingDraft || confirmingPayment || paymentCommitPending} onOpenOrder={(draft) => {
+                    setOrderDone(false);
+                    loadedDraftRef.current = null;
+                    setDraftReloadVersion(version => version + 1);
+                    navigate(`/pos?draft=${draft._id}`);
+                }} />
                 <Paper sx={{ p: { xs: 1.25, sm: 1.5 }, mb: 1, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                     <TextField
                         fullWidth
@@ -1057,7 +1084,7 @@ const POSTerminal: React.FC = () => {
                         <Box sx={{ display: 'grid', placeItems: 'center', width: 38, height: 38, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12), color: 'primary.main' }}><ShoppingCart size={19} /></Box>
                         <Box>
                             <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ letterSpacing: '0.08em', fontSize: '0.62rem' }}>CHECKOUT</Typography>
-                            <Typography variant="subtitle1" fontWeight={850} lineHeight={1.15}>Current Order</Typography>
+                            <Typography variant="subtitle1" fontWeight={850} lineHeight={1.15}>{activeDraftTable ? `Order from ${activeDraftTable}` : 'Current Order'}</Typography>
                             {activeDraftCode && <Typography variant="caption" color="text.secondary">Editing {activeDraftCode}</Typography>}
                         </Box>
                     </Box>
@@ -1086,6 +1113,7 @@ const POSTerminal: React.FC = () => {
                         overscrollBehavior: 'contain'
                     }}
                 >
+                    <Box sx={{ p: 1.25 }}><SalespersonSelect value={salespersonEmployeeId} onChange={setSalespersonEmployeeId} /></Box>
                     <Box sx={{ minHeight: cart.length === 0 ? 210 : 'auto', display: 'flex', flexDirection: 'column', justifyContent: cart.length === 0 ? 'center' : 'flex-start' }}>
                         {cart.length === 0 ? (
                             <Box sx={{
@@ -1726,7 +1754,7 @@ const POSTerminal: React.FC = () => {
                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                             {(sellingProduct.sizes || []).map(size => <Button key={size.id} type="button" variant={sellingSizeId === size.id ? 'contained' : 'outlined'} disabled={size.stock <= 0} aria-pressed={sellingSizeId === size.id} onClick={() => { setSellingSizeId(size.id); setSellingError(''); }} sx={{ flex: '1 1 140px', py: 1.5 }}>
                                 <Stack spacing={0.5}>
-                                    <Typography fontWeight={800}>{size.size} {sellingProduct.productUnit}</Typography>
+                                    <Typography fontWeight={800}>{size.size} {typeof size.size === 'number' ? sellingProduct.productUnit : ''}</Typography>
                                     <Typography variant="body2">{formatCurrency(size.salePrice)}</Typography>
                                     <Typography variant="caption">{size.stock} bottles/packs available</Typography>
                                 </Stack>

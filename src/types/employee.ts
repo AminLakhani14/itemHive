@@ -54,6 +54,7 @@ export interface EmployeeAccount {
 }
 
 export interface Employee {
+    payrollEnrolled?: boolean;
     _id: string;
     employeeCode: string;
     fullName: string;
@@ -86,6 +87,8 @@ export interface Employee {
     faceRegisteredAt?: string | null;
     userId?: string | null;
     businessId?: string;
+    branchId?: string | null;
+    departmentId?: string | null;
     account?: EmployeeAccount | null;
     createdAt: string;
     updatedAt: string;

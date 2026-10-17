@@ -3,6 +3,8 @@ import api from '../../api/axios';
 import { loginUser, logout } from '../auth/authSlice';
 
 export interface Transaction {
+    salespersonEmployeeId?: string;
+    salespersonName?: string;
     _id?: string;
     id: string;
     productId: string;

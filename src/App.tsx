@@ -19,7 +19,6 @@ import { logout, refreshCurrentUser } from './features/auth/authSlice';
 import Login from './pages/Auth/Login';
 const Dashboard = React.lazy(() => import('./pages/Dashboard/Dashboard'));
 const ProductList = React.lazy(() => import('./pages/Inventory/ProductList'));
-const CategoriesPage = React.lazy(() => import('./pages/Inventory/CategoriesPage'));
 const AddProduct = React.lazy(() => import('./pages/Inventory/AddProduct'));
 const ImportProducts = React.lazy(() => import('./pages/Inventory/ImportProducts'));
 const ReduceStock = React.lazy(() => import('./pages/Inventory/ReduceStock'));
@@ -41,14 +40,27 @@ const InstallmentsPage = React.lazy(() => import('./pages/Installments/Installme
 const EmployeesPage = React.lazy(() => import('./pages/Employees/EmployeesPage'));
 const EmployeeProfilePage = React.lazy(() => import('./pages/Employees/EmployeeProfilePage'));
 const AttendancePage = React.lazy(() => import('./pages/Attendance/AttendancePage'));
+const PayrollPage = React.lazy(() => import('./pages/Payroll/PayrollPage'));
+const MyPayrollPage = React.lazy(() => import('./pages/Payroll/MyPayrollPage'));
+const ExpensesPage = React.lazy(() => import('./pages/Finance/ExpensesPage'));
 const NotificationsPage = React.lazy(() => import('./pages/Notifications/NotificationsPage'));
 const StickyNotes = React.lazy(() => import('./pages/Notes/StickyNotes'));
 const TeamManagementPage = React.lazy(() => import('./pages/Admin/TeamManagementPage'));
+const CreateClientPage = React.lazy(() => import('./pages/Admin/CreateClientPage'));
+const EditClientPage = React.lazy(() => import('./pages/Admin/EditClientPage'));
+const ManageAccountPage = React.lazy(() => import('./pages/Admin/ManageAccountPage'));
 const SignupRequestsPage = React.lazy(() => import('./pages/Admin/SignupRequestsPage'));
 const InventoryRequestsPage = React.lazy(() => import('./pages/Inventory/InventoryRequestsPage'));
+const VendorsPage = React.lazy(() => import('./pages/Inventory/VendorsPage'));
+const VendorHistoryPage = React.lazy(() => import('./pages/Inventory/VendorHistoryPage'));
 const PermissionManagementPage = React.lazy(() => import('./pages/Admin/PermissionManagementPage'));
+const OrganizationOverviewPage = React.lazy(() => import('./pages/Organization/OrganizationOverviewPage'));
+const DepartmentsPage = React.lazy(() => import('./pages/Organization/DepartmentsPage'));
+const BranchesPage = React.lazy(() => import('./pages/Organization/BranchesPage'));
+const FiscalYearsPage = React.lazy(() => import('./pages/Organization/FiscalYearsPage'));
 const AccessDeniedPage = React.lazy(() => import('./pages/Auth/AccessDeniedPage'));
 const DigitalMenusPage = React.lazy(() => import('./pages/DigitalMenus/DigitalMenusPage'));
+const CreateDigitalMenuPage = React.lazy(() => import('./pages/DigitalMenus/CreateDigitalMenuPage'));
 const PublicMenuPage = React.lazy(() => import('./pages/DigitalMenus/PublicMenuPage'));
 // Keep route elements stable during color previews. Only theme consumers need updates.
 const AppThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -100,11 +112,13 @@ const AppContent: React.FC = () => {
             }>
               <Route index element={<ProtectedRoute requiredScreen="dashboard"><Dashboard /></ProtectedRoute>} />
               <Route path="inventory" element={<ProtectedRoute requiredScreen="inventory"><ProductList /></ProtectedRoute>} />
-              <Route path="inventory/categories" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="inventory_categories"><CategoriesPage /></ProtectedRoute>} />
+              <Route path="inventory/categories" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="inventory_categories"><Navigate to="/settings#categories" replace /></ProtectedRoute>} />
               <Route path="inventory/add" element={<ProtectedRoute requiredScreen="inventory_add"><AddProduct /></ProtectedRoute>} />
               <Route path="inventory/import" element={<ProtectedRoute requiredScreen="inventory_import"><ImportProducts /></ProtectedRoute>} />
               <Route path="inventory/units" element={<ProtectedRoute requiredScreen="inventory_units"><ProductUnitsPage /></ProtectedRoute>} />
               <Route path="inventory/requests" element={<ProtectedRoute requiredScreen="inventory_requests"><InventoryRequestsPage /></ProtectedRoute>} />
+              <Route path="vendors" element={<ProtectedRoute requiredScreen="inventory_requests"><VendorsPage /></ProtectedRoute>} />
+              <Route path="vendor-history" element={<ProtectedRoute requiredScreen="inventory_requests"><VendorHistoryPage /></ProtectedRoute>} />
               <Route path="inventory/reduce" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="inventory_reduce">
                   <ReduceStock />
@@ -121,6 +135,9 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               } />
               <Route path="digital-menus" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreen="digital_menus" requireDigitalMenuAccess><DigitalMenusPage /></ProtectedRoute>} />
+              <Route path="digital-menus/create" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreen="digital_menus" requireDigitalMenuAccess><CreateDigitalMenuPage /></ProtectedRoute>} />
+              <Route path="digital-menus/:id/edit" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreen="digital_menus" requireDigitalMenuAccess><CreateDigitalMenuPage /></ProtectedRoute>} />
+              <Route path="digital-menus/:id/preview" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreen="digital_menus" requireDigitalMenuAccess><PublicMenuPage /></ProtectedRoute>} />
               <Route path="transactions" element={<ProtectedRoute requiredScreen="transactions"><TransactionHistory /></ProtectedRoute>} />
               <Route path="reports" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="reports"><ReportsPage /></ProtectedRoute>} />
               <Route path="notes" element={
@@ -153,6 +170,9 @@ const AppContent: React.FC = () => {
                   <EmployeesPage />
                 </ProtectedRoute>
               } />
+              <Route path="payroll" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="payroll_view"><PayrollPage /></ProtectedRoute>} />
+              <Route path="my-payroll" element={<ProtectedRoute requiredScreen="my_payroll"><MyPayrollPage /></ProtectedRoute>} />
+              <Route path="expenses" element={<ProtectedRoute requiredScreen="expenses"><ExpensesPage /></ProtectedRoute>} />
               {/* One route for "new" and saved profiles keeps the page mounted when a new profile gets its id. */}
               <Route path="employees/:id" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="employees">
@@ -174,6 +194,13 @@ const AppContent: React.FC = () => {
                   <TeamManagementPage />
                 </ProtectedRoute>
               } />
+              <Route path="team/create-client" element={<ProtectedRoute allowedRoles={['super_admin']}><CreateClientPage /></ProtectedRoute>} />
+              <Route path="team/clients/:id" element={<ProtectedRoute allowedRoles={['super_admin']}><EditClientPage /></ProtectedRoute>} />
+              <Route path="team/accounts/:id" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="team"><ManageAccountPage /></ProtectedRoute>} />
+              <Route path="organization" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><OrganizationOverviewPage /></ProtectedRoute>} />
+              <Route path="organization/departments" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><DepartmentsPage /></ProtectedRoute>} />
+              <Route path="organization/branches" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><BranchesPage /></ProtectedRoute>} />
+              <Route path="organization/fiscal-years" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><FiscalYearsPage /></ProtectedRoute>} />
               <Route path="order-drafts" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreen="pos">
                   <OrderDraftsPage />

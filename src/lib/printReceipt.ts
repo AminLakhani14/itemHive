@@ -18,7 +18,9 @@ const waitForReceiptImages = async (document: Document) => {
  * which becomes noticeably slow for large inventories.
  */
 export const printReceipt = async (receipt: HTMLElement, selector = '#pos-receipt', rollWidthMm = 58) => {
-    await printElement(receipt, thermalInvoicePrintCss(selector, rollWidthMm), rollWidthMm);
+    // Use the printer's selected paper. Chromium can center a custom, short
+    // thermal page on A4 even when the receipt itself has zero margins.
+    await printElement(receipt, thermalInvoicePrintCss(selector, rollWidthMm), rollWidthMm, false);
 };
 
 /** Print kitchen and customer copies as separate thermal print jobs. */
@@ -30,9 +32,9 @@ export const printCheckoutCopies = async (receipt: HTMLElement, kitchenTicket: H
 /**
  * Prints a self-contained element using caller-supplied document styles.
  * Use this for full-page reports; thermal receipts should keep using
- * printReceipt so their roll dimensions remain unchanged.
+ * printReceipt so their content keeps its thermal width on the selected paper.
  */
-export const printElement = async (element: HTMLElement, printCss: string, rollWidthMm?: number) => {
+export const printElement = async (element: HTMLElement, printCss: string, rollWidthMm?: number, fitPageToContent = true) => {
     const frame = document.createElement('iframe');
     frame.setAttribute('aria-hidden', 'true');
     // Keep the frame off-screen instead of using visibility:hidden; some
@@ -75,7 +77,7 @@ ${inheritedStyles}
 
     await waitForReceiptImages(printDocument);
     await printDocument.fonts.ready;
-    if (rollWidthMm) {
+    if (rollWidthMm && fitPageToContent) {
         // CSS does not accept "58mm auto" as a page size. Measure the slip
         // with its thermal styles applied and supply two explicit lengths.
         const slip = printDocument.body.firstElementChild as HTMLElement | null;

@@ -4,7 +4,8 @@ import { PRODUCT_CATEGORIES } from '../features/inventory/inventorySlice';
 
 const categoryCache = new Map<string, string[]>();
 const categoryRequests = new Map<string, Promise<string[]>>();
-const workspaceKey = () => localStorage.getItem('itemhive-workspace-id') || 'default-workspace';
+// Categories belong to a branch, so the cache is kept per workspace and branch.
+const workspaceKey = () => `${localStorage.getItem('itemhive-workspace-id') || 'default-workspace'}:${localStorage.getItem('itemhive-branch-id') || ''}`;
 
 export default function useProductCategories() {
     const [categories, setCategories] = useState<string[]>(PRODUCT_CATEGORIES);

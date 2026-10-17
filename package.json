@@ -7,7 +7,19 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:menu-ai": "node --test scripts/test-menu-ai.mjs",
+    "test:picture-menu": "node --test scripts/test-picture-menu.mjs",
+    "test:auth": "node --test scripts/test-auth.mjs",
+    "test:clients": "npm --prefix backend run build && node --test backend/dist/controllers/clientController.test.js",
+    "test:clients:integration": "npm --prefix backend run build && node --test backend/dist/controllers/clientController.integration.test.js",
+    "test:permissions": "npm --prefix backend run build && node --test scripts/test-screen-permissions.mjs backend/dist/utils/digitalMenuAccess.test.js",
+    "test:api-url": "node --test scripts/test-api-url.mjs",
+    "test:client-locations": "node --test scripts/test-client-locations.mjs",
+    "test:organization": "npm --prefix backend run build && node --test backend/dist/controllers/organizationController.test.js",
+    "test:organization:integration": "npm --prefix backend run build && node --test backend/dist/controllers/organizationController.integration.test.js",
+    "test:inventory-requests": "npm --prefix backend run build && node --test scripts/test-inventory-requests.mjs backend/dist/controllers/inventoryRequestController.test.js backend/dist/controllers/inventoryVendorController.test.js",
+    "test:branches": "npm --prefix backend run build && node --test backend/dist/utils/branchScope.integration.test.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -20,6 +32,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.575.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-redux": "^9.2.0",

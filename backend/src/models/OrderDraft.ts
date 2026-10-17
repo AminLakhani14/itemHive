@@ -1,8 +1,9 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface IOrderDraftItem {
     sizeId?: string;
-    selectedSize?: number;
+    selectedSize?: number | string;
     productUnit?: string;
     productId: string;
     productName: string;
@@ -11,6 +12,7 @@ export interface IOrderDraftItem {
 }
 
 export interface IOrderDraft extends Document {
+    salespersonEmployeeId?: mongoose.Types.ObjectId;
     draftCode: string;
     items: IOrderDraftItem[];
     discountPercent: number;
@@ -21,15 +23,17 @@ export interface IOrderDraft extends Document {
     createdBy: mongoose.Types.ObjectId;
     createdByName: string;
     businessId?: mongoose.Types.ObjectId;
+    branchId?: mongoose.Types.ObjectId | null;
     createdAt: Date;
     updatedAt: Date;
 }
 
 const OrderDraftSchema = new Schema<IOrderDraft>({
+    salespersonEmployeeId: { type: Schema.Types.ObjectId, ref: 'Employee' },
     draftCode: { type: String, required: true, trim: true },
     items: [{
         sizeId: { type: String, default: '' },
-        selectedSize: { type: Number },
+        selectedSize: { type: Schema.Types.Mixed },
         productUnit: { type: String },
         productId: { type: String, required: true, trim: true },
         productName: { type: String, required: true, trim: true },
@@ -50,4 +54,5 @@ const OrderDraftSchema = new Schema<IOrderDraft>({
 OrderDraftSchema.index({ businessId: 1, draftCode: 1 }, { unique: true });
 OrderDraftSchema.index({ businessId: 1, updatedAt: -1 });
 
+OrderDraftSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IOrderDraft>('OrderDraft', OrderDraftSchema);

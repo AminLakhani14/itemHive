@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
     Alert,
     Box,
@@ -27,10 +28,12 @@ import api from '../../api/axios';
 import type { RootState } from '../../store';
 import useAppCurrency from '../../hooks/useAppCurrency';
 import { DEFAULT_APP_SETTINGS } from '../../features/settings/settingsSlice';
+import { hasInstallmentAccess } from '../../lib/screenPermissions';
 import { printElement } from '../../lib/printReceipt';
 import { shiftReportPrintCss } from '../../lib/shiftReportPrintCss';
 import { downloadShiftReportPdf } from '../../lib/shiftReportPdf';
 import type { POSShift, ShiftReport, ShiftReportTotals } from '../../types/posShift';
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 
 interface ShiftHistoryResponse {
     items: POSShift[];
@@ -71,12 +74,11 @@ const getTotalCollected = (totals: ShiftReportTotals) => totals.totalCollected ?
 );
 
 const POSShiftReportsPage: React.FC = () => {
-    const { formatCurrency } = useAppCurrency();
+    const { formatCurrency: formatUserCurrency } = useAppCurrency();
     const { user } = useSelector((state: RootState) => state.auth);
-    const { app } = useSelector((state: RootState) => state.settings);
+    const app = useSelector(selectPrintSettings);
     const appSettings = app || DEFAULT_APP_SETTINGS;
-    const canAccessInstallments = user?.role === 'super_admin'
-        || Boolean(appSettings.installmentsEnabled && user?.installmentAccess);
+    const canAccessInstallments = hasInstallmentAccess(user, appSettings.installmentsEnabled);
     const [currentShift, setCurrentShift] = React.useState<POSShift | null>(null);
     const [history, setHistory] = React.useState<POSShift[]>([]);
     const [liveReport, setLiveReport] = React.useState<ShiftReport | null>(null);
@@ -97,6 +99,11 @@ const POSShiftReportsPage: React.FC = () => {
     const [historyTotal, setHistoryTotal] = React.useState(0);
     const [historyTotalPages, setHistoryTotalPages] = React.useState(1);
     const [downloadingShiftCode, setDownloadingShiftCode] = React.useState('');
+
+    const formatCurrency = (value: number) => {
+        const currency = displayReport?.currency || liveReport?.currency || currentShift?.currency;
+        return currency ? new Intl.NumberFormat('en', { style: 'currency', currency }).format(value) : formatUserCurrency(value);
+    };
 
     const loadData = React.useCallback(async () => {
         setLoading(true);
@@ -326,10 +333,13 @@ const POSShiftReportsPage: React.FC = () => {
                                         </Stack>
                                     </Stack>
                                 </Box>
+                                <Button component={RouterLink} to="/expenses" sx={{ alignSelf: "flex-start" }}>Expenses</Button>
                                 {liveReport && <Grid container spacing={1.5}>
                                     {[
                                         ['Net Sales', formatCurrency(liveReport.totals.netSales)],
                                         ['Expected Drawer', formatCurrency(liveReport.totals.expectedDrawerCash)],
+                                        ['Expense Paid Out', formatCurrency(liveReport.totals.expensePaidOut || 0)],
+                                        ['Expense Refunds', formatCurrency(liveReport.totals.expenseRefunds || 0)],
                                         ['Orders', String(liveReport.totals.completedOrders)],
                                         ['Items Sold', String(liveReport.totals.itemsSold)],
                                     ].map(([label, value], index) => <Grid key={label} size={{ xs: 6, md: 3 }}><Box sx={{ p: 2, borderRadius: 2.5, bgcolor: index < 2 ? (theme) => alpha(theme.palette.primary.main, 0.07) : 'action.hover', minHeight: 88 }}><Typography variant="caption" color="text.secondary" fontWeight={700}>{label}</Typography><Typography variant="h6" fontWeight={900} sx={{ mt: 0.5 }}>{value}</Typography></Box></Grid>)}
@@ -415,6 +425,8 @@ const POSShiftReportsPage: React.FC = () => {
                         <Stack className="shift-report-list" spacing={0.35} sx={{ py: 0.75 }}>
                             {[
                                 ['Opening Cash', formatCurrency(displayReport.openingCash)],
+                                ['Expense Paid Out', formatCurrency(displayReport.totals.expensePaidOut || 0)],
+                                ['Expense Refunds', formatCurrency(displayReport.totals.expenseRefunds || 0)],
                                 ['Gross Sales', formatCurrency(displayReport.totals.grossSales)],
                                 ['Discount', `-${formatCurrency(displayReport.totals.discounts)}`],
                                 ['Tax Amount', formatCurrency(displayReport.totals.tax)],
@@ -465,6 +477,8 @@ const POSShiftReportsPage: React.FC = () => {
                         <Typography className="shift-report-section" fontSize={12} fontWeight={900} sx={{ mt: 1.2, pb: 0.35, borderBottom: '1px dashed #000' }}>CASH RECONCILIATION</Typography>
                         <Stack className="shift-report-list" spacing={0.35} sx={{ py: 0.75 }}>
                             <Stack direction="row" justifyContent="space-between"><Typography fontSize={10.5}>Opening Cash</Typography><Typography fontSize={10.5} fontWeight={700}>{formatCurrency(displayReport.openingCash)}</Typography></Stack>
+                            <Stack direction="row" justifyContent="space-between"><Typography fontSize={10.5}>Expense Paid Out</Typography><Typography fontSize={10.5} fontWeight={700}>{formatCurrency(displayReport.totals.expensePaidOut || 0)}</Typography></Stack>
+                            <Stack direction="row" justifyContent="space-between"><Typography fontSize={10.5}>Expense Refunds</Typography><Typography fontSize={10.5} fontWeight={700}>{formatCurrency(displayReport.totals.expenseRefunds || 0)}</Typography></Stack>
                             <Stack direction="row" justifyContent="space-between"><Typography fontSize={10.5} fontWeight={900}>Expected Cash</Typography><Typography fontSize={10.5} fontWeight={900}>{formatCurrency(displayReport.totals.expectedDrawerCash)}</Typography></Stack>
                             {displayReport.totals.countedCash != null && <Stack direction="row" justifyContent="space-between"><Typography fontSize={10.5}>Counted Cash</Typography><Typography fontSize={10.5} fontWeight={700}>{formatCurrency(displayReport.totals.countedCash)}</Typography></Stack>}
                             {displayReport.totals.cashDifference != null && <Stack direction="row" justifyContent="space-between"><Typography fontSize={10.5} fontWeight={900}>Variance</Typography><Typography fontSize={10.5} fontWeight={900}>{differenceLabel(displayReport.totals)}</Typography></Stack>}

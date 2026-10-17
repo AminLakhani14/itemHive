@@ -11,6 +11,8 @@ import POSShift, {
 import Transaction from '../models/Transaction';
 import CreditPayment from '../models/CreditPayment';
 import InstallmentPlan from '../models/InstallmentPlan';
+import Expense from '../models/Expense';
+import { policyFor } from '../services/payrollService';
 import type { AuthRequest } from '../middleware/auth';
 import { buildTenantFilter, getTenantObjectId } from '../utils/tenancy';
 
@@ -37,6 +39,13 @@ const buildShiftReport = async (
     const installmentCollections = installmentPlans.flatMap((plan) =>
         (plan.schedule || []).filter((item) => item.status === 'paid' && String(item.shiftId || '') === String(shift._id))
     );
+    const expenseRows = await Expense.find({
+        businessId: getTenantObjectId(req.user!),
+        $or: [{ 'payments.shiftId': shift._id }, { 'payments.reversalShiftId': shift._id }],
+    }).select('payments').session(session || null).lean();
+    const expensePayments = expenseRows.flatMap(e => e.payments);
+    const expensePaidOut = expensePayments.filter(p => String(p.shiftId || '') === String(shift._id)).reduce((sum, p) => sum + p.amountMinor, 0) / 100;
+    const expenseRefunds = expensePayments.filter(p => p.reversedAt && String(p.reversalShiftId || '') === String(shift._id)).reduce((sum, p) => sum + p.amountMinor, 0) / 100;
 
     const orders = new Map<string, { paymentMethod: IShiftPaymentSummary['method']; orderType: string; amount: number }>();
     const soldItemMap = new Map<string, IShiftSoldItemSummary>();
@@ -111,6 +120,8 @@ const buildShiftReport = async (
         installmentCollectionsCard: round2(installmentCollections.filter((payment) => payment.paidVia === 'card').reduce((sum, payment) => sum + Number(payment.amount || 0), 0)),
         totalCollected: 0,
         expectedDrawerCash: 0,
+        expensePaidOut,
+        expenseRefunds,
     };
     totals.totalCollected = round2(
         totals.cashSales
@@ -130,7 +141,8 @@ const buildShiftReport = async (
         + totals.creditCashReceived
         + totals.creditCollectionsCash
         + totals.installmentCashAdvance
-        + totals.installmentCollectionsCash,
+        + totals.installmentCollectionsCash
+        - expensePaidOut + expenseRefunds,
     );
 
     if (countedCash != null) {
@@ -140,6 +152,7 @@ const buildShiftReport = async (
 
     return {
         shiftCode: shift.shiftCode,
+        currency: shift.currency,
         registerName: shift.registerName,
         cashierName: shift.openedByName,
         openingCash: Number(shift.openingCash || 0),
@@ -176,6 +189,7 @@ export const openShift = async (req: AuthRequest, res: Response) => {
             shiftCode: `SH-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
             registerName,
             openingCash,
+            currency: (await policyFor(req.user!.businessId)).currency,
             openedBy: req.user!.id,
             openedByName: req.user!.name || 'Staff',
             openedAt: new Date(),

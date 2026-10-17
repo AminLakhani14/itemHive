@@ -3,8 +3,9 @@ import { Alert, Box, Button, Card, CardContent, Dialog, DialogTitle, DialogConte
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import api from '../../api/axios';
 import useProductCategories from '../../hooks/useProductCategories';
+import RequestCategoryUnitsDialog from './RequestCategoryUnitsDialog';
 
-export default function CategoriesPage() {
+export default function CategoriesManager() {
     const { categories, loading, error, reload } = useProductCategories();
     const [editing, setEditing] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
@@ -12,6 +13,7 @@ export default function CategoriesPage() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
     const [saveError, setSaveError] = useState('');
+    const [unitsOpen, setUnitsOpen] = useState(false);
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
         const trimmed = name.trim().replace(/\s+/g, ' ');
@@ -28,9 +30,9 @@ export default function CategoriesPage() {
         } catch (error) { setSaveError(error instanceof Error && 'response' in error ? (error as { response?: { data?: { message?: string } } }).response?.data?.message || error.message : 'Unable to save category. Please retry.'); }
         finally { setSaving(false); }
     };
-    return <Box sx={{ maxWidth: 900, mx: 'auto' }}>
-        <Typography variant="h4" fontWeight={800} gutterBottom>Categories</Typography>
-        <Typography color="text.secondary" sx={{ mb: 3 }}>Add categories for products in this workspace.</Typography>
+    return <Box>
+        {unitsOpen && <RequestCategoryUnitsDialog onClose={() => setUnitsOpen(false)} onSaved={() => void reload(true)} />}
+        <Button variant="outlined" sx={{ mb: 2 }} onClick={() => setUnitsOpen(true)}>Request Categories & Units</Button>
         <Card sx={{ borderRadius: 4, mb: 3 }}><CardContent>
             <Stack component="form" onSubmit={submit} spacing={2}>
                 <TextField label="Category name" value={name} onChange={e => setName(e.target.value)} required inputProps={{ maxLength: 100 }} disabled={saving} />

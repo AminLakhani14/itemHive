@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import { REHYDRATE } from 'redux-persist';
+import { isAxiosError } from 'axios';
 import api from '../../api/axios';
 import type { ScreenPermission } from '../../lib/screenPermissions';
 
@@ -14,6 +15,7 @@ export interface User {
     email: string;
     role: UserRole;
     photoUrl?: string;
+    location?: { countryCode: string; country: string; city: string };
     isActive?: boolean;
     isVisible?: boolean;
     installmentAccess?: boolean;
@@ -21,12 +23,16 @@ export interface User {
     digitalMenuAccess?: 'none' | 'menu' | 'pos';
     /** null/undefined means legacy full access; an array is an explicit Admin assignment. */
     screenPermissions?: ScreenPermission[] | null;
+    screenPermissionsVersion?: number;
     /** Workspace-level flag provided to client-admin rows in Team Management. */
     restaurantEnabled?: boolean;
+    businessTypeId?: string;
     monthlyPayment?: { enabled: boolean; paidAt?: string; trackingStartedAt?: string; overdue: boolean };
     userCreationLimit?: number;
     businessId?: string;
     businessName?: string;
+    /** Team only: the branch a staff login works in, or an administrator's assigned branches. */
+    branchName?: string;
     createdBy?: string;
     visiblePassword?: string;
     /** True for team users: `appearance` is their business's theme and they cannot change it. */
@@ -43,7 +49,7 @@ export interface User {
     };
 }
 
-interface AuthState {
+export interface AuthState {
     user: User | null;
     token: string | null;
     isAuthenticated: boolean;
@@ -91,13 +97,22 @@ const initialState: AuthState = {
 
 export const loginUser = createAsyncThunk(
     'auth/login',
-    async (credentials: { email: string; password: string }, { rejectWithValue }) => {
+    async (credentials: { email: string; password: string }, { rejectWithValue, signal }) => {
         try {
-            const response = await api.post('/auth/login', credentials);
+            const response = await api.post('/auth/login', credentials, { timeout: 30000, signal });
             localStorage.setItem('token', response.data.token);
             return response.data;
-        } catch (error: any) {
-            return rejectWithValue(error.response?.data?.details || error.response?.data?.message || 'Login failed');
+        } catch (error: unknown) {
+            if (isAxiosError<{ details?: string; message?: string }>(error)) {
+                if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') return rejectWithValue('Sign in timed out. Please try again.');
+                if (!error.response) return rejectWithValue('Unable to reach the sign-in service. Please try again.');
+                if (error.response.status >= 500) {
+                    const unavailable = 'The sign-in service is temporarily unavailable. Please try again.';
+                    return rejectWithValue(error.response.status === 503 ? error.response.data?.message || unavailable : unavailable);
+                }
+                return rejectWithValue(error.response.data?.details || error.response.data?.message || 'Login failed');
+            }
+            return rejectWithValue('Login failed. Please try again.');
         }
     }
 );
@@ -137,6 +152,8 @@ const authSlice = createSlice({
             state.user = null;
             state.token = null;
             state.isAuthenticated = false;
+            state.loading = false;
+            state.error = null;
             localStorage.removeItem('token');
         },
         setAppearance: (state, action: PayloadAction<Appearance>) => {
@@ -177,6 +194,8 @@ const authSlice = createSlice({
                 state.user = normalizeUser(action.payload);
             })
             .addCase(REHYDRATE as any, (state, action: PayloadAction<any>) => {
+                state.loading = false;
+                state.error = null;
                 const persistedAuth = action.payload?.auth;
                 if (!persistedAuth) {
                     return;

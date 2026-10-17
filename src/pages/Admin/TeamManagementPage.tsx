@@ -13,13 +13,11 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
-    FormControlLabel,
     IconButton,
     InputAdornment,
     MenuItem,
     Snackbar,
     Stack,
-    Switch,
     Table,
     TableBody,
     TableCell,
@@ -27,17 +25,21 @@ import {
     TableHead,
     TablePagination,
     TableRow,
+    TableSortLabel,
     TextField,
     Tooltip,
     Typography,
+    alpha,
+    type Theme,
 } from '@mui/material';
-import { CircleDollarSign, Edit3, Eye, EyeOff, IdCard, Info, KeyRound, QrCode, Search, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
+import { Building2, Edit3, Eye, EyeOff, IdCard, KeyRound, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import type { RootState } from '../../store';
 import type { User, UserRole } from '../../features/auth/authSlice';
 import api from '../../api/axios';
 import CreateLoginDialog, { type LoginTarget } from '../../components/Employees/CreateLoginDialog';
+import BusinessLabel from '../../components/Common/BusinessLabel';
 import { hasScreenAccess } from '../../lib/screenPermissions';
 import { getInitials } from '../../lib/employees';
 
@@ -53,22 +55,12 @@ interface ApiErrorResponse {
     details?: string;
 }
 
-interface AccountDraft {
-    name: string;
-    email: string;
-    password: string;
-    role: UserRole;
-    businessId: string;
-    userCreationLimit: string;
-}
-
 interface CreateAccountDraft {
     name: string;
     email: string;
     password: string;
     role: UserRole;
     businessId: string;
-    businessName: string;
 }
 
 interface UnlinkedEmployee extends LoginTarget {
@@ -83,6 +75,13 @@ interface BusinessOption {
     isLegacy?: boolean;
 }
 
+// Square icon buttons with the same half-strength border as the page's outlined buttons.
+const rowActionSx = (tone: 'primary' | 'error') => ({
+    width: 36, height: 36, border: '1px solid', borderRadius: 2,
+    borderColor: (theme: Theme) => alpha(theme.palette[tone].main, 0.5),
+    '&:hover': { borderColor: `${tone}.main` },
+});
+
 const roleLabel = (role: User['role']) =>
     role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : 'User';
 
@@ -91,40 +90,28 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
     return error.response?.data?.message || error.response?.data?.details || fallback;
 };
 
-const BusinessLabel = () => (
-    <Stack direction="row" spacing={0.5} alignItems="center">
-        <span>Business</span>
-        <Tooltip title="To edit or delete a business, go to Settings → Business Management." arrow>
-            <Info size={16} aria-label="Business management information" />
-        </Tooltip>
-    </Stack>
-);
-
 const TeamManagementPage: React.FC = () => {
     const { user: currentUser } = useSelector((state: RootState) => state.auth);
     const isSuperAdmin = currentUser?.role === 'super_admin';
     const navigate = useNavigate();
     const canOpenEmployees = hasScreenAccess(currentUser, 'employees');
-    // Employee profiles belong to the workspace being viewed; a super admin can be viewing another shop.
-    const activeBusinessId = localStorage.getItem('itemhive-workspace-id') || currentUser?.businessId || '';
     const [unlinkedEmployees, setUnlinkedEmployees] = React.useState<UnlinkedEmployee[]>([]);
     const [loginTarget, setLoginTarget] = React.useState<LoginTarget | null>(null);
     const [users, setUsers] = React.useState<User[]>([]);
     const [businesses, setBusinesses] = React.useState<BusinessOption[]>([]);
     const [loading, setLoading] = React.useState(true);
-    const [savingId, setSavingId] = React.useState('');
-    const [search, setSearch] = React.useState('');
+    const [filters, setFilters] = React.useState({ account: '', business: '', role: '', userLimit: '' });
+    const [businessSort, setBusinessSort] = React.useState<'asc' | 'desc'>('asc');
+    const trimmedLimit = filters.userLimit.trim();
+    const limitFilterInvalid = Boolean(trimmedLimit && trimmedLimit !== '-' && (!/^\d+$/.test(trimmedLimit) || !Number.isSafeInteger(Number(trimmedLimit))));
+    const changeFilter = (key: keyof typeof filters, value: string) => {
+        setFilters((current) => ({ ...current, [key]: value }));
+        setPage(0);
+    };
     const [page, setPage] = React.useState(0);
     const [rowsPerPage, setRowsPerPage] = React.useState(20);
     const [total, setTotal] = React.useState(0);
-    const [editingUser, setEditingUser] = React.useState<User | null>(null);
     const [deletingUser, setDeletingUser] = React.useState<User | null>(null);
-    const [monthlyPaymentUser, setMonthlyPaymentUser] = React.useState<User | null>(null);
-    const [monthlyPaymentEnabled, setMonthlyPaymentEnabled] = React.useState(false);
-    const [monthlyPaymentPaid, setMonthlyPaymentPaid] = React.useState(false);
-    const [monthlyPaymentDate, setMonthlyPaymentDate] = React.useState(new Date().toISOString().slice(0, 10));
-    const [draft, setDraft] = React.useState<AccountDraft>({ name: '', email: '', password: '', role: 'user', businessId: '', userCreationLimit: '0' });
-    const [showPassword, setShowPassword] = React.useState(false);
     const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
     const [createSaving, setCreateSaving] = React.useState(false);
     const [deleteSaving, setDeleteSaving] = React.useState(false);
@@ -135,34 +122,48 @@ const TeamManagementPage: React.FC = () => {
         password: '',
         role: isSuperAdmin ? 'admin' : 'user',
         businessId: '',
-        businessName: '',
     });
     const [snack, setSnack] = React.useState('');
     const [error, setError] = React.useState('');
-    const [digitalMenuUser, setDigitalMenuUser] = React.useState<User | null>(null);
-    const [digitalMenuAccess, setDigitalMenuAccess] = React.useState<'none' | 'menu' | 'pos'>('none');
+    const usersRequestVersion = React.useRef(0);
 
     const loadUsers = React.useCallback(async () => {
+        const requestVersion = ++usersRequestVersion.current;
+        if (limitFilterInvalid) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         setError('');
 
         try {
             const response = await api.get<UsersResponse>('/users', {
-                params: { page: page + 1, limit: rowsPerPage, search: search.trim() || undefined },
+                params: {
+                    page: page + 1, limit: rowsPerPage, businessSort,
+                    account: filters.account.trim() || undefined,
+                    business: filters.business.trim() || undefined,
+                    role: filters.role || undefined,
+                    userLimit: filters.userLimit.trim() || undefined,
+                },
             });
+            if (requestVersion !== usersRequestVersion.current) return;
             const nextUsers = Array.isArray(response.data) ? response.data : response.data.users || [];
             setUsers(nextUsers);
             setTotal(Array.isArray(response.data) ? nextUsers.length : response.data.total || 0);
         } catch (requestError: unknown) {
+            if (requestVersion !== usersRequestVersion.current) return;
             setError(getApiErrorMessage(requestError, 'Unable to load team members right now.'));
         } finally {
-            setLoading(false);
+            if (requestVersion === usersRequestVersion.current) setLoading(false);
         }
-    }, [page, rowsPerPage, search]);
+    }, [page, rowsPerPage, filters, businessSort, limitFilterInvalid]);
 
     React.useEffect(() => {
         const timeoutId = window.setTimeout(loadUsers, 250);
-        return () => window.clearTimeout(timeoutId);
+        return () => {
+            window.clearTimeout(timeoutId);
+            usersRequestVersion.current += 1;
+        };
     }, [loadUsers]);
 
     const loadUnlinkedEmployees = React.useCallback(async () => {
@@ -182,7 +183,7 @@ const TeamManagementPage: React.FC = () => {
 
     const handleLoginCreated = async () => {
         setLoginTarget(null);
-        setSnack('Login created. Set their rights in the table.');
+        setSnack('Login created. Open Manage to set their rights.');
         await Promise.all([loadUsers(), loadUnlinkedEmployees()]);
     };
 
@@ -204,37 +205,8 @@ const TeamManagementPage: React.FC = () => {
         loadBusinesses();
     }, [loadBusinesses]);
 
-    const handleStatusChange = async (target: User, updates: { isActive?: boolean; isVisible?: boolean; installmentAccess?: boolean; discountAccess?: boolean; digitalMenuAccess?: 'none' | 'menu' | 'pos'; restaurantEnabled?: boolean }) => {
-        setSavingId(target.id);
-        try {
-            await api.patch(`/users/${target.id}/status`, updates);
-            await loadUsers();
-            setSnack('Account updated successfully.');
-        } catch (requestError: unknown) {
-            setError(getApiErrorMessage(requestError, 'Unable to update this account.'));
-        } finally {
-            setSavingId('');
-        }
-    };
-
-    const saveDigitalMenuAccess = async () => {
-        if (!digitalMenuUser) return;
-        await handleStatusChange(digitalMenuUser, { digitalMenuAccess });
-        setDigitalMenuUser(null);
-    };
-
-    const openEditDialog = (target: User) => {
-        setShowPassword(false);
-        setEditingUser(target);
-        setDraft({
-            name: target.name,
-            email: target.email,
-            password: target.visiblePassword || '',
-            role: target.role,
-            businessId: target.businessId || '',
-            userCreationLimit: String(target.userCreationLimit ?? 0),
-        });
-    };
+    // Client details belong to a business with its own workspace, rather than the shared default one.
+    const clientBusinessIds = React.useMemo(() => new Set(businesses.filter((business) => !business.isLegacy).map((business) => business.id)), [businesses]);
 
     const openCreateDialog = () => {
         setShowCreatePassword(false);
@@ -244,7 +216,6 @@ const TeamManagementPage: React.FC = () => {
             password: '',
             role: isSuperAdmin ? 'admin' : 'user',
             businessId: '',
-            businessName: '',
         });
         setCreateDialogOpen(true);
     };
@@ -260,8 +231,7 @@ const TeamManagementPage: React.FC = () => {
                 email: createDraft.email,
                 password: createDraft.password,
                 role: createDraft.role,
-                businessId: isSuperAdmin && createDraft.businessId !== '__new__' ? createDraft.businessId : undefined,
-                businessName: isSuperAdmin && createDraft.businessId === '__new__' ? createDraft.businessName : undefined,
+                businessId: isSuperAdmin ? createDraft.businessId || undefined : undefined,
             });
             setCreateDialogOpen(false);
             await loadUsers();
@@ -273,34 +243,6 @@ const TeamManagementPage: React.FC = () => {
             setError(getApiErrorMessage(requestError, 'Unable to create this account.'));
         } finally {
             setCreateSaving(false);
-        }
-    };
-
-    const saveAccount = async () => {
-        if (!editingUser) return;
-
-        setSavingId(editingUser.id);
-        try {
-            await api.patch(`/users/${editingUser.id}/account`, {
-                name: draft.name,
-                email: draft.email,
-                password: draft.password,
-                role: draft.role,
-                businessId: draft.businessId,
-            });
-            if (draft.role === 'admin') {
-                await api.patch(`/users/${editingUser.id}/limit`, {
-                    userCreationLimit: Number(draft.userCreationLimit || 0),
-                });
-            }
-            setEditingUser(null);
-            await loadUsers();
-            window.dispatchEvent(new Event('itemhive-team-updated'));
-            setSnack('Account details updated successfully.');
-        } catch (requestError: unknown) {
-            setError(getApiErrorMessage(requestError, 'Unable to update this account.'));
-        } finally {
-            setSavingId('');
         }
     };
 
@@ -324,33 +266,6 @@ const TeamManagementPage: React.FC = () => {
         }
     };
 
-    const openMonthlyPayment = (target: User) => {
-        setMonthlyPaymentUser(target);
-        setMonthlyPaymentEnabled(Boolean(target.monthlyPayment?.enabled));
-        setMonthlyPaymentPaid(Boolean(target.monthlyPayment?.paidAt) && !Boolean(target.monthlyPayment?.overdue));
-        setMonthlyPaymentDate(target.monthlyPayment?.paidAt?.slice(0, 10) || new Date().toISOString().slice(0, 10));
-    };
-
-    const saveMonthlyPayment = async () => {
-        if (!monthlyPaymentUser) return;
-        setSavingId(monthlyPaymentUser.id);
-        try {
-            await api.patch(`/users/${monthlyPaymentUser.id}/monthly-payment`, {
-                enabled: monthlyPaymentEnabled,
-                paid: monthlyPaymentPaid,
-                paidAt: new Date(`${monthlyPaymentDate}T12:00:00`).toISOString(),
-            });
-            setMonthlyPaymentUser(null);
-            await loadUsers();
-            window.dispatchEvent(new Event('itemhive-team-updated'));
-            setSnack('Monthly payment updated successfully.');
-        } catch (requestError: unknown) {
-            setError(getApiErrorMessage(requestError, 'Unable to update monthly payment.'));
-        } finally {
-            setSavingId('');
-        }
-    };
-
     return (
         <Box>
             <Snackbar open={Boolean(snack)} autoHideDuration={2600} onClose={() => setSnack('')} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
@@ -366,57 +281,60 @@ const TeamManagementPage: React.FC = () => {
                             : `You can create users up to your assigned limit of ${currentUser?.userCreationLimit ?? 0}.`}
                     </Typography>
                 </Box>
-                <Button variant="contained" startIcon={<UserPlus size={18} />} onClick={openCreateDialog} sx={{ borderRadius: 2, fontWeight: 800 }}>
-                    {isSuperAdmin ? 'Create Account' : 'Add User'}
-                </Button>
+                <Stack direction="row" spacing={1}>
+                    {isSuperAdmin && <Button variant="outlined" startIcon={<UserPlus size={18} />} onClick={openCreateDialog}>Add Account</Button>}
+                    <Button variant="contained" startIcon={<UserPlus size={18} />} onClick={isSuperAdmin ? () => navigate('/team/create-client') : openCreateDialog} sx={{ borderRadius: 2, fontWeight: 800 }}>
+                        {isSuperAdmin ? 'Create Client' : 'Add User'}
+                    </Button>
+                </Stack>
             </Box>
 
             {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
 
-            <TextField
-                fullWidth
-                size="small"
-                type="search"
-                name="team-account-search"
-                autoComplete="off"
-                value={search}
-                onChange={(event) => {
-                    setSearch(event.target.value);
-                    setPage(0);
-                }}
-                placeholder="Search by name, login email, or role"
-                InputProps={{ startAdornment: <InputAdornment position="start"><Search size={18} /></InputAdornment> }}
-                sx={{ mb: 2, maxWidth: 560 }}
-            />
-
             <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
-                <Table size="small" sx={{ minWidth: 1260 }}>
+                <Table size="small" sx={{ minWidth: 760 }}>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Account</TableCell>
-                            <TableCell><BusinessLabel /></TableCell>
-                            <TableCell>Role</TableCell>
-                            <TableCell align="center">Active</TableCell>
-                            <TableCell align="center">Visible</TableCell>
-                            <TableCell align="center">Installments</TableCell>
-                            <TableCell align="center">Discount Access</TableCell>
-                            <TableCell align="center">Restaurant / KOT</TableCell>
-                            <TableCell align="center">Digital Menu</TableCell>
-                            <TableCell align="center">Monthly</TableCell>
-                            <TableCell align="center">User Limit</TableCell>
+                            <TableCell sx={{ verticalAlign: 'top', minWidth: 210 }}>
+                                <Stack spacing={1} sx={{ py: 1 }}>
+                                    <span>Account</span>
+                                    <TextField size="small" type="search" placeholder="Name or email" value={filters.account} onChange={(event) => changeFilter('account', event.target.value)} inputProps={{ 'aria-label': 'Filter accounts by name or email' }} />
+                                </Stack>
+                            </TableCell>
+                            <TableCell sortDirection={businessSort} sx={{ verticalAlign: 'top', minWidth: 220 }}>
+                                <Stack spacing={1} sx={{ py: 1 }}>
+                                    <TableSortLabel active direction={businessSort} sx={{ flexDirection: 'row', alignSelf: 'flex-start', whiteSpace: 'nowrap' }} onClick={() => { setBusinessSort((current) => current === 'asc' ? 'desc' : 'asc'); setPage(0); }}><BusinessLabel /></TableSortLabel>
+                                    <TextField size="small" type="search" placeholder="Business name" value={filters.business} onChange={(event) => changeFilter('business', event.target.value)} inputProps={{ 'aria-label': 'Filter by business name' }} />
+                                </Stack>
+                            </TableCell>
+                            <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
+                                <Stack spacing={1} sx={{ py: 1 }}>
+                                    <span>Role</span>
+                                    <TextField select size="small" value={filters.role} onChange={(event) => changeFilter('role', event.target.value)} SelectProps={{ displayEmpty: true, inputProps: { 'aria-label': 'Filter by role' } }}>
+                                        <MenuItem value="">All roles</MenuItem>
+                                        <MenuItem value="super_admin">Super Admin</MenuItem>
+                                        <MenuItem value="admin">Admin</MenuItem>
+                                        <MenuItem value="user">User</MenuItem>
+                                    </TextField>
+                                </Stack>
+                            </TableCell>
+                            <TableCell align="center" sx={{ verticalAlign: 'top', minWidth: 140 }}>
+                                <Stack spacing={1} sx={{ py: 1 }}>
+                                    <span>User Limit</span>
+                                    <TextField size="small" type="search" placeholder="Limit or -" value={filters.userLimit} onChange={(event) => changeFilter('userLimit', event.target.value)} error={limitFilterInvalid} helperText={limitFilterInvalid ? 'Enter a whole number or -' : undefined} inputProps={{ 'aria-label': 'Filter by user limit; use - for not applicable' }} />
+                                </Stack>
+                            </TableCell>
                             <TableCell align="right">Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {loading && (
                             <TableRow>
-                                <TableCell colSpan={11} align="center" sx={{ py: 8 }}><CircularProgress size={30} /></TableCell>
+                                <TableCell colSpan={5} align="center" sx={{ py: 8 }}><CircularProgress size={30} /></TableCell>
                             </TableRow>
                         )}
                         {!loading && users.map((teamUser) => {
-                            const isBusy = savingId === teamUser.id;
-                            const isManageable = isSuperAdmin && teamUser.role !== 'super_admin';
-                            const canManageRestaurantMode = isSuperAdmin && (teamUser.role === 'admin' || teamUser.role === 'super_admin');
+                            const canEditClient = isSuperAdmin && teamUser.role === 'admin' && clientBusinessIds.has(teamUser.businessId || '');
                             const canDelete = teamUser.id !== currentUser?.id && (
                                 isSuperAdmin
                                     ? teamUser.role !== 'super_admin'
@@ -430,79 +348,35 @@ const TeamManagementPage: React.FC = () => {
                                     </TableCell>
                                     <TableCell>
                                         <Typography variant="body2" fontWeight={800}>{teamUser.businessName || '-'}</Typography>
+                                        {teamUser.branchName && <Typography variant="caption" color="text.secondary">{teamUser.branchName}</Typography>}
                                     </TableCell>
                                     <TableCell>
                                         <Chip icon={<ShieldCheck size={14} />} label={roleLabel(teamUser.role)} color={teamUser.role === 'user' ? 'default' : 'primary'} size="small" />
                                     </TableCell>
-                                    <TableCell align="center">
-                                        <Switch size="small" checked={Boolean(teamUser.isActive)} disabled={!isManageable || isBusy} onChange={(_, checked) => handleStatusChange(teamUser, { isActive: checked })} />
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        <Switch size="small" checked={Boolean(teamUser.isVisible)} disabled={!isManageable || isBusy} onChange={(_, checked) => handleStatusChange(teamUser, { isVisible: checked })} />
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        <Switch size="small" checked={Boolean(teamUser.installmentAccess)} disabled={!isManageable || isBusy} onChange={(_, checked) => handleStatusChange(teamUser, { installmentAccess: checked })} />
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        {teamUser.role === 'admin' ? (
-                                            <Switch
-                                                size="small"
-                                                checked={Boolean(teamUser.discountAccess)}
-                                                disabled={!isManageable || isBusy}
-                                                onChange={(_, checked) => handleStatusChange(teamUser, { discountAccess: checked })}
-                                                inputProps={{ 'aria-label': `Discount access for ${teamUser.name}` }}
-                                            />
-                                        ) : '-'}
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        {canManageRestaurantMode ? (
-                                            <Switch
-                                                size="small"
-                                                checked={Boolean(teamUser.restaurantEnabled)}
-                                                disabled={isBusy}
-                                                onChange={(_, checked) => handleStatusChange(teamUser, { restaurantEnabled: checked })}
-                                                inputProps={{ 'aria-label': `Restaurant mode for ${teamUser.businessName || teamUser.name}` }}
-                                            />
-                                        ) : '-'}
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        {isSuperAdmin && teamUser.role !== 'super_admin' ? (
-                                            <Tooltip title="Configure Digital Menu access"><span><IconButton size="small" disabled={isBusy} color={teamUser.digitalMenuAccess === 'pos' ? 'primary' : teamUser.digitalMenuAccess === 'menu' ? 'secondary' : 'default'} onClick={() => { setDigitalMenuUser(teamUser); setDigitalMenuAccess(teamUser.digitalMenuAccess || 'none'); }} aria-label={`Digital menu access for ${teamUser.name}`}><QrCode size={19} /></IconButton></span></Tooltip>
-                                        ) : '-'}
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        {(teamUser.role === 'admin' || teamUser.role === 'super_admin') ? (
-                                            <Tooltip title={!teamUser.monthlyPayment?.enabled ? 'Monthly payment tracking is off' : teamUser.monthlyPayment.overdue ? 'Monthly payment is overdue' : teamUser.monthlyPayment.paidAt ? `Paid: ${new Date(teamUser.monthlyPayment.paidAt).toLocaleDateString()}` : 'Payment pending'}>
-                                                <span><IconButton size="small" color={teamUser.monthlyPayment?.overdue ? 'error' : teamUser.monthlyPayment?.paidAt ? 'success' : 'default'} onClick={() => openMonthlyPayment(teamUser)} disabled={!isSuperAdmin || isBusy} aria-label={`Monthly payment for ${teamUser.businessName || teamUser.name}`}><CircleDollarSign size={19} /></IconButton></span>
-                                            </Tooltip>
-                                        ) : '-'}
-                                    </TableCell>
                                     <TableCell align="center">{teamUser.role === 'admin' ? teamUser.userCreationLimit ?? 0 : '-'}</TableCell>
                                     <TableCell align="right">
                                         <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                            {canOpenEmployees && teamUser.employeeId && teamUser.businessId === activeBusinessId && (
-                                                <Tooltip title="Employee profile">
-                                                    <IconButton size="small" color="primary" onClick={() => navigate(`/employees/${teamUser.employeeId}`)} aria-label={`Employee profile for ${teamUser.name}`}>
-                                                        <IdCard size={18} />
+                                            {canEditClient && (
+                                                <Tooltip title="Edit Client" arrow>
+                                                    <IconButton size="small" color="primary" sx={rowActionSx('primary')} onClick={() => navigate(`/team/clients/${teamUser.businessId}`)} aria-label={`Edit client ${teamUser.businessName || teamUser.name}`}>
+                                                        <Building2 size={17} />
                                                     </IconButton>
                                                 </Tooltip>
                                             )}
-                                            {isManageable && (
-                                                <Button size="small" variant="outlined" startIcon={<Edit3 size={15} />} onClick={() => openEditDialog(teamUser)} disabled={isBusy}>
-                                                    Edit
-                                                </Button>
-                                            )}
+                                            <Tooltip title="Manage" arrow>
+                                                <IconButton size="small" color="primary" sx={rowActionSx('primary')} onClick={() => navigate(`/team/accounts/${teamUser.id}`)} aria-label={`Manage ${teamUser.name}`}>
+                                                    <Edit3 size={17} />
+                                                </IconButton>
+                                            </Tooltip>
                                             {canDelete && (
-                                                <Button
-                                                    size="small"
-                                                    color="error"
-                                                    variant="outlined"
-                                                    startIcon={<Trash2 size={15} />}
-                                                    onClick={() => setDeletingUser(teamUser)}
-                                                    disabled={deleteSaving}
-                                                >
-                                                    Delete
-                                                </Button>
+                                                <Tooltip title="Delete" arrow>
+                                                    {/* A disabled button fires no events, so the span keeps the tooltip working. */}
+                                                    <span>
+                                                        <IconButton size="small" color="error" sx={rowActionSx('error')} onClick={() => setDeletingUser(teamUser)} disabled={deleteSaving} aria-label={`Delete ${teamUser.name}`}>
+                                                            <Trash2 size={17} />
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
                                             )}
                                         </Stack>
                                     </TableCell>
@@ -511,7 +385,7 @@ const TeamManagementPage: React.FC = () => {
                         })}
                         {!loading && !users.length && (
                             <TableRow>
-                                <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
+                                <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
                                     <Users size={34} style={{ opacity: 0.45, marginBottom: 8 }} />
                                     <Typography variant="body2" color="text.secondary">No matching accounts found.</Typography>
                                 </TableCell>
@@ -539,7 +413,7 @@ const TeamManagementPage: React.FC = () => {
                         <Typography variant="h6" fontWeight={800}>Employees without a login</Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             {isSuperAdmin ? 'In the workspace you are viewing, these' : 'These'} employees have a profile in Employees but cannot sign in yet.
-                            Create a login to give them access, then set their rights in the table above.
+                            Create a login to give them access, then open Manage to set their rights.
                         </Typography>
                         <Stack spacing={1}>
                             {unlinkedEmployees.map((employee) => (
@@ -567,31 +441,6 @@ const TeamManagementPage: React.FC = () => {
             )}
 
             <CreateLoginDialog employee={loginTarget} onClose={() => setLoginTarget(null)} onCreated={handleLoginCreated} />
-
-            <Dialog open={Boolean(monthlyPaymentUser)} onClose={() => !savingId && setMonthlyPaymentUser(null)} fullWidth maxWidth="xs">
-                <DialogTitle>Monthly Payment — {monthlyPaymentUser?.businessName || monthlyPaymentUser?.name}</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={1.5} sx={{ pt: 1 }}>
-                        <FormControlLabel control={<Switch checked={monthlyPaymentEnabled} onChange={(event) => setMonthlyPaymentEnabled(event.target.checked)} />} label="Track monthly payment" />
-                        <FormControlLabel control={<Switch checked={monthlyPaymentPaid} disabled={!monthlyPaymentEnabled} onChange={(event) => setMonthlyPaymentPaid(event.target.checked)} />} label="Payment received" />
-                        <TextField label="Payment date" type="date" value={monthlyPaymentDate} disabled={!monthlyPaymentEnabled || !monthlyPaymentPaid} onChange={(event) => setMonthlyPaymentDate(event.target.value)} InputLabelProps={{ shrink: true }} />
-                        <Typography variant="caption" color="text.secondary">If tracking is enabled and a payment remains unpaid for one full month, an overdue notification will be shown.</Typography>
-                    </Stack>
-                </DialogContent>
-                <DialogActions><Button onClick={() => setMonthlyPaymentUser(null)} disabled={Boolean(savingId)}>Cancel</Button><Button variant="contained" onClick={saveMonthlyPayment} disabled={Boolean(savingId)}>Save</Button></DialogActions>
-            </Dialog>
-            <Dialog open={Boolean(digitalMenuUser)} onClose={() => !savingId && setDigitalMenuUser(null)} fullWidth maxWidth="xs">
-                <DialogTitle>Digital Menu Access — {digitalMenuUser?.name}</DialogTitle>
-                <DialogContent>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Choose what this account can do with QR table menus.</Typography>
-                    <TextField select fullWidth label="Access level" value={digitalMenuAccess} onChange={(event) => setDigitalMenuAccess(event.target.value as 'none' | 'menu' | 'pos')}>
-                        <MenuItem value="none">No access</MenuItem>
-                        <MenuItem value="menu">Menu only — manage and show QR menus</MenuItem>
-                        <MenuItem value="pos">Menu + Add to POS — send table bills to billing</MenuItem>
-                    </TextField>
-                </DialogContent>
-                <DialogActions><Button onClick={() => setDigitalMenuUser(null)} disabled={Boolean(savingId)}>Cancel</Button><Button variant="contained" onClick={saveDigitalMenuAccess} disabled={Boolean(savingId)}>Save</Button></DialogActions>
-            </Dialog>
 
             <Dialog open={createDialogOpen} onClose={() => !createSaving && setCreateDialogOpen(false)} fullWidth maxWidth="sm">
                 <DialogTitle>{isSuperAdmin ? 'Create Account' : 'Add User'}</DialogTitle>
@@ -639,25 +488,12 @@ const TeamManagementPage: React.FC = () => {
                                     required
                                     disabled={createSaving}
                                 >
-                                    {createDraft.role === 'admin' && <MenuItem value="__new__">Create new business</MenuItem>}
                                     {businesses.map((business) => (
                                         <MenuItem key={business.id} value={business.id}>
                                             {business.name}{business.isLegacy ? ' (Default)' : ''}
                                         </MenuItem>
                                     ))}
                                 </TextField>
-                            )}
-                            {isSuperAdmin && createDraft.businessId === '__new__' && (
-                                <TextField
-                                    label="Shop Name"
-                                    name="new-account-shop"
-                                    autoComplete="off"
-                                    value={createDraft.businessName}
-                                    onChange={(event) => setCreateDraft({ ...createDraft, businessName: event.target.value })}
-                                    helperText="A separate workspace will be created for this shop."
-                                    required
-                                    disabled={createSaving}
-                                />
                             )}
                             <TextField
                                 label="Password"
@@ -692,73 +528,6 @@ const TeamManagementPage: React.FC = () => {
                         </Button>
                     </DialogActions>
                 </Box>
-            </Dialog>
-
-            <Dialog open={Boolean(editingUser)} onClose={() => setEditingUser(null)} fullWidth maxWidth="sm">
-                <DialogTitle>Edit Account</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ pt: 1 }}>
-                        <TextField label="Full Name" name="account-name" autoComplete="off" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required />
-                        <TextField label="Login Email / ID" name="account-email" type="email" autoComplete="off" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} required />
-                        <TextField
-                            select
-                            label="Role"
-                            value={draft.role}
-                            onChange={(event) => setDraft({ ...draft, role: event.target.value as UserRole })}
-                            required
-                        >
-                            <MenuItem value="super_admin">Super Admin</MenuItem>
-                            <MenuItem value="admin">Administrator</MenuItem>
-                            <MenuItem value="user">User</MenuItem>
-                        </TextField>
-                        {draft.role !== 'super_admin' && (
-                            <TextField
-                                select
-                                label={<BusinessLabel />}
-                                value={draft.businessId}
-                                onChange={(event) => setDraft({ ...draft, businessId: event.target.value })}
-                                helperText="Move this account to an existing shop/workspace."
-                                required
-                            >
-                                {businesses.map((business) => (
-                                    <MenuItem key={business.id} value={business.id}>
-                                        {business.name}{business.isLegacy ? ' (Default)' : ''}
-                                    </MenuItem>
-                                ))}
-                            </TextField>
-                        )}
-                        <TextField
-                            label="Password"
-                            name="new-password"
-                            type={showPassword ? 'text' : 'password'}
-                            autoComplete="new-password"
-                            value={draft.password}
-                            onChange={(event) => setDraft({ ...draft, password: event.target.value })}
-                            helperText={editingUser?.visiblePassword ? 'Use the eye icon to view or update this password.' : 'Old password is not available. Enter a new password to reset it.'}
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            onClick={() => setShowPassword((visible) => !visible)}
-                                            edge="end"
-                                            size="small"
-                                            aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                        >
-                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-                        {draft.role === 'admin' && (
-                            <TextField label="User Creation Limit" type="number" value={draft.userCreationLimit} onChange={(event) => setDraft({ ...draft, userCreationLimit: event.target.value })} inputProps={{ min: 0 }} />
-                        )}
-                    </Stack>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setEditingUser(null)}>Cancel</Button>
-                    <Button variant="contained" onClick={saveAccount} disabled={savingId === editingUser?.id}>Save Changes</Button>
-                </DialogActions>
             </Dialog>
 
             <Dialog open={Boolean(deletingUser)} onClose={() => !deleteSaving && setDeletingUser(null)} fullWidth maxWidth="xs">

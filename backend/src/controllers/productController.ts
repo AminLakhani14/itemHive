@@ -7,7 +7,13 @@ import { buildTenantFilter, getTenantObjectId } from '../utils/tenancy';
 const PRODUCT_LIST_CACHE_TTL_MS = 60 * 1000;
 const productListCache = new Map<string, { expiresAt: number; value: unknown[] }>();
 
-const invalidateProductListCache = (businessId: string) => productListCache.delete(businessId);
+// Each branch, and the combined read-only view of several branches, is cached separately.
+const productListCacheKey = (user: NonNullable<AuthRequest['user']>) =>
+    `${user.businessId}:${user.branchScope === 'all' ? `all:${user.branchIds.join(',')}` : user.branchId}`;
+// A change in one branch also changes the combined view, so every entry of the business is dropped.
+const invalidateProductListCache = (businessId: string) => {
+    for (const key of productListCache.keys()) if (key.startsWith(`${businessId}:`)) productListCache.delete(key);
+};
 
 interface OpenFoodFactsProduct {
     code?: string;
@@ -421,7 +427,7 @@ const fetchSourceSuggestions = async (
 
 export const getProducts = async (req: AuthRequest, res: Response) => {
     try {
-        const tenantId = String(req.user!.businessId);
+        const tenantId = productListCacheKey(req.user!);
         const fresh = req.query.fresh === '1';
         const cached = !fresh ? productListCache.get(tenantId) : undefined;
         if (cached && cached.expiresAt > Date.now()) {

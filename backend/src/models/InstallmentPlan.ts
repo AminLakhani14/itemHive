@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface IInstallmentScheduleItem {
     installmentNumber: number;
@@ -90,4 +91,5 @@ const InstallmentPlanSchema: Schema<IInstallmentPlan> = new Schema({
 
 InstallmentPlanSchema.index({ businessId: 1, planCode: 1 }, { unique: true });
 
+InstallmentPlanSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IInstallmentPlan>('InstallmentPlan', InstallmentPlanSchema);

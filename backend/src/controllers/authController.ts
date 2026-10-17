@@ -171,12 +171,12 @@ export const register = async (req: AuthRequest, res: Response) => {
         }
 
         // Creating a login for an existing employee profile (from Employees or Team).
-        let employeeToLink: { _id: mongoose.Types.ObjectId } | null = null;
+        let employeeToLink: { _id: mongoose.Types.ObjectId; branchId?: mongoose.Types.ObjectId | null } | null = null;
         if (employeeId) {
             if (!req.user || !businessId) {
                 return res.status(400).json({ message: 'A login can only be linked to an employee by a signed-in admin' });
             }
-            const employee = await Employee.findOne({ _id: employeeId, businessId }).select('_id userId').lean();
+            const employee = await Employee.findOne({ _id: employeeId, businessId }).select('_id userId branchId').lean();
             if (!employee) {
                 return res.status(400).json({ message: 'That employee was not found in this business' });
             }
@@ -186,6 +186,10 @@ export const register = async (req: AuthRequest, res: Response) => {
             employeeToLink = employee;
         }
 
+        // Staff work in one branch: their employee profile's, or the branch the account is created in.
+        const branchId = !isStaffRole(assignedRole) ? null
+            : employeeToLink ? employeeToLink.branchId || null
+                : req.user && String(businessId) === req.user.businessId && req.user.branchId ? new mongoose.Types.ObjectId(req.user.branchId) : null;
         const user = new User({
             name,
             email: normalizedEmail,
@@ -194,6 +198,7 @@ export const register = async (req: AuthRequest, res: Response) => {
             role: assignedRole,
             createdBy,
             businessId,
+            branchId,
             preferences: country || currency ? {
                 country: country || 'PK',
                 currency: currency || 'PKR',
@@ -229,6 +234,9 @@ export const register = async (req: AuthRequest, res: Response) => {
 };
 
 export const login = async (req: AuthRequest, res: Response) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ message: 'Sign in is temporarily unavailable. Please try again shortly.' });
+    }
     try {
         const { email, password } = req.body;
         const normalizedEmail = String(email || '').trim().toLowerCase();

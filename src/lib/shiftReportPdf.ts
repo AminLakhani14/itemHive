@@ -46,7 +46,10 @@ const leftRight = (left: string, right: string, width = TEXT_WIDTH) => {
 
 const divider = '-'.repeat(TEXT_WIDTH);
 
-const buildLines = ({ report, shopName, shopAddress, shopPhone, formatCurrency, includeInstallments }: ShiftReportPdfInput) => {
+const buildLines = ({ report, shopName, shopAddress, shopPhone, formatCurrency: fallbackFormatCurrency, includeInstallments }: ShiftReportPdfInput) => {
+    const formatCurrency = (value: number) => report.currency
+        ? new Intl.NumberFormat('en', { style: 'currency', currency: report.currency }).format(value)
+        : fallbackFormatCurrency(value);
     const lines: PdfLine[] = [];
     const heading = (label: string) => lines.push({ text: label, bold: true, gapBefore: 5 }, { text: divider });
     const pair = (label: string, value: string, bold = false) => lines.push({ text: leftRight(label, value), bold });
@@ -113,6 +116,8 @@ const buildLines = ({ report, shopName, shopAddress, shopPhone, formatCurrency, 
 
     heading('CASH RECONCILIATION');
     pair('Opening Cash', formatCurrency(report.openingCash));
+    pair('Expense Paid Out', formatCurrency(report.totals.expensePaidOut || 0));
+    pair('Expense Refunds', formatCurrency(report.totals.expenseRefunds || 0));
     pair('Expected Cash', formatCurrency(report.totals.expectedDrawerCash), true);
     if (report.totals.countedCash != null) pair('Counted Cash', formatCurrency(report.totals.countedCash));
     if (report.totals.cashDifference != null) {

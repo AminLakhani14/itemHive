@@ -24,6 +24,11 @@ import posShiftRoutes from './routes/posShiftRoutes';
 import digitalMenuRoutes from './routes/digitalMenuRoutes';
 import employeeRoutes from './routes/employeeRoutes';
 import attendanceRoutes from './routes/attendanceRoutes';
+import { payrollRouter, myPayrollRouter, salespersonRouter } from './routes/payrollRoutes';
+import { payrollModels } from './models/Payroll';
+import expenseRoutes from './routes/expenseRoutes';
+import organizationRoutes from './routes/organizationRoutes';
+import Expense from './models/Expense';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { ensureTenantIndexes } from './utils/tenantIndexes';
 import { syncStaffEmployees } from './utils/employeeAccounts';
@@ -133,6 +138,11 @@ app.use('/api/signup-requests', signupRequestRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/payroll', payrollRouter);
+app.use('/api/me/payroll', myPayrollRouter);
+app.use('/api/salespeople', salespersonRouter);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/organization', organizationRoutes);
 
 // ── 404 & Error Handling ──────────────────────────────────────
 app.use(notFound);
@@ -143,6 +153,8 @@ const startServer = async () => {
     try {
         await connectDB();
         await ensureTenantIndexes();
+        for (const model of payrollModels) await model.createIndexes();
+        await Expense.createIndexes();
         // Every staff login in Team has an employee profile, including ones created before they were linked.
         await syncStaffEmployees();
     } catch (error) {

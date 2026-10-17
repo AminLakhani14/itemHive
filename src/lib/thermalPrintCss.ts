@@ -1,8 +1,9 @@
 /**
  * Print CSS that turns an on-screen invoice into a thermal slip.
  *
- * Receipt printers feed a fixed-width, continuous roll, so the page box is
- * measured in printReceipt and declared with the content's actual height.
+ * Keep the slip at a fixed thermal width and use the printer's selected paper
+ * size so A4 print previews place it at the top-left rather than centering a
+ * smaller custom page on the sheet.
  * The screen layout puts
  * the letterhead, meta column and shop block side by side and prices the table
  * in five columns; none of that survives 72mm of printable width, so the rules
@@ -23,11 +24,13 @@ export const thermalInvoicePrintCss = (selector: string, rollWidthMm = DEFAULT_R
     const slipWidthMm = rollWidthMm - 6;
 
     return `
-    /* printReceipt adds the measured roll width and content height. */
+    /* Follow the selected paper size, including A4 and thermal rolls. */
     @page { size: auto; margin: 0; }
 
     html, body {
+        display: block !important;
         width: ${rollWidthMm}mm !important;
+        min-width: 0 !important;
         height: auto !important;
         min-height: 0 !important;
         margin: 0 !important;

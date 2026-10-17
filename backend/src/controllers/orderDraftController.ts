@@ -1,6 +1,7 @@
 import { resolveSellingLine } from '../utils/productSelling';
 import { Response } from 'express';
 import Product from '../models/Product';
+import Employee from '../models/Employee';
 import OrderDraft from '../models/OrderDraft';
 import type { AuthRequest } from '../middleware/auth';
 import { normalizeRole } from '../utils/accessControl';
@@ -86,6 +87,12 @@ const buildDraftPayload = async (req: AuthRequest) => {
         : undefined;
 
     return {
+        salespersonEmployeeId: await (async () => {
+            if (!req.body.salespersonEmployeeId) return undefined;
+            const e = await Employee.findOne({ _id: req.body.salespersonEmployeeId, status: 'active', businessId: getTenantObjectId(req.user!) }).select('_id');
+            if (!e) throw new Error('Salesperson not found in this business');
+            return e._id;
+        })(),
         items,
         discountPercent,
         orderType,

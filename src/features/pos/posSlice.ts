@@ -4,7 +4,7 @@ import type { Product } from '../inventory/inventorySlice';
 export interface CartItem extends Product {
     productId?: string;
     sizeId?: string;
-    selectedSize?: number;
+    selectedSize?: number | string;
     quantity: number;
     discount?: number;
 }
@@ -23,7 +23,7 @@ const posSlice = createSlice({
     name: 'pos',
     initialState,
     reducers: {
-        addToCart: (state, action: PayloadAction<Product & { quantity?: number; productId?: string; sizeId?: string; selectedSize?: number }>) => {
+        addToCart: (state, action: PayloadAction<Product & { quantity?: number; productId?: string; sizeId?: string; selectedSize?: number | string }>) => {
             const existingItem = state.cart.find(item => item.id === action.payload.id);
             if (existingItem) {
                 existingItem.quantity = Number((existingItem.quantity + (action.payload.quantity ?? 1)).toPrecision(15));

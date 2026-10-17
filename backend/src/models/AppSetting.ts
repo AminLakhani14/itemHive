@@ -18,6 +18,7 @@ export interface IAppSetting extends Document {
     monthlyPaymentTrackingStartedAt?: Date;
     /** Enables restaurant-only POS features such as Kitchen Order Tickets. */
     restaurantEnabled: boolean;
+    businessTypeId: string;
     autoRegistrationEnabled: boolean;
     /** Shows the Basic-plan customization offer on the public pricing screen. */
     basicCustomizationOfferEnabled: boolean;
@@ -42,6 +43,7 @@ const AppSettingSchema: Schema<IAppSetting> = new Schema({
     monthlyPaymentPaidAt: { type: Date, default: null },
     monthlyPaymentTrackingStartedAt: { type: Date, default: null },
     restaurantEnabled: { type: Boolean, default: false },
+    businessTypeId: { type: String, default: '' },
     autoRegistrationEnabled: { type: Boolean, default: true },
     basicCustomizationOfferEnabled: { type: Boolean, default: false },
     attendanceWeeklyOffDays: { type: [Number], default: [0] },

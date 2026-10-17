@@ -40,8 +40,7 @@ import useAppCurrency from '../../hooks/useAppCurrency';
 import api from '../../api/axios';
 import { DEFAULT_PRODUCT_UNIT, getProductUnit } from '../../lib/productUnits';
 import { optimizeProductImage, PRODUCT_IMAGE_HELPER_TEXT } from '../../lib/productImage';
-
-
+import { BUSINESS_PRODUCT_FIELDS } from '../../types/businessType';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
     if (typeof error === 'string') return error;
@@ -71,8 +70,11 @@ const AddProduct: React.FC = () => {
 
     const { products } = useSelector((state: RootState) => state.inventory);
     const { user } = useSelector((state: RootState) => state.auth);
+    const { app, loading: settingsLoading, error: settingsError } = useSelector((state: RootState) => state.settings);
+    const productFields = app.productFields || ['unitSize'];
+    const detailFields = BUSINESS_PRODUCT_FIELDS.filter(field => field.key !== 'unitSize' && productFields.includes(field.key));
     const canCreateDirectly = user?.role === 'super_admin' || user?.role === 'admin';
-    const [formData, setFormData] = useState({
+    const [formDraft, setFormData] = useState({
         sku: '',
         name: '',
         category: '',
@@ -83,8 +85,16 @@ const AddProduct: React.FC = () => {
         ...emptySellingDetails,
         productUnitCode: DEFAULT_PRODUCT_UNIT.code as string,
         description: '',
-        imageUrl: ''
+        imageUrl: '',
+        batchNumber: '',
+        expiryDate: '',
+        supplier: ''
     });
+    const formData = {
+        ...formDraft,
+        unitSizeEnabled: productFields.includes('unitSize') && formDraft.unitSizeEnabled,
+        ...(!productFields.includes('unitSize') ? emptySellingDetails : {}),
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -190,6 +200,8 @@ const AddProduct: React.FC = () => {
         e.preventDefault();
         setSubmitError('');
 
+        if (settingsLoading || settingsError) { setSubmitError('Wait for workspace settings to load before saving.'); return; }
+
         // Check for duplicate SKU
         if (products.some((p: Product) => p.sku === formData.sku)) {
             alert('A product with this SKU already exists!');
@@ -215,7 +227,10 @@ const AddProduct: React.FC = () => {
             productUnit: formData.productUnit || selectedUnit.english,
             productUnitUrdu: selectedUnit.urdu,
             description: formData.description,
-            imageUrl: formData.imageUrl
+            imageUrl: formData.imageUrl,
+            batchNumber: productFields.includes('batchNumber') ? formData.batchNumber.trim() : '',
+            expiryDate: productFields.includes('expiryDate') ? formData.expiryDate : '',
+            supplier: productFields.includes('supplier') ? formData.supplier.trim() : ''
         });
 
         setSubmitting(true);
@@ -239,12 +254,15 @@ const AddProduct: React.FC = () => {
     };
 
     return (
-        <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+        <Box sx={{ width: '100%', minWidth: 0 }}>
             <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
                 <IconButton onClick={() => navigate('/inventory')} sx={{ bgcolor: 'background.paper' }}>
                     <ChevronLeft size={20} />
                 </IconButton>
-                <Typography variant="h4" fontWeight={800}>{canCreateDirectly ? 'Add New Product' : 'Request Inventory Approval'}</Typography>
+                <Box>
+                    <Typography variant="h4" fontWeight={800}>{canCreateDirectly ? 'Add New Product' : 'Request Inventory Approval'}</Typography>
+                    {app.businessTypeName && <Typography variant="body2" color="text.secondary">{app.businessTypeName}</Typography>}
+                </Box>
             </Box>
 
             {success && (
@@ -266,14 +284,14 @@ const AddProduct: React.FC = () => {
                     {submitError}
                 </Alert>
             )}
+            {settingsError && <Alert severity="error" sx={{ mb: 3 }}>Workspace product settings could not be loaded. Refresh this page to retry.</Alert>}
 
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3 }}
             >
-                <Card sx={{ borderRadius: 4 }}>
-                    <CardContent sx={{ p: 4 }}>
+                    <Box sx={{ py: 1 }}>
                         <form onSubmit={handleSubmit}>
                             <Grid container spacing={3}>
                                 <Grid size={12}>
@@ -283,7 +301,7 @@ const AddProduct: React.FC = () => {
                                     <Divider sx={{ mb: 3 }} />
                                 </Grid>
 
-                                <Grid size={12}>
+                                <Grid size={{ xs: 12, md: 4 }}>
                                     <TextField
                                         fullWidth
                                         label="SKU (Unique Identifier)"
@@ -297,7 +315,7 @@ const AddProduct: React.FC = () => {
                                     />
                                 </Grid>
 
-                                <Grid size={{ xs: 12, md: 6 }}>
+                                <Grid size={{ xs: 12, md: 4 }}>
                                     <TextField
                                         fullWidth
                                         label="Product Name"
@@ -309,7 +327,7 @@ const AddProduct: React.FC = () => {
                                     />
                                 </Grid>
 
-                                <Grid size={{ xs: 12, md: 6 }}>
+                                <Grid size={{ xs: 12, md: 4 }}>
                                     <TextField
                                         select
                                         fullWidth
@@ -327,7 +345,17 @@ const AddProduct: React.FC = () => {
                                     </TextField>
                                 </Grid>
 
-                                <Grid size={12}><ProductSellingFields value={formData} onChange={details => setFormData(current => ({ ...current, ...details }))} /></Grid>
+                                {productFields.includes('unitSize') && <Grid size={12}><ProductSellingFields value={formData} onChange={details => setFormData(current => ({ ...current, ...details }))} /></Grid>}
+
+                                {detailFields.length > 0 && <Grid size={12}>
+                                    <Typography variant="h6" fontWeight={700} gutterBottom>{app.businessTypeName || 'Business'} Details</Typography>
+                                    <Divider sx={{ mb: 3 }} />
+                                    <Grid container spacing={3}>
+                                        {detailFields.map(field => field.key !== 'unitSize' && <Grid key={field.key} size={{ xs: 12, md: 4 }}>
+                                            <TextField fullWidth label={field.label} name={field.key} type={field.key === 'expiryDate' ? 'date' : 'text'} value={formData[field.key]} onChange={handleChange} slotProps={{ inputLabel: { shrink: field.key === 'expiryDate' ? true : undefined } }} />
+                                        </Grid>)}
+                                    </Grid>
+                                </Grid>}
 
                                 <Grid size={12}>
                                     <TextField
@@ -581,7 +609,7 @@ const AddProduct: React.FC = () => {
                                         variant="contained"
                                         size="large"
                                         startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <Save size={20} />}
-                                        disabled={submitting}
+                                        disabled={submitting || settingsLoading || Boolean(settingsError)}
                                         sx={{ borderRadius: 2, px: 4 }}
                                     >
                                         {submitting ? 'Submitting...' : canCreateDirectly ? 'Save Product' : 'Submit for Approval'}
@@ -589,8 +617,7 @@ const AddProduct: React.FC = () => {
                                 </Grid>
                             </Grid>
                         </form>
-                    </CardContent>
-                </Card>
+                    </Box>
             </motion.div>
         </Box>
     );

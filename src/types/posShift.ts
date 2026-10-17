@@ -19,6 +19,8 @@ export interface ShiftReportTotals {
     installmentCollectionsCard: number;
     totalCollected?: number;
     expectedDrawerCash: number;
+    expensePaidOut?: number;
+    expenseRefunds?: number;
     countedCash?: number;
     cashDifference?: number;
 }
@@ -43,6 +45,7 @@ export interface ShiftSoldItemSummary {
 }
 
 export interface ShiftReport {
+    currency?: string;
     shiftCode: string;
     registerName: string;
     cashierName: string;
@@ -57,6 +60,7 @@ export interface ShiftReport {
 }
 
 export interface POSShift {
+    currency?: string;
     _id: string;
     shiftCode: string;
     registerName: string;

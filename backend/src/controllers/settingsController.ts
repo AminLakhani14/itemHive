@@ -5,24 +5,34 @@ import { normalizeRole } from '../utils/accessControl';
 import type { IUser } from '../models/User';
 import { getAppSettingsForTenant, getGlobalAppSettings, invalidateAppSettingsCache } from '../utils/tenancy';
 import type { IAppSetting } from '../models/AppSetting';
+import { effectiveBusinessTypeId, getBusinessTypeCatalog } from '../utils/businessTypes';
+import { businessProductFields } from '../utils/businessProductFields';
 
 const DEFAULT_ORDER_TYPE_OPTIONS = ['Dine In', 'Takeaway', 'Foodpanda', 'Other'];
 
-const serializeAppSettings = (appSettings: IAppSetting, globalAppSettings: IAppSetting) => ({
-    salesTaxRate: appSettings.salesTaxRate,
-    shopName: appSettings.shopName,
-    shopPhone: appSettings.shopPhone,
-    shopAddress: appSettings.shopAddress,
-    receiptBannerUrl: appSettings.receiptBannerUrl || '',
-    invoiceLogoUrl: appSettings.invoiceLogoUrl || '',
-    installmentsEnabled: appSettings.installmentsEnabled,
-    discountsEnabled: appSettings.discountsEnabled,
-    discountOptions: appSettings.discountOptions || [],
-    orderTypeOptions: appSettings.orderTypeOptions?.length ? appSettings.orderTypeOptions : DEFAULT_ORDER_TYPE_OPTIONS,
-    restaurantEnabled: appSettings.restaurantEnabled,
-    autoRegistrationEnabled: globalAppSettings.autoRegistrationEnabled,
-    basicCustomizationOfferEnabled: globalAppSettings.basicCustomizationOfferEnabled,
-});
+const serializeAppSettings = async (appSettings: IAppSetting, globalAppSettings: IAppSetting) => {
+    const businessTypeId = effectiveBusinessTypeId(appSettings);
+    const catalog = await getBusinessTypeCatalog();
+    const businessType = catalog.types.find(type => type.id === businessTypeId);
+    return {
+        businessTypeId,
+        businessTypeName: businessType?.name || '',
+        productFields: businessProductFields(businessType),
+        salesTaxRate: appSettings.salesTaxRate,
+        shopName: appSettings.shopName,
+        shopPhone: appSettings.shopPhone,
+        shopAddress: appSettings.shopAddress,
+        receiptBannerUrl: appSettings.receiptBannerUrl || '',
+        invoiceLogoUrl: appSettings.invoiceLogoUrl || '',
+        installmentsEnabled: appSettings.installmentsEnabled,
+        discountsEnabled: appSettings.discountsEnabled,
+        discountOptions: appSettings.discountOptions || [],
+        orderTypeOptions: appSettings.orderTypeOptions?.length ? appSettings.orderTypeOptions : DEFAULT_ORDER_TYPE_OPTIONS,
+        restaurantEnabled: appSettings.restaurantEnabled,
+        autoRegistrationEnabled: globalAppSettings.autoRegistrationEnabled,
+        basicCustomizationOfferEnabled: globalAppSettings.basicCustomizationOfferEnabled,
+    };
+};
 
 const serializePreferences = (preferences: IUser['preferences']) => ({
     country: preferences.country,
@@ -46,7 +56,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
 
         return res.json({
             ...serializePreferences(user.preferences),
-            app: serializeAppSettings(appSettings, globalAppSettings),
+            app: await serializeAppSettings(appSettings, globalAppSettings),
             canManageDiscounts: req.user?.role === 'super_admin' || Boolean(req.user?.discountAccess),
             canManageOrderTypes: req.user?.role === 'super_admin' || req.user?.role === 'admin',
         });
@@ -138,7 +148,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
 
         return res.json({
             ...serializePreferences(user.preferences),
-            app: serializeAppSettings(appSettings, globalAppSettings),
+            app: await serializeAppSettings(appSettings, globalAppSettings),
             canManageDiscounts: req.user?.role === 'super_admin' || Boolean(req.user?.discountAccess),
             canManageOrderTypes: req.user?.role === 'super_admin' || req.user?.role === 'admin',
         });

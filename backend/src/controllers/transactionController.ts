@@ -1,6 +1,7 @@
 import { resolveSellingLine } from '../utils/productSelling';
 import { Request, Response } from 'express';
 import Transaction from '../models/Transaction';
+import { recordCommission, reverseCommission, salesPerson } from '../services/payrollService';
 import Product from '../models/Product';
 import mongoose from 'mongoose';
 import type { AuthRequest } from '../middleware/auth';
@@ -32,6 +33,14 @@ export const createPOSCheckout = async (req: AuthRequest, res: Response) => {
         const requestedItems = Array.isArray(req.body.items) ? req.body.items : [];
         if (requestedItems.length === 0) return res.status(400).json({ message: 'Add at least one product before payment' });
         if (requestedItems.length > 100) return res.status(400).json({ message: 'An order cannot contain more than 100 products' });
+
+        // A completed checkout retry must succeed even if the original sale
+        // consumed the last unit or its shift has since closed.
+        const completed = await Transaction.find({ orderId, source: 'pos', ...buildTenantFilter(req.user!) }).sort({ id: 1 }).lean();
+        if (completed.length) {
+            setCheckoutTiming();
+            return res.status(200).json({ transactions: completed });
+        }
 
         // Settings are read-only and cached for 15 seconds. Start this lookup
         // before the transaction so it overlaps the shift validation instead
@@ -129,7 +138,9 @@ export const createPOSCheckout = async (req: AuthRequest, res: Response) => {
                 throw new Error('Foodpanda order number and rider name are required');
             }
 
+            const salesperson = await salesPerson(req.user!.businessId, req.user!.id, req.body.salespersonEmployeeId, session);
             const transactionDocuments = lineInputs.map((line: any, index: number) => ({
+                ...salesperson,
                 id: `${orderId}-L${index + 1}`,
                 orderId,
                 source: 'pos',
@@ -164,6 +175,7 @@ export const createPOSCheckout = async (req: AuthRequest, res: Response) => {
             }));
 
             savedTransactions = await Transaction.insertMany(transactionDocuments, { session });
+            for (const sale of savedTransactions) await recordCommission(sale, session);
 
             // A POS basket used to save one product document at a time. On a
             // remote MongoDB cluster that adds a network round trip per line
@@ -284,7 +296,8 @@ export const createTransaction = async (req: AuthRequest, res: Response) => {
         // retain their existing totals and do not gain POS tax/discount handling.
         const isPosCheckout = type === 'reduction' && discountPercent != null;
         const appSettings = isPosCheckout ? await getCachedAppSettingsForTenant(req.user!) : null;
-        const resolvedSubtotal = resolvedUnitPrice * amount;
+        const resolvedSubtotal = source === 'order_desk' && totalPrice != null ? Number(totalPrice) : resolvedUnitPrice * amount;
+        if (!Number.isFinite(resolvedSubtotal) || resolvedSubtotal < 0) throw new Error('Invalid sale amount');
         const requestedDiscountPercent = Number(discountPercent || 0);
         const allowedDiscountOptions = (appSettings?.discountOptions || []).map(Number);
         const resolvedDiscountPercent = appSettings?.discountsEnabled
@@ -308,7 +321,10 @@ export const createTransaction = async (req: AuthRequest, res: Response) => {
         }
 
         // 1. Record the transaction
+        const isSale = type === 'reduction' && ['pos', 'order_desk'].includes(source);
+        const salesperson = isSale ? await salesPerson(req.user!.businessId, req.user!.id, req.body.salespersonEmployeeId, session) : {};
         const transaction = new Transaction({
+            ...salesperson,
             id,
             productId,
             type,
@@ -334,12 +350,13 @@ export const createTransaction = async (req: AuthRequest, res: Response) => {
             unitCost: resolvedUnitCost,
             unitPrice: resolvedUnitPrice,
             grossProfit: resolvedGrossProfit,
-            source: source === 'pos' ? 'pos' : undefined,
+            source: source === 'pos' ? 'pos' : source === 'order_desk' ? 'order_desk' : undefined,
             orderId: source === 'pos' ? String(orderId || id) : '',
             shiftId: resolvedShiftId,
             businessId: getTenantObjectId(req.user!),
         });
         await transaction.save({ session });
+        await recordCommission(transaction, session);
 
         const selectedSize = sizeId ? product.sizes?.find(row => row.id === sizeId) : undefined;
         if (selectedSize) selectedSize.stock += type === 'reduction' ? -numericAmount : numericAmount;
@@ -438,6 +455,7 @@ export const deleteTransaction = async (req: AuthRequest, res: Response) => {
             } else if (product.unitSizeEnabled && product.sellingType === 'fixed') throw new Error('The product selling type has changed, so stock cannot be restored');
             product.stock += stockChange;
             await product.save({ session });
+            await reverseCommission(transaction, session);
             await transaction.deleteOne({ session });
             deletedTransaction = transaction;
         });

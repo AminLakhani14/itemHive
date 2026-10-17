@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface ICustomer extends Document {
     fullName: string;
@@ -45,6 +46,7 @@ const CustomerSchema: Schema<ICustomer> = new Schema(
     { timestamps: true }
 );
 
-CustomerSchema.index({ businessId: 1, cnic: 1 }, { unique: true });
+CustomerSchema.index({ businessId: 1, branchId: 1, cnic: 1 }, { unique: true });
 
+CustomerSchema.plugin(branchScopedPlugin);
 export default mongoose.model<ICustomer>('Customer', CustomerSchema);

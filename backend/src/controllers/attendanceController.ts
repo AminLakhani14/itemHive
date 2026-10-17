@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import mongoose from 'mongoose';
 import Employee from '../models/Employee';
+import { PayrollDayClaim } from '../models/Payroll';
+import { audit } from '../services/payrollService';
 import Attendance, { type IAttendance } from '../models/Attendance';
 import EmployeeLeave, { type IEmployeeLeave } from '../models/EmployeeLeave';
 import type { AuthRequest } from '../middleware/auth';
@@ -133,6 +135,7 @@ export const punchAttendance = async (req: AuthRequest, res: Response) => {
         }).sort({ checkIn: -1 }).lean<LeanAttendance>();
 
         if (openRecord) {
+            if (await PayrollDayClaim.exists({ ...tenantFilter, employeeId, dateKey: openRecord.dateKey })) return res.status(409).json({ message: 'This attendance date belongs to approved payroll. Use a payroll adjustment for corrections.' });
             if (now.getTime() - new Date(openRecord.checkIn!).getTime() < MIN_SHIFT_MS) {
                 return res.json({ action: 'already_checked_in', employee, record: serializeRecord(openRecord) });
             }
@@ -258,49 +261,30 @@ export const getDailyAttendance = async (req: AuthRequest, res: Response) => {
 const sameTime = (a?: Date | null, b?: Date | null) => (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
 
 export const upsertAttendanceRecord = async (req: AuthRequest, res: Response) => {
+    const session = await mongoose.startSession();
     try {
-        const { employeeId, dateKey, note = '' } = req.body as { employeeId: string; dateKey: string; note?: string };
+        const { employeeId, dateKey, note = '' } = req.body;
         const checkIn: Date | null = req.body.checkIn || null;
         const checkOut: Date | null = req.body.checkOut || null;
-
-        if (!checkIn && !checkOut) {
-            return res.status(400).json({ message: 'Enter a check-in or check-out time.' });
-        }
-        if (checkIn && checkOut && checkOut.getTime() <= checkIn.getTime()) {
-            return res.status(400).json({ message: 'Check-out must be after check-in.' });
-        }
-
-        const tenantFilter = buildTenantFilter(req.user!);
-        const employee = await Employee.findOne({ _id: employeeId, ...tenantFilter }).select('_id');
-        if (!employee) return res.status(404).json({ message: 'Employee not found' });
-
-        const existing = await Attendance.findOne({ ...tenantFilter, employeeId: employee._id, dateKey }).lean<LeanAttendance>();
-        const update = {
-            checkIn,
-            checkOut,
-            // A time that was not changed keeps its original method, so face scans stay visible in audits.
-            checkInMethod: checkIn ? (existing && sameTime(existing.checkIn, checkIn) ? existing.checkInMethod : 'manual') : null,
-            checkOutMethod: checkOut ? (existing && sameTime(existing.checkOut, checkOut) ? existing.checkOutMethod : 'manual') : null,
-            note,
-            updatedBy: req.user?.id,
-        };
-
-        const record = existing
-            ? await Attendance.findOneAndUpdate({ _id: existing._id }, { $set: update }, { new: true }).lean<LeanAttendance>()
-            : (await Attendance.create({
-                ...update,
-                employeeId: employee._id,
-                dateKey,
-                timeZone: resolveTimeZone(req.body.timeZone),
-                businessId: getTenantObjectId(req.user!),
-            })).toObject() as LeanAttendance;
-
+        if (!checkIn && !checkOut) return res.status(400).json({ message: 'Enter a check-in or check-out time.' });
+        if (checkIn && checkOut && checkOut <= checkIn) return res.status(400).json({ message: 'Check-out must be after check-in.' });
+        let record: LeanAttendance | null = null;
+        await session.withTransaction(async () => {
+            const tenantFilter = buildTenantFilter(req.user!);
+            const employee = await Employee.findOneAndUpdate({ _id: employeeId, ...tenantFilter }, { $inc: { payrollRevision: 1 } }, { new: true, session });
+            if (!employee) throw new Error('Employee not found');
+            if (await PayrollDayClaim.exists({ ...tenantFilter, employeeId, dateKey }).session(session)) throw new Error('Approved payroll attendance is locked. Use a payroll adjustment for corrections.');
+            const existing = await Attendance.findOne({ ...tenantFilter, employeeId, dateKey }).session(session).lean<LeanAttendance>();
+            const update = { checkIn, checkOut, checkInMethod: checkIn ? (existing && sameTime(existing.checkIn, checkIn) ? existing.checkInMethod : 'manual') : null, checkOutMethod: checkOut ? (existing && sameTime(existing.checkOut, checkOut) ? existing.checkOutMethod : 'manual') : null, note, updatedBy: req.user!.id };
+            record = existing
+                ? await Attendance.findOneAndUpdate({ _id: existing._id, ...tenantFilter }, { $set: update }, { new: true, session }).lean<LeanAttendance>()
+                : (await Attendance.create([{ ...update, employeeId, dateKey, timeZone: resolveTimeZone(req.body.timeZone), businessId: getTenantObjectId(req.user!) }], { session }))[0].toObject() as LeanAttendance;
+            await audit(req.user!.businessId, req.user!.id, 'attendance.correct', String(record!._id), note || 'Manual attendance correction', existing ? { checkIn: existing.checkIn, checkOut: existing.checkOut, dateKey } : null, { checkIn, checkOut, dateKey }, session);
+        });
         return res.json(serializeRecord(record!));
-    } catch (error: unknown) {
-        return res.status(400).json({ message: getErrorMessage(error, 'Failed to save attendance') });
-    }
+    } catch (error) { return res.status(409).json({ message: getErrorMessage(error, 'Failed to save attendance') }); }
+    finally { await session.endSession(); }
 };
-
 export const getAttendanceRecordPhotos = async (req: AuthRequest, res: Response) => {
     try {
         const id = String(req.params.id);
@@ -318,19 +302,23 @@ export const getAttendanceRecordPhotos = async (req: AuthRequest, res: Response)
 };
 
 export const deleteAttendanceRecord = async (req: AuthRequest, res: Response) => {
+    const session = await mongoose.startSession();
     try {
         const id = String(req.params.id);
         if (!isValidId(id)) return res.status(404).json({ message: 'Attendance record not found' });
-
-        const record = await Attendance.findOneAndDelete({ _id: id, ...buildTenantFilter(req.user!) });
-        if (!record) return res.status(404).json({ message: 'Attendance record not found' });
-
+        await session.withTransaction(async () => {
+            const tenantFilter = buildTenantFilter(req.user!);
+            const record = await Attendance.findOne({ _id: id, ...tenantFilter }).session(session);
+            if (!record) throw new Error('Attendance record not found');
+            await Employee.updateOne({ _id: record.employeeId, ...tenantFilter }, { $inc: { payrollRevision: 1 } }, { session });
+            if (await PayrollDayClaim.exists({ ...tenantFilter, employeeId: record.employeeId, dateKey: record.dateKey }).session(session)) throw new Error('Approved payroll attendance cannot be deleted.');
+            await Attendance.deleteOne({ _id: id, ...tenantFilter }, { session });
+            await audit(req.user!.businessId, req.user!.id, 'attendance.delete', id, 'Manual attendance deletion', { dateKey: record.dateKey, checkIn: record.checkIn, checkOut: record.checkOut }, null, session);
+        });
         return res.json({ message: 'Attendance record deleted' });
-    } catch (error: unknown) {
-        return res.status(400).json({ message: getErrorMessage(error, 'Failed to delete attendance') });
-    }
+    } catch (error) { return res.status(409).json({ message: getErrorMessage(error, 'Failed to delete attendance') }); }
+    finally { await session.endSession(); }
 };
-
 export const getLeaves = async (req: AuthRequest, res: Response) => {
     try {
         const tenantFilter = buildTenantFilter(req.user!);
@@ -376,8 +364,9 @@ export const createLeave = async (req: AuthRequest, res: Response) => {
         }
 
         const tenantFilter = buildTenantFilter(req.user!);
-        const employee = await Employee.findOne({ _id: employeeId, ...tenantFilter }).select('_id');
+        const employee = await Employee.findOne({ _id: employeeId, ...tenantFilter }).select('_id payrollEnrolled');
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
+        if (employee.payrollEnrolled) return res.status(409).json({ message: 'Create leave for enrolled employees through Payroll Requests so approval and balances are enforced.' });
 
         const overlapping = await EmployeeLeave.findOne({
             ...tenantFilter,
@@ -410,6 +399,8 @@ export const deleteLeave = async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
         if (!isValidId(id)) return res.status(404).json({ message: 'Leave not found' });
 
+        const existing = await EmployeeLeave.findOne({ _id: id, ...buildTenantFilter(req.user!) });
+        if (existing && (existing.payrollRequestId || await PayrollDayClaim.exists({ ...buildTenantFilter(req.user!), employeeId: existing.employeeId, dateKey: { $gte: existing.startDate, $lte: existing.endDate } }))) return res.status(409).json({ message: 'Payroll leave must be cancelled through its request; approved payroll dates are locked.' });
         const leave = await EmployeeLeave.findOneAndDelete({ _id: id, ...buildTenantFilter(req.user!) });
         if (!leave) return res.status(404).json({ message: 'Leave not found' });
 

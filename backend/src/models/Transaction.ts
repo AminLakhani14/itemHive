@@ -1,10 +1,13 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface ITransaction extends Document {
+    salespersonEmployeeId?: mongoose.Types.ObjectId;
+    salespersonName?: string;
     id: string;
     timestamp: Date;
     sizeId?: string;
-    selectedSize?: number;
+    selectedSize?: number | string;
     productUnit?: string;
     productId: string;
     productName: string;
@@ -37,10 +40,12 @@ export interface ITransaction extends Document {
 }
 
 const TransactionSchema: Schema = new Schema({
+    salespersonEmployeeId: { type: Schema.Types.ObjectId, ref: 'Employee' },
+    salespersonName: { type: String, default: '' },
     id: { type: String, required: true, index: true },
     timestamp: { type: Date, default: Date.now, index: true },
     sizeId: { type: String, default: '' },
-        selectedSize: { type: Number },
+        selectedSize: { type: Schema.Types.Mixed },
         productUnit: { type: String },
         productId: { type: String, required: true, index: true },
     productName: { type: String, required: true },
@@ -74,4 +79,5 @@ const TransactionSchema: Schema = new Schema({
 
 TransactionSchema.index({ businessId: 1, id: 1 }, { unique: true });
 
+TransactionSchema.plugin(branchScopedPlugin);
 export default mongoose.model<ITransaction>('Transaction', TransactionSchema);

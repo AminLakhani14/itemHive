@@ -85,10 +85,10 @@ export const productSchema = Joi.object({
     }),
     sizes: Joi.array().items(Joi.object({
         id: Joi.string().trim().required(),
-        size: Joi.number().positive().required(),
-        purchasePrice: Joi.number().min(0).required(),
-        salePrice: Joi.number().min(0).required(),
-        stock: Joi.number().integer().min(0).required(),
+        size: Joi.alternatives().try(Joi.string().trim().min(1).max(100), Joi.number().positive()).required(),
+        purchasePrice: Joi.number().min(0).empty('').default(0),
+        salePrice: Joi.number().min(0).empty('').default(0),
+        stock: Joi.number().integer().min(0).empty('').default(0),
     })).unique('id').unique('size').when('unitSizeEnabled', {
         is: Joi.valid(true).required(),
         then: Joi.array().when('sellingType', { is: 'fixed', then: Joi.array().min(1).required(), otherwise: Joi.optional() }),
@@ -141,6 +141,7 @@ export const customerSchema = Joi.object({
 });
 
 export const installmentPlanSchema = Joi.object({
+    salespersonEmployeeId: Joi.string().hex().length(24).optional(),
     sizeId: Joi.string().optional(),
     planCode: Joi.string().required(),
     productId: Joi.string().required(),
@@ -226,7 +227,17 @@ export const updateUserStatusSchema = Joi.object({
     discountAccess: Joi.boolean().optional(),
     digitalMenuAccess: Joi.string().valid('none', 'menu', 'pos').optional(),
     restaurantEnabled: Joi.boolean().optional(),
-}).or('isActive', 'isVisible', 'installmentAccess', 'discountAccess', 'digitalMenuAccess', 'restaurantEnabled');
+    businessTypeId: Joi.string().trim().max(80).allow('').optional(),
+}).or('isActive', 'isVisible', 'installmentAccess', 'discountAccess', 'digitalMenuAccess', 'restaurantEnabled', 'businessTypeId');
+
+export const updateBusinessTypeSchema = Joi.object({
+    productFields: Joi.array().items(Joi.string().valid('unitSize', 'supplier', 'batchNumber', 'expiryDate')).unique().required(),
+});
+
+export const createBusinessTypeSchema = Joi.object({
+    productFields: Joi.array().items(Joi.string().valid('unitSize', 'supplier', 'batchNumber', 'expiryDate')).unique().optional(),
+    name: Joi.string().trim().min(2).max(80).required(),
+});
 
 export const updateMonthlyPaymentSchema = Joi.object({
     enabled: Joi.boolean().required(),
@@ -260,6 +271,49 @@ export const updateBusinessSchema = Joi.object({
 export const inventoryRequestDecisionSchema = Joi.object({
     status: Joi.string().valid('approved', 'rejected').required(),
     decisionNote: Joi.string().allow('').optional(),
+});
+
+const inventoryVendorSchema = Joi.object({
+        id: Joi.string().trim().max(100).required(),
+        name: Joi.string().trim().max(120).required(),
+        phone: Joi.string().trim().allow('').max(60).default(''),
+        cnic: Joi.string().trim().allow('').pattern(/^(\d{13}|\d{5}-\d{7}-\d)$/).default('').messages({ 'string.pattern.base': 'CNIC must contain 13 digits (e.g. 12345-1234567-1).' }),
+        address: Joi.string().trim().allow('').max(500).default(''),
+});
+
+export const inventoryVendorsSchema = Joi.object({
+    vendors: Joi.array().max(50).unique('id').items(inventoryVendorSchema).required(),
+    version: Joi.number().integer().min(0).required(),
+});
+
+export const inventoryVendorDetailsSchema = inventoryVendorSchema.fork('id', schema => schema.optional()).keys({
+    version: Joi.number().integer().min(0).default(0),
+    archived: Joi.boolean().default(false),
+});
+
+export const receiveInventorySchema = Joi.object({
+    version: Joi.number().integer().min(0).required(),
+    receivedQuantities: Joi.array().min(1).max(200).items(Joi.number().min(0).max(1e9).required()).required(),
+    links: Joi.array().min(1).max(200).items(Joi.object({
+        productId: Joi.string().trim().max(100).allow('').optional(),
+        sizeId: Joi.string().trim().max(100).allow('').optional(),
+    })).optional(),
+    reference: Joi.string().trim().allow('').max(120).default(''),
+    note: Joi.string().trim().allow('').max(600).default(''),
+});
+
+export const restockRequestSchema = Joi.object({
+    vendors: Joi.array().min(1).max(50).unique('id').items(inventoryVendorSchema).required(),
+    items: Joi.array().min(1).max(200).items(Joi.object({
+        productId: Joi.string().trim().max(100).optional(),
+        name: Joi.string().trim().max(200).when('productId', { is: Joi.exist(), then: Joi.optional(), otherwise: Joi.required() }),
+        category: Joi.string().trim().max(100).optional(),
+        unit: Joi.string().trim().max(80).when('productId', { is: Joi.exist(), then: Joi.optional(), otherwise: Joi.required() }),
+        sizeId: Joi.string().trim().max(100).allow('').optional(),
+        quantity: Joi.number().positive().max(1e9).required(),
+        vendorId: Joi.string().trim().max(100).required(),
+        remarks: Joi.string().trim().allow('').max(600).default(''),
+    })).required(),
 });
 
 export const noteCreateSchema = Joi.object({

@@ -47,8 +47,29 @@ test('enabled product requests reject missing units, selling type and incomplete
     for (const input of [
         { ...coke(), productUnitCode: '' }, { ...coke(), productUnit: '' }, { ...coke(), sellingType: '' },
         { ...coke(), sizes: undefined }, { ...coke(), sizes: [] },
-        { ...coke(), sizes: [{ ...coke().sizes[0], salePrice: undefined }] },
+        { ...coke(), sizes: [{ ...coke().sizes[0], size: '  ' }] },
         { ...coke(), sizes: [{ ...coke().sizes[0], stock: 0.5 }] },
         { ...coke(), sizes: [coke().sizes[0], { ...coke().sizes[1], size: 1 }] },
     ]) assert.ok(productSchema.validate(input, options).error, JSON.stringify(input));
+});
+
+test('named variants save with optional prices and stock defaulting to zero', async () => {
+    const input = { ...coke(), productUnitCode: 'piece', productUnit: 'Piece', sizes: [{ id: 'large', size: ' Large ' }] };
+    const { value, error } = productSchema.validate(input, options);
+    assert.equal(error, undefined);
+    assert.deepEqual(value.sizes, [{ id: 'large', size: 'Large', purchasePrice: 0, salePrice: 0, stock: 0 }]);
+    assert.equal(productSchema.validate({ ...input, sizes: [{ id: 'number-label', size: '500' }] }, options).value.sizes[0].size, '500');
+    const document = new Product(value);
+    await document.validate();
+    assert.equal(document.sizes?.[0].size, 'Large');
+    assert.equal(document.stock, 0);
+    document.sizes![0].stock = 2;
+    await document.validate();
+    const line = resolveSellingLine(document.toObject(), 1, 'large');
+    assert.equal(line.unitPrice, 0);
+    assert.equal(line.name, 'Coke — Large × 1');
+    assert.equal(productSchema.validate({ ...input, sizes: [{ id: 'empty' }] }, options).error != null, true);
+    assert.ok(productSchema.validate({ ...input, sizes: [{ id: 'bad', size: 'Large', stock: -1 }] }, options).error);
+    const duplicate = new Product({ ...value, sizes: [value.sizes[0], { ...value.sizes[0], id: 'other', size: 'large' }] });
+    await assert.rejects(duplicate.validate(), /unique/);
 });

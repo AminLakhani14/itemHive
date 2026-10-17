@@ -4,7 +4,7 @@ import { DEFAULT_PRODUCT_UNIT } from '../../lib/productUnits';
 import { loginUser, logout } from '../auth/authSlice';
 import { verifySavedSellingDetails } from '../../lib/productSelling';
 
-export interface ProductSize { id: string; size: number; purchasePrice: number; salePrice: number; stock: number }
+export interface ProductSize { id: string; size: number | string; purchasePrice: number; salePrice: number; stock: number }
 export interface Product {
     unitSizeEnabled?: boolean;
     sellingType?: 'quantity' | 'fixed' | '';
@@ -70,7 +70,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
     return apiError.response?.data?.message || (error instanceof Error ? error.message : fallback);
 };
 
-const normalizeProduct = (product: ProductResponse): Product => {
+export const normalizeProduct = (product: ProductResponse): Product => {
     const salePrice = Number(product.salePrice ?? product.price ?? 0);
     const purchasePrice = Number(product.purchasePrice ?? product.price ?? 0);
 

@@ -10,6 +10,7 @@ export interface IUser extends Document {
     visiblePassword?: string;
     role: UserRole;
     avatar?: string;
+    location?: { countryCode: string; country: string; city: string };
     appearance?: { themeColor: string; backgroundColor?: string; sidebarColor?: string; navbarColor?: string; sidebarFontColor?: string; navbarFontColor?: string; borderColor?: string; headingColor?: string; secondaryTextColor?: string; secondaryColor?: string; successColor?: string; warningColor?: string; errorColor?: string; fontColor: string; logo: string };
     isActive: boolean;
     isVisible: boolean;
@@ -17,9 +18,12 @@ export interface IUser extends Document {
     discountAccess: boolean;
     digitalMenuAccess: 'none' | 'menu' | 'pos';
     screenPermissions?: AdminScreenPermission[] | null;
+    screenPermissionsVersion?: number;
     userCreationLimit: number;
     createdBy?: mongoose.Types.ObjectId;
     businessId?: mongoose.Types.ObjectId;
+    /** The branch a staff login works in. Administrators are assigned on the branch instead. */
+    branchId?: mongoose.Types.ObjectId | null;
     preferences: {
         country: 'PK' | 'US' | 'DE' | 'GB' | 'CH' | 'CD' | 'CG' | 'IN' | 'AE';
         currency: 'USD' | 'EUR' | 'GBP' | 'CHF' | 'CDF' | 'XAF' | 'PKR' | 'INR' | 'AED';
@@ -38,6 +42,11 @@ const UserSchema: Schema = new Schema({
     visiblePassword: { type: String, select: false },
     role: { type: String, enum: USER_ROLES, default: 'user' },
     avatar: { type: String },
+    location: {
+        countryCode: { type: String, trim: true },
+        country: { type: String, trim: true },
+        city: { type: String, trim: true },
+    },
     appearance: {
         themeColor: { type: String, default: '#0ea5a5' },
         backgroundColor: { type: String, default: '' },
@@ -68,9 +77,11 @@ const UserSchema: Schema = new Schema({
         type: [{ type: String, enum: ADMIN_SCREEN_PERMISSIONS }],
         default: null,
     },
+    screenPermissionsVersion: { type: Number, default: 1 },
     userCreationLimit: { type: Number, default: 0, min: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     businessId: { type: Schema.Types.ObjectId, ref: 'Business', default: null, index: true },
+    branchId: { type: Schema.Types.ObjectId, default: null },
     preferences: {
         country: { type: String, enum: ['PK', 'US', 'DE', 'GB', 'CH', 'CD', 'CG', 'IN', 'AE'], default: 'PK' },
         currency: { type: String, enum: ['USD', 'EUR', 'GBP', 'CHF', 'CDF', 'XAF', 'PKR', 'INR', 'AED'], default: 'PKR' },

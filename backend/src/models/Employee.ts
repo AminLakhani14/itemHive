@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export const EMPLOYEE_STATUSES = ['active', 'inactive'] as const;
 export const SALARY_TYPES = ['monthly', 'daily', 'hourly'] as const;
@@ -36,6 +37,15 @@ export interface IEmployeeAchievement {
 }
 
 export interface IEmployee extends Document {
+    payrollEnrolled: boolean;
+    payrollRevision: number;
+    department: string;
+    branchId?: mongoose.Types.ObjectId | null;
+    departmentId?: mongoose.Types.ObjectId | null;
+    employmentEndDate: string;
+    paymentMethod: 'cash' | 'bank';
+    bankName: string;
+    bankAccount: string;
     employeeCode: string;
     fullName: string;
     fatherName: string;
@@ -106,6 +116,15 @@ const AchievementSchema = new Schema<IEmployeeAchievement>({
 
 const EmployeeSchema: Schema<IEmployee> = new Schema(
     {
+        payrollEnrolled: { type: Boolean, default: false },
+        payrollRevision: { type: Number, default: 0 },
+        department: { type: String, default: '', trim: true },
+        branchId: { type: Schema.Types.ObjectId, default: null, index: true },
+        departmentId: { type: Schema.Types.ObjectId, default: null, index: true },
+        employmentEndDate: { type: String, default: '' },
+        paymentMethod: { type: String, enum: ['cash', 'bank'], default: 'cash' },
+        bankName: { type: String, default: '', select: false },
+        bankAccount: { type: String, default: '', select: false },
         employeeCode: { type: String, required: true, trim: true },
         fullName: { type: String, required: true, trim: true },
         fatherName: { type: String, default: '', trim: true },
@@ -151,4 +170,5 @@ EmployeeSchema.index(
 EmployeeSchema.index({ userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } });
 EmployeeSchema.index({ businessId: 1, employeeCode: 1 }, { unique: true });
 
+EmployeeSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IEmployee>('Employee', EmployeeSchema);
