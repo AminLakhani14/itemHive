@@ -20,6 +20,7 @@ import themeReducer from '../features/theme/themeSlice';
 import posReducer from '../features/pos/posSlice';
 import ordersReducer from '../features/orders/ordersSlice';
 import settingsReducer from '../features/settings/settingsSlice';
+import branchReducer from '../features/branch/branchSlice';
 
 const rootReducer = combineReducers({
     auth: authReducer,
@@ -31,6 +32,7 @@ const rootReducer = combineReducers({
     pos: posReducer,
     orders: ordersReducer,
     settings: settingsReducer,
+    branch: branchReducer,
 });
 
 const persistConfig = {

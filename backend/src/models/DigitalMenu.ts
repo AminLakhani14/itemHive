@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 import { MENU_TEMPLATE_IDS, type MenuDesign } from '../utils/menuDesign';
 import { MAX_MENU_PICTURE_LENGTH, type MenuBlock } from '../utils/menuContent';
 import { parseMenuPrices, type MenuPrices } from '../utils/menuPrices';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface IDigitalMenu extends Document {
     name: string;
@@ -21,6 +22,7 @@ export interface IDigitalMenu extends Document {
     orderingEnabled: boolean;
     createdBy?: mongoose.Types.ObjectId;
     businessId?: mongoose.Types.ObjectId;
+    branchId?: mongoose.Types.ObjectId | null;
 }
 
 const DigitalMenuSchema = new Schema<IDigitalMenu>({
@@ -81,4 +83,5 @@ const DigitalMenuSchema = new Schema<IDigitalMenu>({
 
 DigitalMenuSchema.index({ businessId: 1, tableName: 1 });
 DigitalMenuSchema.index({ businessId: 1, sourceMenuId: 1, clientRequestId: 1 }, { unique: true, partialFilterExpression: { clientRequestId: { $type: 'string' } } });
+DigitalMenuSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IDigitalMenu>('DigitalMenu', DigitalMenuSchema);

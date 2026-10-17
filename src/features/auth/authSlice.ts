@@ -15,6 +15,7 @@ export interface User {
     email: string;
     role: UserRole;
     photoUrl?: string;
+    location?: { countryCode: string; country: string; city: string };
     isActive?: boolean;
     isVisible?: boolean;
     installmentAccess?: boolean;
@@ -22,6 +23,7 @@ export interface User {
     digitalMenuAccess?: 'none' | 'menu' | 'pos';
     /** null/undefined means legacy full access; an array is an explicit Admin assignment. */
     screenPermissions?: ScreenPermission[] | null;
+    screenPermissionsVersion?: number;
     /** Workspace-level flag provided to client-admin rows in Team Management. */
     restaurantEnabled?: boolean;
     businessTypeId?: string;
@@ -29,6 +31,8 @@ export interface User {
     userCreationLimit?: number;
     businessId?: string;
     businessName?: string;
+    /** Team only: the branch a staff login works in, or an administrator's assigned branches. */
+    branchName?: string;
     createdBy?: string;
     visiblePassword?: string;
     /** True for team users: `appearance` is their business's theme and they cannot change it. */

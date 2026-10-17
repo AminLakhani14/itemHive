@@ -45,14 +45,20 @@ import {
 } from 'recharts';
 import useAppCurrency from '../../hooks/useAppCurrency';
 import * as XLSX from 'xlsx';
-import { fetchProducts } from '../../features/inventory/inventorySlice';
+import { fetchProducts, normalizeProduct, type Product } from '../../features/inventory/inventorySlice';
+import BranchScopeToggle, { type BranchViewScope } from '../../components/Common/BranchScopeToggle';
 import { type SalesTrendPoint, type CategoryValuationPoint, type TopSellingProduct, type ReportFilters, type ReportPeriod } from '../../features/reports/reportSlice';
 import { buildInvoicePdfBlob } from '../../lib/invoicePdf';
 
 const ReportsPage: React.FC = () => {
     const theme = useTheme();
     const dispatch = useDispatch<AppDispatch>();
-    const { products } = useSelector((state: RootState) => state.inventory);
+    const { products: branchProducts } = useSelector((state: RootState) => state.inventory);
+    // The combined view of every branch is loaded here, so other screens keep the active branch's products.
+    const [scope, setScope] = useState<BranchViewScope>('branch');
+    const scopeRef = useRef<BranchViewScope>('branch');
+    const [allProducts, setAllProducts] = useState<Product[]>([]);
+    const products = scope === 'all' ? allProducts : branchProducts;
     const [salesTrend, setSalesTrend] = useState<SalesTrendPoint[]>([]);
     const [categoryValuation, setCategoryValuation] = useState<CategoryValuationPoint[]>([]);
     const [topSelling, setTopSelling] = useState<TopSellingProduct[]>([]);
@@ -74,16 +80,20 @@ const ReportsPage: React.FC = () => {
     const generate = useCallback(async (filters: ReportFilters) => {
         const request = ++requestId.current;
         setGenerating(true); setGenerated(false); setError('');
+        const allBranches = scopeRef.current === 'all';
+        const scopeParams = allBranches ? { branchScope: 'all' } : {};
         try {
-            const [trend, valuation, selling] = await Promise.all([
-                api.get<SalesTrendPoint[]>('/reports/sales-trend', { params: filters }),
-                api.get<CategoryValuationPoint[]>('/reports/category-valuation'),
-                api.get<TopSellingProduct[]>('/reports/top-selling', { params: filters }),
+            const [trend, valuation, selling, combinedProducts] = await Promise.all([
+                api.get<SalesTrendPoint[]>('/reports/sales-trend', { params: { ...filters, ...scopeParams } }),
+                api.get<CategoryValuationPoint[]>('/reports/category-valuation', { params: scopeParams }),
+                api.get<TopSellingProduct[]>('/reports/top-selling', { params: { ...filters, ...scopeParams } }),
+                allBranches ? api.get('/products', { params: scopeParams }) : null,
             ]);
             if (request !== requestId.current) return;
             setSalesTrend(trend.data); setCategoryValuation(valuation.data); setTopSelling(selling.data);
             setGeneratedFilters(filters); setGenerated(true);
-            dispatch(fetchProducts());
+            if (combinedProducts) setAllProducts(combinedProducts.data.map(normalizeProduct));
+            else dispatch(fetchProducts());
         } catch (failure) {
             if (request !== requestId.current) return;
             const response = (failure as { response?: { status?: number; data?: { message?: string } } }).response;
@@ -107,6 +117,12 @@ const ReportsPage: React.FC = () => {
                     ? { period, hours: selectedHourlyHours }
                     : { period }
         );
+    };
+
+    const handleScopeChange = (next: BranchViewScope) => {
+        scopeRef.current = next;
+        setScope(next);
+        void generate(buildFilters());
     };
 
     const handleHourlyHoursChange = (hours: number) => {
@@ -356,6 +372,7 @@ const ReportsPage: React.FC = () => {
                     <Typography variant="body2" color="text.secondary">
                         Generate hourly, daily, monthly, yearly, or custom date range reports from the controls below.
                     </Typography>
+                    <Box sx={{ mt: 1.5 }}><BranchScopeToggle value={scope} onChange={handleScopeChange} /></Box>
                 </Box>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25 }}>
                     <ButtonGroup variant="outlined" size="small" sx={{ '& .MuiButton-root': { whiteSpace: 'nowrap', minHeight: 40 } }}>

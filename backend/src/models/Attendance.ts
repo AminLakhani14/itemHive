@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export const ATTENDANCE_METHODS = ['face', 'manual'] as const;
 export type AttendanceMethod = typeof ATTENDANCE_METHODS[number];
@@ -44,4 +45,5 @@ const AttendanceSchema: Schema<IAttendance> = new Schema(
 AttendanceSchema.index({ businessId: 1, employeeId: 1, dateKey: 1 }, { unique: true });
 AttendanceSchema.index({ businessId: 1, dateKey: 1 });
 
+AttendanceSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IAttendance>('Attendance', AttendanceSchema);

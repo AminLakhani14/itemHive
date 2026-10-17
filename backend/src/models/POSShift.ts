@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface IShiftReportTotals {
     completedOrders: number;
@@ -162,9 +163,10 @@ const POSShiftSchema = new Schema<IPOSShift>({
 
 POSShiftSchema.index({ businessId: 1, shiftCode: 1 }, { unique: true });
 POSShiftSchema.index(
-    { businessId: 1, status: 1 },
+    { businessId: 1, branchId: 1, status: 1 },
     { unique: true, partialFilterExpression: { status: 'open' } },
 );
 POSShiftSchema.index({ businessId: 1, closedAt: -1 });
 
+POSShiftSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IPOSShift>('POSShift', POSShiftSchema);

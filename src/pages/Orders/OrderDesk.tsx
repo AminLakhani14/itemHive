@@ -63,6 +63,7 @@ import { thermalInvoicePrintCss } from '../../lib/thermalPrintCss';
 import { DEFAULT_APP_SETTINGS } from '../../features/settings/settingsSlice';
 import api from '../../api/axios';
 import SalespersonSelect from '../../components/Payroll/SalespersonSelect';
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 
 type CustomerType = 'regular' | 'credit' | 'installment' | 'wholesale';
 type CustomerStatus = 'active' | 'inactive';
@@ -141,7 +142,7 @@ const OrderDesk: React.FC = () => {
     const { user } = useSelector((state: RootState) => state.auth);
     const { orders } = useSelector((state: RootState) => state.orders);
     const { transactions, loading: transactionLoading } = useSelector((state: RootState) => state.transactions);
-    const { app } = useSelector((state: RootState) => state.settings);
+    const app = useSelector(selectPrintSettings);
     const appSettings = app || DEFAULT_APP_SETTINGS;
     const isManager = user?.role === 'super_admin' || user?.role === 'admin';
 

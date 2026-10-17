@@ -87,6 +87,8 @@ export interface Employee {
     faceRegisteredAt?: string | null;
     userId?: string | null;
     businessId?: string;
+    branchId?: string | null;
+    departmentId?: string | null;
     account?: EmployeeAccount | null;
     createdAt: string;
     updatedAt: string;

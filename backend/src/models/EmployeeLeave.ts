@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export const LEAVE_TYPES = ['casual', 'sick', 'annual', 'unpaid', 'other'] as const;
 export type LeaveType = typeof LEAVE_TYPES[number];
@@ -36,4 +37,5 @@ const EmployeeLeaveSchema: Schema<IEmployeeLeave> = new Schema(
 EmployeeLeaveSchema.index({ businessId: 1, startDate: 1, endDate: 1 });
 EmployeeLeaveSchema.index({ businessId: 1, employeeId: 1, startDate: 1 });
 
+EmployeeLeaveSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IEmployeeLeave>('EmployeeLeave', EmployeeLeaveSchema);

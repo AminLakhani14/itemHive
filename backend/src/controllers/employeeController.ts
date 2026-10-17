@@ -10,6 +10,7 @@ import { syncSalarySummary } from '../services/payrollService';
 import User from '../models/User';
 import type { AuthRequest } from '../middleware/auth';
 import { buildTenantFilter, getTenantObjectId } from '../utils/tenancy';
+import { acrossBranches } from '../utils/branchScope';
 import { areEnrollmentSamplesConsistent, findBestFaceMatch } from '../utils/faceMatch';
 import { ensureDeleteAllowed, normalizeRole } from '../utils/accessControl';
 import { createEmployeeRecord, isDuplicateKeyError, isStaffRole, syncStaffEmployees } from '../utils/employeeAccounts';
@@ -65,12 +66,12 @@ const loadAccounts = async (employees: Pick<LeanEmployee, 'userId'>[]) => {
 const accountFor = (employee: Pick<LeanEmployee, 'userId'>, accounts: Map<string, EmployeeAccount>) =>
     (employee.userId && accounts.get(String(employee.userId))) || null;
 
-/** A blank CNIC is allowed for any number of employees; a filled one must be unique. */
-const findCnicOwner = (req: AuthRequest, cnic: string, ignoreId?: string) => (cnic ? Employee.findOne({
+/** A blank CNIC is allowed for any number of employees; a filled one must be unique across every branch. */
+const findCnicOwner = (req: AuthRequest, cnic: string, ignoreId?: string) => (cnic ? acrossBranches(() => Employee.findOne({
     cnic,
     ...buildTenantFilter(req.user!),
     ...(ignoreId ? { _id: { $ne: ignoreId } } : {}),
-}).select('fullName').lean() : null);
+}).select('fullName').lean().exec()) : null);
 
 export const getEmployees = async (req: AuthRequest, res: Response) => {
     try {

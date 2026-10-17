@@ -21,14 +21,52 @@ function loadComponent(path, state) {
         if (id === 'react-redux') return { useSelector: selector => selector(state), useDispatch: () => () => {} };
         if (id === 'react-router-dom') return { useLocation: () => ({ pathname: '/digital-menus' }), useNavigate: () => () => {}, Navigate: ({ to }) => React.createElement('span', { 'data-redirect': to }) };
         if (id === '../../lib/screenPermissions') return modulePermissions;
+        if (id === '../../lib/navigation') return loadComponent('../src/lib/navigation.tsx', state);
         if (id === '../../features/theme/themeSlice') return { toggleSidebar: () => ({ type: 'toggle' }) };
         if (id === '../../lib/logoVisibility') return { useLogoPlate: () => null };
         return require(id);
     }, module, module.exports);
-    return module.exports.default;
+    return module.exports.default ?? module.exports;
 }
 
 const modulePermissions = module.exports;
+
+test('expenses and My Payroll honor explicit module assignments in navigation and routes', () => {
+    const state = { auth: { isAuthenticated: true, user: { id: 'fixture', role: 'admin', screenPermissions: [], screenPermissionsVersion: 3 } }, theme: { isSidebarCollapsed: false }, themePreview: { value: null }, settings: { app: {} } };
+    const Sidebar = loadComponent('../src/components/Layout/Sidebar.tsx', state);
+    const ProtectedRoute = loadComponent('../src/components/Auth/ProtectedRoute.tsx', state);
+    for (const [permission, label] of [['my_payroll', 'My Payroll'], ['expenses', 'Expenses']]) {
+        const route = () => renderToStaticMarkup(React.createElement(ProtectedRoute, { requiredScreen: permission }, React.createElement('span', null, 'Allowed module')));
+        const sidebar = () => renderToStaticMarkup(React.createElement(Sidebar, { mobileOpen: false, onDrawerToggle: () => {} }));
+        state.auth.user.screenPermissions = [];
+        assert.equal(hasScreenAccess(state.auth.user, permission), false);
+        assert.doesNotMatch(sidebar(), new RegExp(label));
+        assert.match(route(), /data-redirect="\/access-denied"/);
+        state.auth.user.screenPermissions = [permission];
+        assert.match(sidebar(), new RegExp(label));
+        assert.match(route(), /Allowed module/);
+    }
+});
+
+test('existing admins retain expense and personal payroll access until permissions are reconfigured', () => {
+    for (const permission of ['expenses', 'my_payroll']) {
+        assert.equal(hasScreenAccess({ role: 'admin', screenPermissions: [] }, permission), true);
+        assert.equal(hasScreenAccess({ role: 'admin', screenPermissions: [], screenPermissionsVersion: 3 }, permission), false);
+    }
+});
+
+test('Organization is visible to existing admins and becomes an explicit version 3 permission', () => {
+    assert.equal(hasScreenAccess({ role: 'admin', screenPermissions: [], screenPermissionsVersion: 2 }, 'organization'), true);
+    assert.equal(hasScreenAccess({ role: 'admin', screenPermissions: [], screenPermissionsVersion: 3 }, 'organization'), false);
+    assert.equal(hasScreenAccess({ role: 'admin', screenPermissions: ['organization'], screenPermissionsVersion: 3 }, 'organization'), true);
+
+    const state = { auth: { isAuthenticated: true, user: { id: 'fixture', role: 'admin', screenPermissions: ['organization'], screenPermissionsVersion: 3 } }, theme: { isSidebarCollapsed: false }, themePreview: { value: null }, settings: { app: {} } };
+    const Sidebar = loadComponent('../src/components/Layout/Sidebar.tsx', state);
+    const sidebar = () => renderToStaticMarkup(React.createElement(Sidebar, { mobileOpen: false, onDrawerToggle: () => {} }));
+    for (const label of ['Organization', 'Branches', 'Departments', 'Fiscal Year']) assert.match(sidebar(), new RegExp(`>${label}<`));
+    state.auth.user.screenPermissions = [];
+    for (const label of ['Organization', 'Branches', 'Departments', 'Fiscal Year']) assert.doesNotMatch(sidebar(), new RegExp(`>${label}<`));
+});
 
 test('Vendors and Vendor History appear with inventory request access and disappear when access is removed', () => {
     const state = { auth: { isAuthenticated: true, user: { id: 'fixture', role: 'admin', screenPermissions: ['inventory_requests'] } }, theme: { isSidebarCollapsed: false }, themePreview: { value: null }, settings: { app: {} } };

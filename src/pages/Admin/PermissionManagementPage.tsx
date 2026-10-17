@@ -4,11 +4,9 @@ import {
     Alert,
     Box,
     Button,
-    Checkbox,
     Chip,
     CircularProgress,
     Divider,
-    FormControlLabel,
     List,
     ListItemButton,
     ListItemText,
@@ -22,10 +20,10 @@ import { CheckCheck, Search, ShieldCheck, ShieldOff } from 'lucide-react';
 import api from '../../api/axios';
 import type { User } from '../../features/auth/authSlice';
 import {
-    ADMIN_SCREEN_PERMISSIONS,
     ALL_ADMIN_SCREEN_KEYS,
     type ScreenPermission,
 } from '../../lib/screenPermissions';
+import ScreenPermissionPicker from '../../components/Common/ScreenPermissionPicker';
 
 interface ApiErrorResponse {
     message?: string;
@@ -51,7 +49,12 @@ const PermissionManagementPage: React.FC = () => {
 
     const chooseAdmin = React.useCallback((admin: User) => {
         setSelectedAdminId(admin.id);
-        setSelectedPermissions(admin.screenPermissions == null ? [...ALL_ADMIN_SCREEN_KEYS] : [...admin.screenPermissions]);
+        setSelectedPermissions(admin.screenPermissions == null ? [...ALL_ADMIN_SCREEN_KEYS]
+            : [...new Set<ScreenPermission>([
+                ...admin.screenPermissions,
+                ...((admin.screenPermissionsVersion ?? 1) < 2 ? ['expenses', 'my_payroll'] as const : []),
+                ...((admin.screenPermissionsVersion ?? 1) < 3 ? ['organization'] as const : []),
+            ])]);
         setError('');
     }, []);
 
@@ -76,22 +79,6 @@ const PermissionManagementPage: React.FC = () => {
     const filteredAdmins = admins.filter((admin) =>
         `${admin.name} ${admin.email} ${admin.businessName || ''}`.toLowerCase().includes(search.trim().toLowerCase())
     );
-
-    const groups = React.useMemo(() => {
-        const grouped = new Map<string, typeof ADMIN_SCREEN_PERMISSIONS[number][]>();
-        ADMIN_SCREEN_PERMISSIONS.forEach((permission) => {
-            grouped.set(permission.group, [...(grouped.get(permission.group) || []), permission]);
-        });
-        return [...grouped.entries()];
-    }, []);
-
-    const togglePermission = (permission: ScreenPermission) => {
-        setSelectedPermissions((current) =>
-            current.includes(permission)
-                ? current.filter((item) => item !== permission)
-                : [...current, permission]
-        );
-    };
 
     const savePermissions = async () => {
         if (!selectedAdmin) return;
@@ -200,23 +187,7 @@ const PermissionManagementPage: React.FC = () => {
                             <Alert severity="info" sx={{ my: 2.5 }}>
                                 Selected screens take priority over separate account access settings. Unselected screens are denied in direct routes and protected API requests.
                             </Alert>
-                            <Stack spacing={2.5}>
-                                {groups.map(([group, permissions]) => (
-                                    <Box key={group}>
-                                        <Typography variant="overline" color="text.secondary" fontWeight={900}>{group}</Typography>
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 0.5, mt: 0.5 }}>
-                                            {permissions.map((permission) => (
-                                                <FormControlLabel
-                                                    key={permission.key}
-                                                    control={<Checkbox checked={selectedPermissions.includes(permission.key)} onChange={() => togglePermission(permission.key)} />}
-                                                    label={permission.label}
-                                                    sx={{ m: 0, px: 1, py: 0.35, borderRadius: 1.5, '&:hover': { bgcolor: 'action.hover' } }}
-                                                />
-                                            ))}
-                                        </Box>
-                                    </Box>
-                                ))}
-                            </Stack>
+                            <ScreenPermissionPicker value={selectedPermissions} onChange={setSelectedPermissions} disabled={saving} />
                         </>
                     )}
                 </Paper>

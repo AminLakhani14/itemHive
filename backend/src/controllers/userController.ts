@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import User from '../models/User';
 import Business from '../models/Business';
 import AppSetting from '../models/AppSetting';
@@ -7,6 +8,8 @@ import type { AuthRequest } from '../middleware/auth';
 import { ensureDeleteAllowed, ensureManageableTarget, normalizeRole, serializeUser } from '../utils/accessControl';
 import { isAdminScreenPermission } from '../utils/screenPermissions';
 import { getAppSettingsForTenant, invalidateAppSettingsCache } from '../utils/tenancy';
+import { acrossBranches } from '../utils/branchScope';
+import { branchAdminIds } from '../utils/branches';
 import { effectiveBusinessTypeId, getBusinessTypeCatalog } from '../utils/businessTypes';
 import { buildTeamUsersPipeline } from '../utils/teamUsers';
 
@@ -22,7 +25,7 @@ const isMonthlyPaymentOverdue = (settings: any, now = new Date()) => {
 const serializeUsersWithBusinessNames = async (users: any[]) => {
     const businessIds = [...new Set(users.map((user) => String(user.businessId || '')).filter(Boolean))];
     const [businesses, businessSettings, linkedEmployees] = await Promise.all([
-        Business.find({ _id: { $in: businessIds } }).select('name isLegacy'),
+        Business.find({ _id: { $in: businessIds } }).select('name isLegacy branches._id branches.name branches.adminUserId branches.adminUserIds'),
         AppSetting.find({
             $or: [
                 { businessId: { $in: businessIds } },
@@ -60,14 +63,37 @@ const serializeUsersWithBusinessNames = async (users: any[]) => {
     businessSettings.filter((setting) => !String(setting.key || '').startsWith('business:')).forEach(applyRestaurantSetting);
     businessSettings.filter((setting) => String(setting.key || '').startsWith('business:')).forEach(applyRestaurantSetting);
 
+    // Staff work in one branch (the main branch when none is set). Administrators work in the branches
+    // they are assigned to, or in every branch when they have no assignment.
+    const branchesByBusinessId = new Map(businesses.map((business) => [String(business._id), business.branches as any[]]));
+    const branchNameFor = (user: any) => {
+        const branches = branchesByBusinessId.get(String(user.businessId || '')) || [];
+        if (!branches.length || normalizeRole(user.role) === 'super_admin') return '';
+        if (normalizeRole(user.role) === 'admin') {
+            const assigned = branches.filter((branch) => branchAdminIds(branch).includes(String(user._id)));
+            return assigned.length ? assigned.map((branch) => branch.name).join(', ') : 'All branches';
+        }
+        return (branches.find((branch) => String(branch._id) === String(user.branchId)) || branches[0]).name;
+    };
+
     return users.map((user) => ({
         ...serializeUser(user),
         businessName: businessNameById.get(String(user.businessId || '')) || '',
+        branchName: branchNameFor(user),
         restaurantEnabled: restaurantEnabledByBusinessId.get(String(user.businessId || '')) || false,
         businessTypeId: businessTypeByBusinessId.get(String(user.businessId || '')) || '',
         monthlyPayment: monthlyPaymentByBusinessId.get(String(user.businessId || '')) || { enabled: false, overdue: false },
         employeeId: employeeIdByUserId.get(String(user._id)) || null,
     }));
+};
+
+// One Team account, with the same visibility and fields as the Team grid.
+export const getUser = async (req: AuthRequest, res: Response) => {
+    if (!mongoose.Types.ObjectId.isValid(String(req.params.id))) return res.status(404).json({ message: 'Account not found.' });
+    const users = await User.aggregate(buildTeamUsersPipeline({ actorId: req.user?.id || '', actorRole: req.user?.role || 'user', id: String(req.params.id) }));
+    if (!users.length) return res.status(404).json({ message: 'Account not found.' });
+    const [user] = await serializeUsersWithBusinessNames(users);
+    return res.json(user);
 };
 
 export const getUsers = async (req: AuthRequest, res: Response) => {
@@ -370,8 +396,10 @@ export const updateUserAccount = async (req: AuthRequest, res: Response) => {
 
         // The account and its employee profile are the same person; a move to another business
         // detaches the old profile, and the new business gets one on its next Employees load.
-        await Employee.updateOne({ userId: user._id, businessId: { $ne: user.businessId } }, { $set: { userId: null } });
-        await Employee.updateOne({ userId: user._id }, { $set: { fullName: user.name } });
+        await acrossBranches(async () => {
+            await Employee.updateOne({ userId: user._id, businessId: { $ne: user.businessId } }, { $set: { userId: null } }).exec();
+            await Employee.updateOne({ userId: user._id }, { $set: { fullName: user.name } }).exec();
+        });
 
         return res.json({
             message: 'Account details updated successfully',
@@ -393,8 +421,8 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
         ensureDeleteAllowed(req.user, user);
 
         await user.deleteOne();
-        // Only the login goes; the employee profile and attendance history stay.
-        await Employee.updateOne({ userId: user._id }, { $set: { userId: null } });
+        // Only the login goes; the employee profile and attendance history stay, in whichever branch they are.
+        await acrossBranches(() => Employee.updateOne({ userId: user._id }, { $set: { userId: null } }).exec());
 
         return res.json({ message: 'User deleted successfully' });
     } catch (error: any) {
@@ -431,7 +459,7 @@ export const updateUserCreationLimit = async (req: AuthRequest, res: Response) =
 export const getAdminPermissionAssignments = async (_req: AuthRequest, res: Response) => {
     try {
         const admins = await User.find({ role: 'admin' })
-            .select('name email role isActive businessId screenPermissions digitalMenuAccess')
+            .select('name email role isActive businessId screenPermissions screenPermissionsVersion digitalMenuAccess')
             .sort({ name: 1, email: 1 });
 
         return res.json(await serializeUsersWithBusinessNames(admins));
@@ -453,6 +481,7 @@ export const updateAdminScreenPermissions = async (req: AuthRequest, res: Respon
         const screenPermissions = Array.from(new Set(req.body.screenPermissions))
             .filter(isAdminScreenPermission);
         user.screenPermissions = screenPermissions;
+        user.screenPermissionsVersion = 3;
         await user.save();
 
         return res.json({

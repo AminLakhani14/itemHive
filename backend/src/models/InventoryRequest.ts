@@ -1,5 +1,6 @@
 import { type SizeData } from '../utils/productSelling';
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface IInventoryRequestProductData {
     unitSizeEnabled?: boolean;
@@ -88,4 +89,5 @@ const InventoryRequestSchema = new Schema<IInventoryRequest>({
 InventoryRequestSchema.index({ businessId: 1, requestType: 1, 'items.vendorId': 1, createdAt: -1 });
 InventoryRequestSchema.index({ businessId: 1, status: 1, createdAt: -1 });
 
+InventoryRequestSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IInventoryRequest>('InventoryRequest', InventoryRequestSchema);

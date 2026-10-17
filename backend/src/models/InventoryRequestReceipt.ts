@@ -1,4 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 const schema = new Schema({
     requestId: { type: Schema.Types.ObjectId, ref: 'InventoryRequest', required: true, index: true },
@@ -19,4 +20,5 @@ const schema = new Schema({
 }, { timestamps: true });
 schema.index({ businessId: 1, requestId: 1, createdAt: 1 });
 
+schema.plugin(branchScopedPlugin);
 export default mongoose.model('InventoryRequestReceipt', schema);

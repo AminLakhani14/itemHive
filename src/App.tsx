@@ -46,11 +46,18 @@ const ExpensesPage = React.lazy(() => import('./pages/Finance/ExpensesPage'));
 const NotificationsPage = React.lazy(() => import('./pages/Notifications/NotificationsPage'));
 const StickyNotes = React.lazy(() => import('./pages/Notes/StickyNotes'));
 const TeamManagementPage = React.lazy(() => import('./pages/Admin/TeamManagementPage'));
+const CreateClientPage = React.lazy(() => import('./pages/Admin/CreateClientPage'));
+const EditClientPage = React.lazy(() => import('./pages/Admin/EditClientPage'));
+const ManageAccountPage = React.lazy(() => import('./pages/Admin/ManageAccountPage'));
 const SignupRequestsPage = React.lazy(() => import('./pages/Admin/SignupRequestsPage'));
 const InventoryRequestsPage = React.lazy(() => import('./pages/Inventory/InventoryRequestsPage'));
 const VendorsPage = React.lazy(() => import('./pages/Inventory/VendorsPage'));
 const VendorHistoryPage = React.lazy(() => import('./pages/Inventory/VendorHistoryPage'));
 const PermissionManagementPage = React.lazy(() => import('./pages/Admin/PermissionManagementPage'));
+const OrganizationOverviewPage = React.lazy(() => import('./pages/Organization/OrganizationOverviewPage'));
+const DepartmentsPage = React.lazy(() => import('./pages/Organization/DepartmentsPage'));
+const BranchesPage = React.lazy(() => import('./pages/Organization/BranchesPage'));
+const FiscalYearsPage = React.lazy(() => import('./pages/Organization/FiscalYearsPage'));
 const AccessDeniedPage = React.lazy(() => import('./pages/Auth/AccessDeniedPage'));
 const DigitalMenusPage = React.lazy(() => import('./pages/DigitalMenus/DigitalMenusPage'));
 const CreateDigitalMenuPage = React.lazy(() => import('./pages/DigitalMenus/CreateDigitalMenuPage'));
@@ -164,8 +171,8 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               } />
               <Route path="payroll" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="payroll_view"><PayrollPage /></ProtectedRoute>} />
-              <Route path="my-payroll" element={<ProtectedRoute><MyPayrollPage /></ProtectedRoute>} />
-              <Route path="expenses" element={<ProtectedRoute><ExpensesPage /></ProtectedRoute>} />
+              <Route path="my-payroll" element={<ProtectedRoute requiredScreen="my_payroll"><MyPayrollPage /></ProtectedRoute>} />
+              <Route path="expenses" element={<ProtectedRoute requiredScreen="expenses"><ExpensesPage /></ProtectedRoute>} />
               {/* One route for "new" and saved profiles keeps the page mounted when a new profile gets its id. */}
               <Route path="employees/:id" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="employees">
@@ -187,6 +194,13 @@ const AppContent: React.FC = () => {
                   <TeamManagementPage />
                 </ProtectedRoute>
               } />
+              <Route path="team/create-client" element={<ProtectedRoute allowedRoles={['super_admin']}><CreateClientPage /></ProtectedRoute>} />
+              <Route path="team/clients/:id" element={<ProtectedRoute allowedRoles={['super_admin']}><EditClientPage /></ProtectedRoute>} />
+              <Route path="team/accounts/:id" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="team"><ManageAccountPage /></ProtectedRoute>} />
+              <Route path="organization" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><OrganizationOverviewPage /></ProtectedRoute>} />
+              <Route path="organization/departments" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><DepartmentsPage /></ProtectedRoute>} />
+              <Route path="organization/branches" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><BranchesPage /></ProtectedRoute>} />
+              <Route path="organization/fiscal-years" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><FiscalYearsPage /></ProtectedRoute>} />
               <Route path="order-drafts" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreen="pos">
                   <OrderDraftsPage />

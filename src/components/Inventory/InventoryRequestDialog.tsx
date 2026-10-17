@@ -9,11 +9,12 @@ import { downloadStockRequest, type InventoryRequestRecord } from '../../lib/inv
 import { printReceipt } from '../../lib/printReceipt';
 import StockRequestDetails from './StockRequestDetails';
 import StockRequestSlip from './StockRequestSlip';
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 
 export default function InventoryRequestDialog({ request, onClose, onChanged }: { request: InventoryRequestRecord; onClose: () => void; onChanged: (request: InventoryRequestRecord, notice: string) => void }) {
     const dispatch = useDispatch<AppDispatch>();
     const user = useSelector((state: RootState) => state.auth.user);
-    const shopName = useSelector((state: RootState) => state.settings.app?.shopName || 'ItemHive');
+    const shopName = useSelector((state: RootState) => selectPrintSettings(state).shopName || 'ItemHive');
     const isManager = user?.role === 'admin' || user?.role === 'super_admin';
     const [note, setNote] = React.useState('');
     const [busy, setBusy] = React.useState(false);

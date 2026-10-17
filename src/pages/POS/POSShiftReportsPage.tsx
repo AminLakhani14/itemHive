@@ -33,6 +33,7 @@ import { printElement } from '../../lib/printReceipt';
 import { shiftReportPrintCss } from '../../lib/shiftReportPrintCss';
 import { downloadShiftReportPdf } from '../../lib/shiftReportPdf';
 import type { POSShift, ShiftReport, ShiftReportTotals } from '../../types/posShift';
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 
 interface ShiftHistoryResponse {
     items: POSShift[];
@@ -75,7 +76,7 @@ const getTotalCollected = (totals: ShiftReportTotals) => totals.totalCollected ?
 const POSShiftReportsPage: React.FC = () => {
     const { formatCurrency: formatUserCurrency } = useAppCurrency();
     const { user } = useSelector((state: RootState) => state.auth);
-    const { app } = useSelector((state: RootState) => state.settings);
+    const app = useSelector(selectPrintSettings);
     const appSettings = app || DEFAULT_APP_SETTINGS;
     const canAccessInstallments = hasInstallmentAccess(user, appSettings.installmentsEnabled);
     const [currentShift, setCurrentShift] = React.useState<POSShift | null>(null);

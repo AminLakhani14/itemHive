@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface ICreditPayment extends Document {
     customerName: string;
@@ -24,4 +25,5 @@ const CreditPaymentSchema: Schema<ICreditPayment> = new Schema({
     shiftId: { type: Schema.Types.ObjectId, ref: 'POSShift', default: null, index: true },
 }, { timestamps: true });
 
+CreditPaymentSchema.plugin(branchScopedPlugin);
 export default mongoose.model<ICreditPayment>('CreditPayment', CreditPaymentSchema);

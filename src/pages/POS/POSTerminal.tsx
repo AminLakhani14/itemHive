@@ -70,6 +70,7 @@ import TableOrdersPanel from '../../components/Orders/TableOrdersPanel';
 
 const productCardFallback = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><g fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M80 35 119 57v46l-39 22-39-22V57z"/><path d="m41 57 39 23 39-23M80 80v45M60 46l39 23v17"/></g></svg>')}`;
 import type { POSShift } from '../../types/posShift';
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 
 
 type CheckoutMethod = 'cash' | 'card' | 'credit' | 'installment';
@@ -112,7 +113,8 @@ const POSTerminal: React.FC = () => {
     const { user } = useSelector((state: RootState) => state.auth);
     const { products, loaded: productsLoaded, error: productsError } = useSelector((state: RootState) => state.inventory);
     const { cart, discountPercent } = useSelector((state: RootState) => state.pos);
-    const { app, country } = useSelector((state: RootState) => state.settings);
+    const { country } = useSelector((state: RootState) => state.settings);
+    const app = useSelector(selectPrintSettings);
     const appSettings = app || DEFAULT_APP_SETTINGS;
     const { formatCurrency, currencySymbol } = useAppCurrency();
     const canOverridePrice = user?.role === 'super_admin' || user?.role === 'admin';

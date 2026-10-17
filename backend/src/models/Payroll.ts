@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { branchScopedPlugin } from "../utils/branchScope";
 
 // Payroll collections never use the legacy unscoped tenant fallback.
 const tenant = {
@@ -11,6 +12,17 @@ const employee = {
     required: true,
   },
 };
+// Each branch runs its own payroll. The policy, salary structures and audit log are shared by the business,
+// so an employee moved to another branch keeps their salary history.
+const BRANCH_SCOPED = new Set([
+  "PayrollRun",
+  "PayrollDayClaim",
+  "PayrollPayment",
+  "PayrollRequest",
+  "PayrollLoan",
+  "PayrollLoanMovement",
+  "PayrollCommission",
+]);
 const money = { type: Number, required: true, validate: Number.isSafeInteger };
 const model = (
   name: string,
@@ -29,6 +41,7 @@ const model = (
   )
     schema.index({ businessId: 1 });
   if ("employeeId" in fields) schema.index({ businessId: 1, employeeId: 1 });
+  if (BRANCH_SCOPED.has(name)) schema.plugin(branchScopedPlugin);
   return mongoose.model<Record<string, any>>(name, schema);
 };
 
@@ -188,7 +201,7 @@ export const PayrollRun = model(
   },
   [
     [
-      { businessId: 1, month: 1, kind: 1 },
+      { businessId: 1, branchId: 1, month: 1, kind: 1 },
       { unique: true, partialFilterExpression: { kind: "regular" } },
     ],
   ],

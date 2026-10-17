@@ -1,4 +1,5 @@
 export const ADMIN_SCREEN_PERMISSIONS = [
+    'expenses', 'my_payroll',
     'finance_view', 'finance_expense_approve', 'finance_pay',
     'payroll_view', 'payroll_prepare', 'payroll_approve', 'payroll_pay', 'payroll_reports', 'payroll_settings', 'payroll_hr',
     'dashboard',
@@ -23,6 +24,7 @@ export const ADMIN_SCREEN_PERMISSIONS = [
     'employees',
     'attendance',
     'team',
+    'organization',
     'settings',
 ] as const;
 

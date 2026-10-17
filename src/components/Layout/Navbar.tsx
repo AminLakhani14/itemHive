@@ -32,6 +32,8 @@ import type { RootState } from '../../store';
 import { logout } from '../../features/auth/authSlice';
 import { fetchProducts, resetInventory } from '../../features/inventory/inventorySlice';
 import { resetTransactions } from '../../features/transactions/transactionSlice';
+import { BRANCH_STORAGE_KEY, resetBranches } from '../../features/branch/branchSlice';
+import BranchSwitcher from './BranchSwitcher';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { buildNotifications, type InstallmentNotificationPlan, type NotificationItem } from '../../lib/notifications';
@@ -135,7 +137,11 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
         loadInstallmentNotifications();
         window.addEventListener('itemhive-installments-updated', loadInstallmentNotifications);
-        return () => window.removeEventListener('itemhive-installments-updated', loadInstallmentNotifications);
+        window.addEventListener('itemhive-branch-changed', loadInstallmentNotifications);
+        return () => {
+            window.removeEventListener('itemhive-installments-updated', loadInstallmentNotifications);
+            window.removeEventListener('itemhive-branch-changed', loadInstallmentNotifications);
+        };
     }, [canAccessInstallments, location.pathname]);
 
     React.useEffect(() => {
@@ -182,6 +188,8 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     const handleWorkspaceChange = (userId: string) => {
         const option = workspaceOptions.find((entry) => entry.id === userId);
         const businessId = option?.businessId || '';
+        // Another workspace has its own branches; it opens in its main branch.
+        localStorage.removeItem(BRANCH_STORAGE_KEY);
         setSelectedWorkspaceUserId(option?.id || '');
         setSelectedWorkspaceId(businessId);
         if (businessId) {
@@ -228,6 +236,8 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     const hasConfigurableNotificationsEnabled = notifications.orderUpdates || notifications.lowStockAlerts;
 
     const handleLogout = () => {
+        localStorage.removeItem(BRANCH_STORAGE_KEY);
+        dispatch(resetBranches());
         dispatch(logout());
         navigate('/login');
         handleClose();
@@ -346,6 +356,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                 </Box>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <BranchSwitcher fontColor={navbarFontColor} />
                     {user?.role === 'super_admin' && (
                         <Box
                             sx={{

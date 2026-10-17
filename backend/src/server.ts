@@ -27,6 +27,7 @@ import attendanceRoutes from './routes/attendanceRoutes';
 import { payrollRouter, myPayrollRouter, salespersonRouter } from './routes/payrollRoutes';
 import { payrollModels } from './models/Payroll';
 import expenseRoutes from './routes/expenseRoutes';
+import organizationRoutes from './routes/organizationRoutes';
 import Expense from './models/Expense';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { ensureTenantIndexes } from './utils/tenantIndexes';
@@ -141,6 +142,7 @@ app.use('/api/payroll', payrollRouter);
 app.use('/api/me/payroll', myPayrollRouter);
 app.use('/api/salespeople', salespersonRouter);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/organization', organizationRoutes);
 
 // ── 404 & Error Handling ──────────────────────────────────────
 app.use(notFound);

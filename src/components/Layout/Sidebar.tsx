@@ -14,36 +14,15 @@ import {
     IconButton,
     useTheme
 } from '@mui/material';
-import {
-    LayoutDashboard,
-    Package,
-    History,
-    BarChart3,
-    Monitor as TerminalIcon,
-    ClipboardList,
-    FileClock,
-    ChartNoAxesCombined,
-    WalletCards,
-    CalendarClock,
-    Users,
-    Contact,
-    ReceiptText,
-    QrCode,
-    UserPlus,
-    ClipboardCheck,
-    ShieldCheck,
-    Scale,
-    IdCard,
-    ScanFace,
-    ChevronLeft,
-    ChevronRight
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../store';
 import { toggleSidebar } from '../../features/theme/themeSlice';
-import { getDigitalMenuAccess, hasInstallmentAccess, hasScreenAccess, type ScreenPermission } from '../../lib/screenPermissions';
+import { getDigitalMenuAccess, hasInstallmentAccess, hasScreenAccess } from '../../lib/screenPermissions';
 import { useLogoPlate } from '../../lib/logoVisibility';
+
+import { NAV_MODULES } from '../../lib/navigation';
 
 const drawerWidth = 260;
 const collapsedWidth = 80;
@@ -85,33 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
     const currentRole = user?.role || 'user';
     const canAccessInstallments = hasInstallmentAccess(user, app?.installmentsEnabled);
 
-    const menuItems: Array<{ text: string; icon: React.ReactNode; path: string; roles: string[]; permission?: ScreenPermission; requiresInstallmentAccess?: boolean; requiresDigitalMenuAccess?: boolean; requiresSignupApproval?: boolean }> = [
-        { text: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/', roles: ['super_admin', 'admin', 'user'], permission: 'dashboard' },
-        { text: 'POS Terminal', icon: <TerminalIcon size={20} />, path: '/pos', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
-        { text: 'Shift Management', icon: <ChartNoAxesCombined size={20} />, path: '/pos-reports', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
-        { text: 'Order Drafts', icon: <FileClock size={20} />, path: '/order-drafts', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
-        { text: 'Inventory', icon: <Package size={20} />, path: '/inventory', roles: ['super_admin', 'admin', 'user'], permission: 'inventory' },
-        { text: 'Product Units', icon: <Scale size={20} />, path: '/inventory/units', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_units' },
-        { text: 'Inventory Requests', icon: <ClipboardCheck size={20} />, path: '/inventory/requests', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_requests' },
-        { text: 'Vendors', icon: <Contact size={20} />, path: '/vendors', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_requests' },
-        { text: 'Vendor History', icon: <History size={20} />, path: '/vendor-history', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_requests' },
-        { text: 'Order Desk', icon: <ClipboardList size={20} />, path: '/orders', roles: ['super_admin', 'admin', 'user'], permission: 'orders' },
-        { text: 'Digital Menus', icon: <QrCode size={20} />, path: '/digital-menus', roles: ['super_admin', 'admin', 'user'], permission: 'digital_menus', requiresDigitalMenuAccess: true },
-        { text: 'Transactions', icon: <History size={20} />, path: '/transactions', roles: ['super_admin', 'admin', 'user'], permission: 'transactions' },
-        { text: 'Customers', icon: <Contact size={20} />, path: '/customers', roles: ['super_admin', 'admin', 'user'], permission: 'customers' },
-        { text: 'Customer Records', icon: <ReceiptText size={20} />, path: '/customer-records', roles: ['super_admin', 'admin', 'user'], permission: 'customer_records' },
-        { text: 'Credit Customers', icon: <WalletCards size={20} />, path: '/credits', roles: ['super_admin', 'admin', 'user'], permission: 'credits' },
-        { text: 'Installments', icon: <CalendarClock size={20} />, path: '/installments', roles: ['super_admin', 'admin', 'user'], permission: 'installments', requiresInstallmentAccess: true },
-        { text: 'Employees', icon: <IdCard size={20} />, path: '/employees', roles: ['super_admin', 'admin'], permission: 'employees' },
-        { text: 'Payroll', icon: <WalletCards size={20} />, path: '/payroll', roles: ['super_admin', 'admin'], permission: 'payroll_view' },
-        { text: 'My Payroll', icon: <ReceiptText size={20} />, path: '/my-payroll', roles: ['super_admin', 'admin', 'user'] },
-        { text: 'Finance · Expenses', icon: <WalletCards size={20} />, path: '/expenses', roles: ['super_admin', 'admin', 'user'] },
-        { text: 'Attendance', icon: <ScanFace size={20} />, path: '/attendance', roles: ['super_admin', 'admin', 'user'], permission: 'attendance' },
-        { text: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['super_admin', 'admin'], permission: 'reports' },
-        { text: 'Team', icon: <Users size={20} />, path: '/team', roles: ['super_admin', 'admin'], permission: 'team' },
-        { text: 'Permissions', icon: <ShieldCheck size={20} />, path: '/permission-management', roles: ['super_admin'] },
-        { text: 'Signup Requests', icon: <UserPlus size={20} />, path: '/signup-requests', roles: ['super_admin'], requiresSignupApproval: true },
-    ];
+    const menuItems = NAV_MODULES;
 
     const drawer = (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -205,7 +158,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                             && (!item.requiresDigitalMenuAccess || getDigitalMenuAccess(user) !== 'none')
                             && (!item.requiresSignupApproval || !app?.autoRegistrationEnabled))
                         .map((item) => {
-                            const isActive = location.pathname === item.path || (['/employees', '/digital-menus'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
+                            const isActive = location.pathname === item.path || (['/employees', '/digital-menus', '/team'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
                             return (
                                 <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
                                     <ListItemButton

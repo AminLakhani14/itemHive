@@ -5,7 +5,9 @@ import DigitalMenu from '../models/DigitalMenu';
 import Product from '../models/Product';
 import OrderDraft from '../models/OrderDraft';
 import User from '../models/User';
+import Business from '../models/Business';
 import type { AuthRequest } from '../middleware/auth';
+import { branchMatch } from '../utils/branchScope';
 import { isSuperAdminEmail, normalizeRole } from '../utils/accessControl';
 import { buildTenantFilter, getTenantObjectId } from '../utils/tenancy';
 import { allocateDealPrice } from '../utils/dealPricing';
@@ -14,6 +16,22 @@ import { parseMenuContent, parseMenuPageCount } from '../utils/menuContent';
 import { menuItemPrice, parseMenuPrices } from '../utils/menuPrices';
 import MenuPublication from '../models/MenuPublication';
 import { getPublication, hasMenuChanges, menuSnapshot, publicationKey, publishSnapshot } from '../services/menuPublication';
+
+// The main branch publishes under the business key; other branches under their own.
+const publicationBranch = (req: AuthRequest) => req.user!.branchId && req.user!.branchId !== req.user!.mainBranchId ? req.user!.branchId : null;
+
+// Public QR pages have no signed-in user, so the menu's own branch decides which products and drafts are used.
+// A menu without a branch belongs to a business that has none, since branches adopt older records.
+const publicMenuBranch = async (menu: { businessId?: Types.ObjectId; branchId?: Types.ObjectId | null }) => {
+    if (!menu.branchId) return { filter: {}, publication: null };
+    const business = await Business.findById(menu.businessId).select('branches._id').lean<{ branches?: Array<{ _id: Types.ObjectId }> }>();
+    const mainBranchId = business?.branches?.[0] ? String(business.branches[0]._id) : '';
+    const branchId = String(menu.branchId);
+    return {
+        filter: { branchId: branchMatch(branchId, mainBranchId) },
+        publication: branchId !== mainBranchId ? branchId : null,
+    };
+};
 
 const canUseMenus = (req: AuthRequest) => req.user?.role === 'super_admin' || req.user?.digitalMenuAccess !== 'none';
 const canSendToPos = (req: AuthRequest) => req.user?.role === 'super_admin' || req.user?.digitalMenuAccess === 'pos';
@@ -80,7 +98,7 @@ export const getDigitalMenus = async (req: AuthRequest, res: Response) => {
     if (req.user!.businessIsLegacy) await DigitalMenu.updateMany({ businessId: { $exists: false } }, { $set: { businessId: getTenantObjectId(req.user!) } });
     await normalizeLegacyTableMenus(req);
     const menus = await DigitalMenu.find(buildTenantFilter(req.user!)).sort({ createdAt: -1 }).lean();
-    const publication = await getPublication(getTenantObjectId(req.user!));
+    const publication = await getPublication(getTenantObjectId(req.user!), publicationBranch(req));
     return res.json(menus.map(menu => {
         if (menu.sourceMenuId || menu.menuType === 'deal') return menu;
         const published = publication?.menu && publication.menu._id === String(menu._id);
@@ -218,7 +236,7 @@ export const publishDigitalMenu = async (req: AuthRequest, res: Response) => {
     if (available !== menu.productIds.length) return res.status(400).json({ message: 'Remove unavailable products before publishing' });
     const deals = await DigitalMenu.find({ sourceMenuId: menu._id, ...buildTenantFilter(req.user!), menuType: 'deal', isActive: true }).lean();
     const snapshot = menuSnapshot(menu, deals.map(deal => ({ _id: String(deal._id), name: deal.name, productIds: deal.productIds, dealPrice: deal.dealPrice })));
-    await publishSnapshot(getTenantObjectId(req.user!), snapshot);
+    await publishSnapshot(getTenantObjectId(req.user!), snapshot, publicationBranch(req));
     return res.json({ message: 'Menu published', menuId: String(menu._id), status: 'published' });
 };
 
@@ -237,7 +255,7 @@ export const deleteDigitalMenu = async (req: AuthRequest, res: Response) => {
     // Removing a root menu must also remove its deals and table QR records;
     // otherwise those QR links would point to an unavailable menu.
     if (!menu.sourceMenuId && menu.menuType === 'menu') {
-        await MenuPublication.updateOne({ _id: publicationKey(getTenantObjectId(req.user!)), 'menu._id': String(menu._id) }, { $set: { menu: null } });
+        await MenuPublication.updateOne({ _id: publicationKey(getTenantObjectId(req.user!), publicationBranch(req)), 'menu._id': String(menu._id) }, { $set: { menu: null } });
         await DigitalMenu.deleteMany({ sourceMenuId: menu._id, ...buildTenantFilter(req.user!) });
     }
     return res.json({ message: 'Digital Menu removed' });
@@ -252,17 +270,18 @@ export const getTableDrafts = async (req: AuthRequest, res: Response) => {
 export const getPublicMenu = async (req: AuthRequest, res: Response) => {
     const menu = await DigitalMenu.findOne({ token: req.params.token, isActive: true }).lean();
     if (!menu) return res.status(404).json({ message: 'This QR menu is unavailable' });
-    const publication = await getPublication(menu.businessId);
+    const branch = await publicMenuBranch(menu);
+    const publication = await getPublication(menu.businessId, branch.publication);
     const rootMenu = publication?.menu && (menu.sourceMenuId || publication.menu._id === String(menu._id)) ? publication.menu : null;
     if (!rootMenu) return res.status(404).json({ message: 'This QR menu is unavailable' });
-    return sendMenuResponse(res, menu, rootMenu, Boolean(menu.tableName) && await isOrderingEnabled(menu));
+    return sendMenuResponse(res, menu, rootMenu, Boolean(menu.tableName) && await isOrderingEnabled(menu), branch.filter);
 };
 
-const sendMenuResponse = async (res: Response, menu: { tableName?: string; token: string; businessId?: Types.ObjectId }, rootMenu: ReturnType<typeof menuSnapshot>, orderingEnabled: boolean) => {
+const sendMenuResponse = async (res: Response, menu: { tableName?: string; token: string; businessId?: Types.ObjectId }, rootMenu: ReturnType<typeof menuSnapshot>, orderingEnabled: boolean, branchFilter: object = {}) => {
     const deals = rootMenu.deals;
     const productIds = [...new Set([...rootMenu.productIds, ...deals.flatMap(deal => deal.productIds)])];
     // Inventory descriptions stay private unless the published design shows them.
-    const products = await Product.find({ id: { $in: productIds }, businessId: menu.businessId }).select(`id name salePrice price imageUrl category${rootMenu.design?.showDescriptions ? ' description' : ''}`).lean();
+    const products = await Product.find({ id: { $in: productIds }, businessId: menu.businessId, ...branchFilter }).select(`id name salePrice price imageUrl category${rootMenu.design?.showDescriptions ? ' description' : ''}`).lean();
     const ordered = productIds.flatMap(id => {
         const product = products.find(value => value.id === id);
         return product ? [{ ...product, salePrice: menuItemPrice(product, rootMenu.productPrices) }] : [];
@@ -282,7 +301,8 @@ export const submitPublicOrder = async (req: AuthRequest, res: Response) => {
     const requested = Array.isArray(req.body.items) ? req.body.items : [];
     const requestedDeals = Array.isArray(req.body.deals) ? req.body.deals : [];
     const quantities = new Map<string, number>();
-    const publication = await getPublication(menu.businessId);
+    const branch = await publicMenuBranch(menu);
+    const publication = await getPublication(menu.businessId, branch.publication);
     const rootMenu = publication?.menu;
     if (!rootMenu) return res.status(404).json({ message: 'This QR menu is unavailable' });
     const deals = rootMenu.deals;
@@ -303,7 +323,7 @@ export const submitPublicOrder = async (req: AuthRequest, res: Response) => {
     if (!quantities.size && !dealQuantities.size) return res.status(400).json({ message: 'Choose at least one menu item or deal' });
     const selectedDeals = deals.filter(deal => dealQuantities.has(String(deal._id)));
     const productIds = [...new Set([...quantities.keys(), ...selectedDeals.flatMap(deal => deal.productIds)])];
-    const products = await Product.find({ id: { $in: productIds }, businessId: menu.businessId }).select('id name salePrice price').lean();
+    const products = await Product.find({ id: { $in: productIds }, businessId: menu.businessId, ...branch.filter }).select('id name salePrice price').lean();
     if (products.length !== productIds.length) return res.status(400).json({ message: 'One or more selected items are unavailable' });
     const newItems = products.filter(product => quantities.has(product.id)).map((product) => ({ productId: product.id, productName: product.name, quantity: quantities.get(product.id)!, unitPrice: menuItemPrice(product, rootMenu.productPrices) }));
     const mergeItem = (target: typeof newItems, item: typeof newItems[number]) => {
@@ -321,7 +341,7 @@ export const submitPublicOrder = async (req: AuthRequest, res: Response) => {
         const prices = allocateDealPrice(deal.dealPrice ?? weights.reduce((sum, price) => sum + price, 0), weights);
         components.forEach((product, index) => mergeItem(newItems, { productId: product.id, productName: product.name, quantity: dealQuantities.get(String(deal._id))!, unitPrice: prices[index] }));
     });
-    const filter = { businessId: menu.businessId, digitalMenuTable: menu.tableName };
+    const filter = { businessId: menu.businessId, digitalMenuTable: menu.tableName, ...branch.filter };
     const existing = await OrderDraft.findOne(filter);
     if (existing) {
         newItems.forEach(item => mergeItem(existing.items, item));
@@ -332,7 +352,7 @@ export const submitPublicOrder = async (req: AuthRequest, res: Response) => {
     // the display name makes it clear the selection came from a customer QR.
     const owner = await User.findOne({ businessId: menu.businessId }).select('_id').lean();
     if (!owner) return res.status(400).json({ message: 'This menu workspace has no staff account' });
-    const draft = await OrderDraft.create({ draftCode: `TB-${Date.now().toString(36).toUpperCase()}`, items: newItems, discountPercent: 0, orderType: 'dine_in', digitalMenuTable: menu.tableName, createdByName: 'QR Customer', createdBy: owner._id, businessId: menu.businessId });
+    const draft = await OrderDraft.create({ draftCode: `TB-${Date.now().toString(36).toUpperCase()}`, items: newItems, discountPercent: 0, orderType: 'dine_in', digitalMenuTable: menu.tableName, createdByName: 'QR Customer', createdBy: owner._id, businessId: menu.businessId, branchId: menu.branchId ?? null });
     return res.status(201).json({ message: 'Order sent to the table draft', draft });
 };
 

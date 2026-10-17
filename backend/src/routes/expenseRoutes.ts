@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import Joi from 'joi';
 import mongoose from 'mongoose';
-import { protect, AuthRequest } from '../middleware/auth';
+import { protect, requireScreenAccess, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import Expense from '../models/Expense';
 import POSShift from '../models/POSShift';
@@ -9,7 +9,7 @@ import { minor, validDate } from '../services/payrollCalculator';
 import { policyFor } from '../services/payrollService';
 
 const router = Router();
-router.use(protect);
+router.use(protect, requireScreenAccess('expenses'));
 const text = Joi.string().trim().max(1000);
 const date = Joi.string().custom((v, h) => validDate(v) ? v : h.error('any.invalid'));
 const key = Joi.string().trim().min(8).max(100);
