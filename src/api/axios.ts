@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { resolveApiUrl } from './apiUrl';
+import { installWorkflowLoading } from './workflowLoading';
 
 const api = axios.create({
     baseURL: resolveApiUrl(import.meta.env.DEV, import.meta.env.VITE_API_URL),
@@ -7,6 +8,8 @@ const api = axios.create({
         'Content-Type': 'application/json'
     }
 });
+
+installWorkflowLoading(api, () => window.location.pathname);
 
 // Request interceptor for adding the bearer token
 api.interceptors.request.use(
@@ -28,7 +31,12 @@ api.interceptors.request.use(
 
 // Response interceptor for handling errors (like 401 Unauthorized)
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        if (typeof window !== 'undefined' && !['get', 'head', 'options'].includes(response.config.method || 'get') && /\/(payroll|expenses|finance)(\/|$)/.test(response.config.url || '')) {
+            window.dispatchEvent(new Event('itemhive-workflow-updated'));
+        }
+        return response;
+    },
     (error) => {
         if (error.response && error.response.status === 401) {
             localStorage.removeItem('token');

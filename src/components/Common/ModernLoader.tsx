@@ -1,9 +1,12 @@
 import React from 'react';
 import { Box, CircularProgress, Typography, alpha } from '@mui/material';
 
-const ModernLoader: React.FC<{ fullPage?: boolean }> = ({ fullPage = true }) => {
+const ModernLoader: React.FC<{ fullPage?: boolean; message?: string }> = ({ fullPage = true, message = 'SYNCHRONIZING SECURELY' }) => {
     return (
         <Box
+            role="status"
+            aria-live="polite"
+            aria-label={message}
             sx={{
                 position: fullPage ? 'fixed' : 'absolute',
                 inset: 0,
@@ -51,7 +54,7 @@ const ModernLoader: React.FC<{ fullPage?: boolean }> = ({ fullPage = true }) => 
                     ITEMHIVE
                 </Typography>
                 <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ letterSpacing: 1.5, opacity: 0.7 }}>
-                    SYNCHRONIZING SECURELY
+                    {message}
                 </Typography>
             </Box>
         </Box>

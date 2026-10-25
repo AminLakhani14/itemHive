@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { isAxiosError } from 'axios';
 import {
     Alert,
     Box,
@@ -18,6 +19,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import type { RootState } from '../../store';
 import { buildNotifications, type InstallmentNotificationPlan, type NotificationItem } from '../../lib/notifications';
+import { hasScreenAccess } from '../../lib/screenPermissions';
+import { useWorkflowNotifications } from '../../lib/workflowNotifications';
 
 const iconByCategory = {
     installment: CalendarClock,
@@ -25,6 +28,9 @@ const iconByCategory = {
     stock: Package2,
     transaction: History,
     billing: CircleDollarSign,
+    payroll: CircleDollarSign,
+    expense: ClipboardList,
+    finance: CircleDollarSign,
 };
 
 const colorBySeverity = {
@@ -40,76 +46,88 @@ const NotificationsPage: React.FC = () => {
     const { transactions } = useSelector((state: RootState) => state.transactions);
     const { products } = useSelector((state: RootState) => state.inventory);
     const { notifications } = useSelector((state: RootState) => state.settings);
+    const { app } = useSelector((state: RootState) => state.settings);
+    const user = useSelector((state: RootState) => state.auth.user);
+    const workflow = useWorkflowNotifications();
+    const canInstallments = hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'installments') && (user?.role === 'super_admin' || !!(app.installmentsEnabled && user?.installmentAccess));
     const [installmentPlans, setInstallmentPlans] = useState<InstallmentNotificationPlan[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [filter, setFilter] = useState('all');
+    const installmentGeneration = React.useRef(0);
+    const cancelInstallmentRequests = useCallback(() => { installmentGeneration.current++; }, []);
 
-    const loadInstallmentPlans = async () => {
+    const loadInstallmentPlans = useCallback(async () => {
+        const generation = ++installmentGeneration.current;
+        setInstallmentPlans([]);
+        if (!canInstallments) { setLoading(false); setError(''); return; }
         setLoading(true);
         setError('');
         try {
             const response = await api.get('/installments');
-            setInstallmentPlans(response.data || []);
-        } catch (fetchError: any) {
-            setError(fetchError.response?.data?.message || 'Unable to load installment notifications.');
+            if (generation === installmentGeneration.current) setInstallmentPlans(response.data || []);
+        } catch (fetchError: unknown) {
+            if (generation === installmentGeneration.current) setError(isAxiosError(fetchError) ? fetchError.response?.data?.message || 'Unable to load installment notifications.' : 'Unable to load installment notifications.');
         } finally {
-            setLoading(false);
+            if (generation === installmentGeneration.current) setLoading(false);
         }
-    };
+    }, [canInstallments]);
 
     useEffect(() => {
         loadInstallmentPlans();
         const refresh = () => loadInstallmentPlans();
         window.addEventListener('itemhive-installments-updated', refresh);
-        return () => window.removeEventListener('itemhive-installments-updated', refresh);
-    }, []);
+        window.addEventListener('itemhive-workspace-changed', refresh);
+        return () => { cancelInstallmentRequests(); window.removeEventListener('itemhive-installments-updated', refresh); window.removeEventListener('itemhive-workspace-changed', refresh); };
+    }, [loadInstallmentPlans, user?.id, user?.businessId, cancelInstallmentRequests]);
 
     const allNotifications = useMemo(
         () =>
-            buildNotifications({
+            [...workflow.items, ...buildNotifications({
                 installmentPlans,
-                orders,
-                transactions,
-                products,
+                orders: hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'orders') ? orders : [],
+                transactions: hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'transactions') ? transactions : [],
+                products: hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'inventory') ? products : [],
                 orderUpdatesEnabled: notifications.orderUpdates,
                 lowStockAlertsEnabled: notifications.lowStockAlerts,
-            }),
-        [installmentPlans, notifications.lowStockAlerts, notifications.orderUpdates, orders, products, transactions]
+            })].sort((a, b) => Number(Boolean(b.requiresAction)) - Number(Boolean(a.requiresAction)) || b.sortTime - a.sortTime),
+        [installmentPlans, notifications.lowStockAlerts, notifications.orderUpdates, orders, products, transactions, workflow.items, user]
     );
 
     const summary = useMemo(
         () => ({
             total: allNotifications.length,
-            overdue: allNotifications.filter((item) => item.category === 'installment').length,
-            stock: allNotifications.filter((item) => item.category === 'stock').length,
-            orders: allNotifications.filter((item) => item.category === 'order').length,
+            action: allNotifications.filter((item) => item.requiresAction).length,
+            payroll: allNotifications.filter((item) => item.category === 'payroll').length,
+            finance: allNotifications.filter((item) => ['expense', 'finance'].includes(item.category)).length,
         }),
         [allNotifications]
     );
+    const visibleNotifications = allNotifications.filter(n => filter === 'all' || (filter === 'action' ? n.requiresAction : filter === 'unread' ? !workflow.read.includes(n.id) : n.category === filter));
 
     return (
         <Box>
             <Card
                 sx={{
                     borderRadius: 4,
-                    mb: 4,
+                    mb: 3,
                     overflow: 'hidden',
                     border: '1px solid',
                     borderColor: alpha(theme.palette.primary.main, 0.18),
                     background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.12)} 0%, ${alpha(theme.palette.info.main, 0.08)} 45%, ${alpha(theme.palette.background.paper, 1)} 100%)`,
                 }}
             >
-                <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
                         <Box>
                             <Typography variant="h4" fontWeight={800} gutterBottom>
                                 Notifications Center
                             </Typography>
                             <Typography color="text.secondary" sx={{ maxWidth: 720 }}>
-                                Review installment dues, stock alerts, order updates, and recent inventory activity in one place.
+                                Check approvals, payments and business updates. Items that need action appear first.
                             </Typography>
                         </Box>
-                        <Button variant="contained" startIcon={<RefreshCw size={16} />} onClick={loadInstallmentPlans} disabled={loading}>
+                        <Button variant="contained" startIcon={<RefreshCw size={16} />} onClick={() => { void loadInstallmentPlans(); void workflow.refresh(); }} disabled={loading || workflow.loading}>
                             Refresh
                         </Button>
                     </Stack>
@@ -117,7 +135,7 @@ const NotificationsPage: React.FC = () => {
             </Card>
 
             <Grid container spacing={2.5} sx={{ mb: 3 }}>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 6, md: 3 }}>
                     <Card sx={{ borderRadius: 3 }}>
                         <CardContent>
                             <Typography variant="overline" color="text.secondary">Total Notifications</Typography>
@@ -125,27 +143,27 @@ const NotificationsPage: React.FC = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 6, md: 3 }}>
                     <Card sx={{ borderRadius: 3 }}>
                         <CardContent>
-                            <Typography variant="overline" color="text.secondary">Installment Alerts</Typography>
-                            <Typography variant="h4" fontWeight={800} color="warning.main">{summary.overdue}</Typography>
+                            <Typography variant="overline" color="text.secondary">Needs action</Typography>
+                            <Typography variant="h4" fontWeight={800} color="warning.main">{summary.action}</Typography>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 6, md: 3 }}>
                     <Card sx={{ borderRadius: 3 }}>
                         <CardContent>
-                            <Typography variant="overline" color="text.secondary">Stock Alerts</Typography>
-                            <Typography variant="h4" fontWeight={800} color="error.main">{summary.stock}</Typography>
+                            <Typography variant="overline" color="text.secondary">Payroll</Typography>
+                            <Typography variant="h4" fontWeight={800}>{summary.payroll}</Typography>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 6, md: 3 }}>
                     <Card sx={{ borderRadius: 3 }}>
                         <CardContent>
-                            <Typography variant="overline" color="text.secondary">Order Updates</Typography>
-                            <Typography variant="h4" fontWeight={800} color="success.main">{summary.orders}</Typography>
+                            <Typography variant="overline" color="text.secondary">Expenses & finance</Typography>
+                            <Typography variant="h4" fontWeight={800}>{summary.finance}</Typography>
                         </CardContent>
                     </Card>
                 </Grid>
@@ -157,19 +175,24 @@ const NotificationsPage: React.FC = () => {
                 </Alert>
             )}
 
+            {workflow.error && <Alert severity="error" sx={{ mb: 3 }} action={<Button onClick={() => void workflow.refresh()}>Retry</Button>}>{workflow.error}</Alert>}
             <Card sx={{ borderRadius: 4 }}>
                 <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ mb: 2 }}>
                         <Box>
                             <Typography variant="h6" fontWeight={800}>All Notifications</Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Newest items appear first.
+                                Pending work first. Recent updates cover the last 30 days.
                             </Typography>
                         </Box>
-                        {loading && <CircularProgress size={20} />}
+                        {(loading || workflow.loading) && <CircularProgress size={20} />}
+                        <Button size="small" disabled={!allNotifications.some(n => !workflow.read.includes(n.id))} onClick={() => workflow.markRead(allNotifications.map(n => n.id))}>Mark all read</Button>
+                    </Stack>
+                    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ mb: 2 }}>
+                        {([['all', 'All'], ['action', 'Needs action'], ['unread', 'Unread'], ['payroll', 'Payroll'], ['expense', 'Expenses'], ['finance', 'Finance']] as const).map(([value, label]) => <Chip key={value} label={label} color={filter === value ? 'primary' : 'default'} variant={filter === value ? 'filled' : 'outlined'} onClick={() => setFilter(value)} />)}
                     </Stack>
 
-                    {allNotifications.length === 0 ? (
+                    {visibleNotifications.length === 0 ? (
                         <Box
                             sx={{
                                 py: 6,
@@ -183,15 +206,15 @@ const NotificationsPage: React.FC = () => {
                         >
                             <Bell size={28} color={theme.palette.text.secondary} />
                             <Typography variant="h6" fontWeight={700} sx={{ mt: 1.5 }}>
-                                No notifications yet
+                                {loading || workflow.loading ? 'Loading notifications...' : 'No notifications here'}
                             </Typography>
                             <Typography color="text.secondary">
-                                Alerts will appear here when installments become due, stock runs low, or orders and inventory change.
+                                Approval requests, decisions and payment updates will appear here when they are available.
                             </Typography>
                         </Box>
                     ) : (
                         <Stack spacing={1.5}>
-                            {allNotifications.map((notification: NotificationItem) => {
+                            {visibleNotifications.map((notification: NotificationItem) => {
                                 const Icon = iconByCategory[notification.category];
                                 return (
                                     <Card
@@ -222,14 +245,15 @@ const NotificationsPage: React.FC = () => {
                                             >
                                                 <Icon size={20} />
                                             </Box>
-                                            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                            <Box sx={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                                                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" sx={{ mb: 0.5 }}>
-                                                    <Typography variant="subtitle1" fontWeight={800}>
+                                                    <Typography variant="subtitle1" fontWeight={workflow.read.includes(notification.id) ? 500 : 800}>
                                                         {notification.title}
                                                     </Typography>
                                                     <Chip
                                                         size="small"
-                                                        label={notification.category}
+                                                        color={notification.requiresAction ? 'warning' : 'default'}
+                                                        label={notification.requiresAction ? 'Needs action' : notification.category}
                                                         sx={{ alignSelf: { xs: 'flex-start', sm: 'center' }, textTransform: 'capitalize' }}
                                                     />
                                                 </Stack>
@@ -241,7 +265,7 @@ const NotificationsPage: React.FC = () => {
                                                         {notification.time}
                                                     </Typography>
                                                     {notification.path && (
-                                                        <Button size="small" onClick={() => navigate(notification.path!)}>
+                                                        <Button size="small" onClick={() => { workflow.markRead([notification.id]); navigate(notification.path!); }}>
                                                             Open
                                                         </Button>
                                                     )}

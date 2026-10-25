@@ -7,6 +7,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   IconButton,
+  LinearProgress,
   Box,
   Button,
   Card,
@@ -23,7 +24,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useSelector } from "react-redux";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { RootState } from "../../store";
 import api from "../../api/axios";
 import {
@@ -53,6 +54,7 @@ import type {
   PayrollRun,
 } from "../../types/payroll";
 
+import { payrollScreens } from "../../lib/workflowScreens";
 import WorkflowNav from "../../components/Payroll/WorkflowNav";
 
 export type TabKey =
@@ -105,8 +107,10 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("");
   const [loading, setLoading] = React.useState(true);
+  const [ready, setReady] = React.useState(false);
   const [reason, setReason] = React.useState("");
-  const [report, setReport] = React.useState<PayrollReport>();
+  const [loadedReport, setReport] = React.useState<PayrollReport>();
+  const [reportFilters, setReportFilters] = React.useState("");
   const [reportType, setReportType] = React.useState("register");
   const [filters, setFilters] = React.useState({
     from: `${dateToday().slice(0, 4)}-01`,
@@ -116,6 +120,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
     designation: "",
     status: "",
   });
+  const report = reportFilters === JSON.stringify(filters) ? loadedReport : undefined;
   const [action, setAction] = React.useState<{
     title: string;
     path: string;
@@ -150,6 +155,8 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
       api.get<PayrollPolicy>("/payroll/settings"),
     ]);
     if (current !== generation.current) return;
+    setReady(true);
+    setError("");
     setEmployees(base[0].data);
     setRuns(base[1].data);
     setPolicy(base[2].data);
@@ -186,6 +193,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
       setSlip(undefined);
       setReport(undefined);
       setEnabled(false);
+      setReady(false);
       setPolicy(emptyPolicy);
       setLoading(true);
       setRequestOpen(false);
@@ -278,13 +286,13 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
       if (action.run) await showRun(action.run._id);
       setAction(undefined);
     });
-  const loadReport = () =>
-    operate(async () =>
-      setReport(
-        (await api.get<PayrollReport>("/payroll/reports", { params: filters }))
-          .data,
-      ),
-    );
+  const loadReport = () => operate(async () => {
+    const current = generation.current;
+    const data = (await api.get<PayrollReport>("/payroll/reports", { params: filters })).data;
+    if (current !== generation.current) return;
+    setReport(data); setReportFilters(JSON.stringify(filters));
+    return "Report loaded.";
+  });
   const reportRows = (): Record<string, string | number>[] => {
     if (!report) return [];
     const rows = report.rows;
@@ -428,13 +436,14 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
     <Stack gap={2} sx={compactPayrollSx}>
       <WorkflowNav />
       <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1}>
-        <Stack direction="row" alignItems="center" gap={1.5}><Typography variant="h4" fontWeight={800}>{tab === "overview" ? "Employee Salaries" : tab === "reports" ? "Payroll Expense & Reports" : "Payroll ? " + labels[tab]}</Typography><StatusChip status={enabled ? "enabled" : "disabled"} /></Stack>
+        <Stack direction="row" alignItems="center" gap={1.5}><Typography variant="h4" fontWeight={800}>{payrollScreens.find(screen => screen.path === "/payroll/" + (tab === "overview" ? "employees" : tab))?.title || labels[tab]}</Typography>{ready && <StatusChip status={enabled ? "enabled" : "disabled"} />}</Stack>
         <Stack direction="row" gap={1}>
           <IconButton aria-label="Refresh payroll" disabled={busy || loading} onClick={() => { setLoading(true); void load().catch(e => setError(requestError(e))).finally(() => setLoading(false)); }}><RefreshCw size={18} /></IconButton>
-          <Button component={RouterLink} to="/my">My Workspace</Button>
           {tab === "runs" && can("payroll_prepare") && <Button variant="contained" startIcon={<Plus size={16} />} disabled={busy || loading || !enabled} onClick={() => setCreateOpen(true)}>New run</Button>}
         </Stack>
       </Stack>
+      <Typography color="text.secondary">{payrollScreens.find(screen => screen.path === "/payroll/" + (tab === "overview" ? "employees" : tab))?.description}</Typography>
+      {loading && <LinearProgress />}
       {error && (
         <Alert severity="error" onClose={() => setError("")}>
           {error}
@@ -445,7 +454,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
           {notice}
         </Alert>
       )}
-      {!loading && !enabled && (
+      {!loading && ready && !enabled && (
         <Alert severity="info" action={can("payroll_settings") ? (
           <Button color="inherit" size="small" onClick={() => setParams({ tab: "settings" })}>
             Open Payroll Settings
@@ -459,7 +468,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
         <CardContent>
           {["overview", "runs", "requests", "loans", "payments"].includes(tab) && <Stack direction={{ xs: "column", sm: "row" }} gap={1} sx={{ mb: 2 }}>
             <TextField size="small" label={tab === "overview" ? "Search employees" : "Search"} value={search} onChange={e => setSearch(e.target.value)} sx={{ flex: 1 }} />
-            <TextField size="small" select label="Status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><MenuItem value="">All statuses</MenuItem>{statusOptions.map(s => <MenuItem key={s} value={s}>{s.replaceAll("_", " ")}</MenuItem>)}</TextField>
+            <TextField size="small" select sx={{ minWidth: 180 }} label="Status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><MenuItem value="">All statuses</MenuItem>{statusOptions.map(s => <MenuItem key={s} value={s}>{s.replaceAll("_", " ")}</MenuItem>)}</TextField>
           </Stack>}
           {tab === "overview" && (
             <Stack gap={3}>
@@ -469,8 +478,9 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 { label: "Active employees", value: employees.filter(e => e.status === 'active').length },
                 { label: "Missing joining dates", value: employees.filter(e => !e.joiningDate).length },
               ]} />
-              <Typography variant="h6">Employee payroll readiness</Typography>
+              <Typography variant="h6">Employee enrollment</Typography>
               <PayrollTable
+                emptyMessage="No employees match. Clear the filters or ask your admin to add employees."
                 rows={employees.filter(e => matches([e.employeeCode, e.fullName, e.department, e.designation], e.payrollEnrolled ? "enrolled" : "not_enrolled"))}
                 columns={[
                   {
@@ -484,14 +494,14 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                       <StatusChip status={e.payrollEnrolled ? "enrolled" : "not_enrolled"} />,
                   },
                   {
-                    label: "Employment",
+                    label: "Joining / leaving date",
                     value: (e) =>
                       `${e.joiningDate || "Missing joining date"}${e.employmentEndDate ? ` → ${e.employmentEndDate}` : ""}`,
                   },
                 ]}
                 actions={(e) => (
                   <Button onClick={() => setProfileId(e._id)}>
-                    Payroll profile
+                    Salary & enrollment
                   </Button>
                 )}
               />
@@ -500,6 +510,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
           {tab === "runs" && (
             <Stack gap={2}>
               <PayrollTable
+                emptyMessage={can("payroll_prepare") ? "No salary runs match. Enroll employees, then choose New run." : "No salary runs match these filters."}
                 rows={runs.filter(r => matches([r.month, r.kind, r.reason], r.status))}
                 columns={[
                   { label: "Month", value: (r) => r.month },
@@ -661,9 +672,8 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
           )}
           {tab === "payments" && (
             <Stack gap={2}>
-              <Alert severity="info">
-                Select an approved run below to record individual or bulk salary payments.
-              </Alert>
+              <Alert severity="info">{can("payroll_pay") ? "Choose approved salaries, then record a cash or bank payment already made. This does not transfer money." : "View salary payments. Use Reverse to undo a wrong entry."}</Alert>
+              {can("payroll_pay") && <>
               <Typography variant="h6">Approved runs ready for payment</Typography>
               <PayrollTable rows={approved} columns={[
                 { label: 'Month', value: r => r.month },
@@ -671,6 +681,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 { label: 'Net salary', value: r => money(r.totals?.netMinor || 0, r.policy?.currency || policy.currency) },
                 { label: 'Recorded outstanding', value: r => money((r.totals?.netMinor || 0) - payments.filter(p => p.runId === r._id && !p.reversedAt).reduce((n, p) => n + p.amountMinor, 0), r.policy?.currency || policy.currency) },
               ]} actions={r => <Button disabled={busy} onClick={() => showRun(r._id)}>Open for payment</Button>} />
+              </>}
               <Typography variant="h6">Payment history</Typography>
               <PayrollTable
                 rows={payments.filter(p => matches([employeeName(p.employeeId), p.dateKey, p.reference, p.method], p.reversedAt ? "reversed" : "recorded"))}
@@ -796,13 +807,15 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                   ))}
                 </TextField>
                 <Button
-                  disabled={busy}
+                  disabled={busy || loading || !filters.from || !filters.to || filters.from > filters.to}
                   variant="contained"
                   onClick={loadReport}
                 >
                   Load report
                 </Button>
               </Stack>
+              {filters.from > filters.to && <Alert severity="warning">The From month must be on or before the To month.</Alert>}
+              {!report && <Typography color="text.secondary">Choose your filters, then select Load report.</Typography>}
               {report && (
                 <>
                   <Stack direction="row" gap={1}>
@@ -1019,7 +1032,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
               />
               <Button
                 variant="contained"
-                disabled={busy || !reason.trim() || (policy.enabled && !policy.confirmed)}
+                disabled={busy || loading || !ready || !reason.trim() || (policy.enabled && !policy.confirmed)}
                 onClick={() =>
                   operate(() =>
                     api.put("/payroll/settings", {
@@ -1053,7 +1066,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 Migrate opening salaries
               </Button>
               <Alert severity="info">
-                A different authorized admin must approve each payroll run.
+                A Super Admin or an admin with Payroll: Approve can approve submitted salaries, including runs they prepared.
               </Alert>
             </Stack>
           )}
@@ -1200,7 +1213,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                       disabled={busy}
                       onClick={() =>
                         openAction({
-                          title: "Submit for independent approval",
+                          title: "Send for approval",
                           kind: "reason",
                           path: `/payroll/runs/${selectedRun._id}/submit`,
                           run: selectedRun,
@@ -1214,14 +1227,10 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                   selectedRun.status === "submitted" && (
                     <>
                       <Button
-                        disabled={
-                          busy ||
-                          selectedRun.preparedBy === user?.id ||
-                          selectedRun.createdBy === user?.id
-                        }
+                        disabled={busy}
                         onClick={() =>
                           openAction({
-                            title: "Approve frozen payroll",
+                            title: "Approve salaries",
                             kind: "reason",
                             path: `/payroll/runs/${selectedRun._id}/approve`,
                             run: selectedRun,
@@ -1663,10 +1672,10 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
         open={!!profileId}
         onClose={() => setProfileId("")}
         fullWidth
-        maxWidth="xl"
+        maxWidth="md"
       >
         <DialogTitle>Employee payroll</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers sx={{ minWidth: 0 }}>
           {profileId && <EmployeePayrollPanel employeeId={profileId} />}
         </DialogContent>
         <DialogActions>

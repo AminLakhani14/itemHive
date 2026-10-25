@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/build-workflow-manual.mjs && tsc -b && vite build",
+    "manual:build": "node scripts/build-workflow-manual.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:menu-ai": "node --test scripts/test-menu-ai.mjs",

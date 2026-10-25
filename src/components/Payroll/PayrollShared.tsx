@@ -53,11 +53,13 @@ export function PayrollTable<T>({
   columns,
   actions,
   paginate = true,
+  emptyMessage = 'No records for this selection.',
 }: {
   rows: T[];
   columns: Array<{ label: string; value: (row: T) => React.ReactNode }>;
   actions?: (row: T) => React.ReactNode;
   paginate?: boolean;
+  emptyMessage?: string;
 }) {
   const [page, setPage] = React.useState(0);
   const [limit, setLimit] = React.useState(10);
@@ -93,7 +95,7 @@ export function PayrollTable<T>({
           {!rows.length && (
             <TableRow>
               <TableCell colSpan={columns.length + (actions ? 1 : 0)}>
-                No records for this selection.
+                {emptyMessage}
               </TableCell>
             </TableRow>
           )}
@@ -238,7 +240,7 @@ export function RequestForm({
   }) => void;
   busy: boolean;
 }) {
-  const [employeeId, setEmployee] = React.useState(employees[0]?._id || "");
+  const [employeeId, setEmployee] = React.useState("");
   const [key] = React.useState(() => crypto.randomUUID());
   const [kind, setKind] = React.useState(initialKind);
   const [reason, setReason] = React.useState("");
@@ -255,10 +257,12 @@ export function RequestForm({
   });
   const field = (key: keyof typeof data, label: string, type = "text") => (
     <TextField
+      size="small"
+      fullWidth
       label={label}
       type={type}
       value={data[key]}
-      slotProps={{ inputLabel: { shrink: true } }}
+      slotProps={{ inputLabel: { shrink: true }, htmlInput: type === "number" ? { min: key === "minutes" ? 1 : 0.01, max: key === "minutes" ? 1440 : 1_000_000_000, step: key === "minutes" ? 1 : 0.01 } : {} }}
       onChange={(e) =>
         setData({
           ...data,
@@ -276,6 +280,7 @@ export function RequestForm({
           value={employeeId}
           onChange={(e) => setEmployee(e.target.value)}
         >
+          <MenuItem value="">Choose employee</MenuItem>
           {employees.map((e) => (
             <MenuItem value={e._id} key={e._id}>
               {e.fullName}
@@ -283,7 +288,7 @@ export function RequestForm({
           ))}
         </TextField>
       )}
-      <TextField
+      {allowedKinds?.length !== 1 && <TextField
         select
         label="Request type"
         value={kind}
@@ -300,11 +305,13 @@ export function RequestForm({
             {k}
           </MenuItem>
         ))}
-      </TextField>
+      </TextField>}
       {kind === "leave" ? (
         <>
-          {field("startDate", "Start date", "date")}
-          {field("endDate", "End date", "date")}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+            {field("startDate", "Start date", "date")}
+            {field("endDate", "End date", "date")}
+          </Box>
           <TextField
             select
             label="Leave type"
@@ -341,11 +348,15 @@ export function RequestForm({
         </>
       ) : (
         <>
-          {field("amount", "Requested amount", "number")}
-          {field("installment", "Monthly installment", "number")}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+            {field("amount", "Requested amount", "number")}
+            {field("installment", "Monthly installment", "number")}
+          </Box>
           {field("startMonth", "Recovery starts", "month")}
         </>
       )}
+      {kind === "leave" && data.fraction === 0.5 && data.startDate !== data.endDate && <Alert severity="info">For half-day leave, choose the same start and end date.</Alert>}
+      {["loan", "advance"].includes(kind) && data.installment > data.amount && <Alert severity="info">The monthly installment cannot exceed the requested amount.</Alert>}
       <TextField
         label="Reason"
         multiline
@@ -355,7 +366,7 @@ export function RequestForm({
       />
       <Button
         variant="contained"
-        disabled={busy || !reason.trim() || (!self && !employeeId) || (kind === 'leave' ? !data.startDate || !data.endDate || data.startDate > data.endDate || (data.fraction === 0.5 && data.startDate !== data.endDate) : ['loan', 'advance'].includes(kind) ? data.amount <= 0 || data.installment <= 0 || data.installment > data.amount || !data.startMonth : kind === 'overtime' ? data.minutes <= 0 || !data.dateKey : !data.dateKey)}
+        disabled={busy || !reason.trim() || (!self && !employeeId) || (kind === 'leave' ? !data.startDate || !data.endDate || data.startDate > data.endDate || (data.fraction === 0.5 && data.startDate !== data.endDate) : ['loan', 'advance'].includes(kind) ? data.amount <= 0 || data.installment <= 0 || data.installment > data.amount || !data.startMonth : kind === 'overtime' ? !Number.isInteger(data.minutes) || data.minutes <= 0 || data.minutes > 1440 || !data.dateKey : !data.dateKey)}
         onClick={() =>
           submit({
             key,

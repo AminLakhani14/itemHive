@@ -169,6 +169,7 @@ router.post('/:id/payments', validate(Joi.object({ key: key.required(), version,
       return summary(e!.toObject());
     }
     if (e!.status !== 'approved' || e!.version !== req.body.version) fail('Expense changed or is not approved', 409);
+    if (!e!.journalEntryId && await FinancePolicy.exists(tenant(req)).session(session)) fail('Allocate the historical expense to reviewed opening balances before payment');
     const amountMinor = minor(req.body.amount);
     if (req.body.dateKey < e!.dateKey) fail('Payment date cannot precede expense date');
     if (e!.postingDateKey && req.body.dateKey < e!.postingDateKey) fail('Payment date cannot precede the approved accounting date');

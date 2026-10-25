@@ -40,7 +40,7 @@ import {
 } from "../services/payrollCalculator";
 
 import { financialAccess, canFinancial } from '../middleware/financialAccess';
-import { FinancePolicy } from '../models/Finance';
+import { FinancePolicy, JournalEntry } from '../models/Finance';
 import { businessDate, postSource, systemAccount, sourceSettlement, reverseSource } from '../services/financeService';
 const id = Joi.string().hex().length(24);
 const date = Joi.string().custom((v, h) =>
@@ -64,6 +64,40 @@ const schedule = Joi.object({
   breakMinutes: Joi.number().integer().min(0).max(720).required(),
   graceMinutes: Joi.number().integer().min(0).max(120).required(),
 });
+const salaryFields = {
+      effectiveDate: date.required(),
+      base: amount.required(),
+      salaryType: Joi.string().valid("monthly", "daily", "hourly").required(),
+      commissionPercent: Joi.number().min(0).max(100).required(),
+      schedule: schedule.required(),
+      leavePolicyName: text.optional(),
+      leaveRules: Joi.object()
+        .pattern(
+          Joi.string().valid("casual", "sick", "annual", "unpaid", "other"),
+          Joi.object({
+            paid: Joi.boolean().required(),
+            annualDays: Joi.number().min(0).max(366).required(),
+            openingDays: Joi.number().min(0).max(366).required(),
+            carryLimit: Joi.number().min(0).max(366).required(),
+          }),
+        )
+        .optional(),
+      reason: text.required(),
+      components: Joi.array()
+        .max(50)
+        .items(
+          Joi.object({
+            name: text.required(),
+            kind: Joi.string()
+              .valid("allowance", "deduction", "employer")
+              .required(),
+            mode: Joi.string().valid("fixed", "percent").required(),
+            value: amount.required(),
+            prorate: Joi.boolean().required(),
+          }),
+        )
+        .required(),
+};
 const reasonSchema = Joi.object({
   reason: text.required(),
   version: Joi.number().integer().min(0).required(),
@@ -349,9 +383,10 @@ payrollRouter.put(
       department: Joi.string().trim().allow("").max(80).required(),
       employmentEndDate: date.allow("").required(),
       paymentMethod: Joi.string().valid("cash", "bank").required(),
-      bankName: Joi.string().allow("").max(100).required(),
-      bankAccount: Joi.string().allow("").max(100).required(),
+      bankName: Joi.string().trim().allow("").max(100).required(),
+      bankAccount: Joi.string().trim().allow("").max(100).required(),
       reason: text.required(),
+      openingSalary: Joi.object({ ...salaryFields, reason: Joi.forbidden() }).optional(),
     }),
   ),
   handler(async (req, res) => {
@@ -374,6 +409,14 @@ payrollRouter.put(
         throw new Error(
           "End date conflicts with approved payroll; use an adjustment",
         );
+      if (req.body.openingSalary) {
+        if (!req.body.payrollEnrolled || !e.joiningDate) throw new Error('A joining date and payroll enrollment are required for the opening salary');
+        if (req.body.openingSalary.effectiveDate > e.joiningDate) throw new Error('Opening salary must start on or before the joining date');
+        if (await SalaryStructure.exists({ ...tenant(req), employeeId: e._id, effectiveDate: { $lte: e.joiningDate } }).session(session)) throw new Error('Opening salary already exists. Refresh the profile before saving');
+        if (!scheduleMinutes(req.body.openingSalary.schedule)) throw new Error('Schedule must contain payable working minutes');
+        const { base, ...opening } = req.body.openingSalary;
+        await saveSalary(req.user!.businessId, String(e._id), req.user!.id, { ...opening, baseMinor: minor(base), reason: req.body.reason }, session);
+      }
       if (
         req.body.payrollEnrolled &&
         (!e.joiningDate ||
@@ -384,14 +427,14 @@ payrollRouter.put(
           }).session(session)))
       )
         throw new Error(
-          "Joining date and a salary effective on/before joining are required",
+          e.joiningDate ? `Add a salary dated ${e.joiningDate} or earlier, then save enrollment` : 'Add the employee joining date before enrolling',
         );
       if (
         req.body.paymentMethod === "bank" &&
         (!req.body.bankAccount || !req.body.bankName)
       )
         throw new Error("Bank name and account are required for bank payments");
-      const { reason, payrollRevision, ...data } = req.body;
+      const { reason, payrollRevision, openingSalary, ...data } = req.body;
       const before = maskProfile(e.toObject());
       e.set(data);
       e.payrollRevision++;
@@ -414,57 +457,26 @@ payrollRouter.post(
   "/employees/:id/structures",
   permission("payroll_settings"),
   validate(
-    Joi.object({
-      effectiveDate: date.required(),
-      base: amount.required(),
-      salaryType: Joi.string().valid("monthly", "daily", "hourly").required(),
-      commissionPercent: Joi.number().min(0).max(100).required(),
-      schedule: schedule.required(),
-      leavePolicyName: text.optional(),
-      leaveRules: Joi.object()
-        .pattern(
-          Joi.string().valid("casual", "sick", "annual", "unpaid", "other"),
-          Joi.object({
-            paid: Joi.boolean().required(),
-            annualDays: Joi.number().min(0).max(366).required(),
-            openingDays: Joi.number().min(0).max(366).required(),
-            carryLimit: Joi.number().min(0).max(366).required(),
-          }),
-        )
-        .optional(),
-      reason: text.required(),
-      components: Joi.array()
-        .max(50)
-        .items(
-          Joi.object({
-            name: text.required(),
-            kind: Joi.string()
-              .valid("allowance", "deduction", "employer")
-              .required(),
-            mode: Joi.string().valid("fixed", "percent").required(),
-            value: amount.required(),
-            prorate: Joi.boolean().required(),
-          }),
-        )
-        .required(),
-    }),
+    Joi.object({ ...salaryFields, payrollRevision: Joi.number().integer().min(0).optional() }),
   ),
   handler(async (req, res) => {
     if (!scheduleMinutes(req.body.schedule))
       throw new Error("Schedule must contain payable working minutes");
-    const { base, ...data } = req.body;
+    const { base, payrollRevision, ...data } = req.body;
     res
       .status(201)
       .json(
-        await transaction((session) =>
-          saveSalary(
+        await transaction(async (session) => {
+          const employee = await employeeFor(req, String(req.params.id), session);
+          if (payrollRevision !== undefined && employee.payrollRevision !== payrollRevision) throw new Error('Payroll profile changed. Refresh before saving');
+          return saveSalary(
             req.user!.businessId,
             String(req.params.id),
             req.user!.id,
             { ...data, baseMinor: minor(base) },
             session,
-          ),
-        ),
+          );
+        }),
       );
   }),
 );
@@ -1123,13 +1135,6 @@ for (const action of ["calculate", "submit", "approve", "return"])
               run.submittedAt = new Date();
               run.preparedBy = req.user!.id;
             } else {
-              if (
-                String(run.preparedBy) === req.user!.id ||
-                String(run.createdBy) === req.user!.id
-              )
-                throw new Error(
-                  "A different authorized admin must approve this run",
-                );
               // Serialize approval against policy edits without changing the calculation inputs.
               await PayrollPolicy.updateOne(
                 tenant(req),
@@ -1297,6 +1302,13 @@ payrollRouter.post(
             { new: true, session },
           );
           if (!run) throw new Error("Only approved payroll can be paid");
+          if (run.journalEntryId) {
+            const journal = await JournalEntry.findOne({ ...tenant(req), _id: run.journalEntryId, status: 'posted', reversedBy: { $exists: false } }).session(session);
+            if (!journal) throw new Error('Payroll payable journal is missing or reversed');
+            if (data.dateKey < journal.dateKey) throw new Error('Payment date cannot precede the payroll accounting date');
+          } else if (await FinancePolicy.exists(tenant(req)).session(session)) {
+            throw new Error('Allocate the historical payroll to reviewed opening balances before payment');
+          }
           const item = run.items.find(
             (i: any) => i.employeeId === data.employeeId,
           );

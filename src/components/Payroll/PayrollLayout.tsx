@@ -2,6 +2,15 @@ import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import type { PayrollRequest } from '../../types/payroll';
 import { money } from './PayrollShared';
 
+export const workflowFiltersSx = {
+  display: 'grid',
+  gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' },
+  gap: 1.5,
+  alignItems: 'center',
+  '& .MuiTextField-root': { minWidth: 0, width: '100%' },
+  '& > .MuiButton-root': { justifySelf: 'start' },
+};
+
 export const compactPayrollSx = {
   '& .MuiTextField-root': { minWidth: 150 },
   '& .MuiInputBase-input': { py: 1.1, fontSize: 14 },

@@ -27,6 +27,7 @@ import attendanceRoutes from './routes/attendanceRoutes';
 import { payrollRouter, myPayrollRouter, salespersonRouter } from './routes/payrollRoutes';
 import { payrollModels } from './models/Payroll';
 import expenseRoutes from './routes/expenseRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import Expense from './models/Expense';
 import financeRoutes from './routes/financeRoutes';
 import { financeModels } from './models/Finance';
@@ -143,6 +144,7 @@ app.use('/api/payroll', payrollRouter);
 app.use('/api/me/payroll', myPayrollRouter);
 app.use('/api/salespeople', salespersonRouter);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/finance', financeRoutes);
 
 // ── 404 & Error Handling ──────────────────────────────────────

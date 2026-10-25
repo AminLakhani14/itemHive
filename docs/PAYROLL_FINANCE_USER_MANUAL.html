@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Detailed ItemHive user procedures for Payroll, Expenses, Finance and My Payroll.">
+<title>ItemHive - Payroll, Expenses, Finance and My Payroll User Manual</title>
+<style>
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:80px}body{margin:0;background:#f4f7f8;color:#172332;font:16px/1.65 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.toolbar{position:sticky;top:0;z-index:1;background:#fff;border-bottom:1px solid #dbe5e7;padding:12px 24px;display:flex;gap:16px;justify-content:space-between;align-items:center}.brand{font-size:18px;font-weight:800;color:#087c7c}button{font:inherit;background:#087c7c;color:white;border:0;border-radius:6px;padding:8px 16px;cursor:pointer}main{max-width:980px;margin:32px auto;background:white;padding:40px 56px;border:1px solid #dbe5e7;border-radius:12px}h1{font-size:32px;line-height:1.22;color:#075d5d;margin:0 0 20px}h2{font-size:24px;line-height:1.3;margin:44px 0 18px;border-bottom:2px solid #daeeee;padding-bottom:12px;color:#075d5d}h3{font-size:18px;line-height:1.4;margin:24px 0 10px}p{margin:0 0 14px}ul,ol{padding-left:26px;margin:10px 0 20px}li{padding-left:4px;margin:6px 0}a{color:#075f67;text-decoration:none}a:hover{text-decoration:underline}.contents{background:#f0f8f8;padding:20px 24px;border:1px solid #d7eaea;border-radius:8px;margin-bottom:32px}.contents summary{font-size:18px;font-weight:700;cursor:pointer}.contents ol{columns:2;column-gap:32px;list-style:none;padding:0;margin-bottom:0}.contents li{break-inside:avoid;font-size:14px;margin:8px 0}.end{margin-top:40px;padding-top:20px;border-top:1px solid #dbe5e7;color:#5b6876;font-size:13px}
+@media(max-width:650px){body{font-size:15px}main{margin:12px;padding:24px 20px;border-radius:8px}h1{font-size:27px}h2{font-size:22px}.toolbar{padding:10px 14px}.contents{padding:16px}.contents ol{columns:1}button{font-size:14px;padding:8px 10px}}
+@media print{@page{size:A4;margin:17mm 16mm}body{background:#fff;color:#111;font-size:10.5pt;line-height:1.5}.toolbar{display:none}main{max-width:none;margin:0;padding:0;border:0;border-radius:0}h1{font-size:25pt}h2{font-size:17pt;margin-top:24pt}h3{font-size:12pt}h1,h2,h3{break-after:avoid}p,li{orphans:3;widows:3}li{break-inside:avoid}a{color:inherit;text-decoration:none}.contents{background:#fff;border:1px solid #bbb;break-after:page}.contents summary{display:block}.contents ol{columns:2}.end{font-size:9pt}}
+</style></head><body>
+<div class="toolbar"><span class="brand">ItemHive user guide</span><button type="button" onclick="window.print()">Print / Save PDF</button></div>
+<main><h1>ItemHive User Manual: Payroll, Expenses, Finance and My Payroll</h1>
+<p>Edition: 20 October 2026. This guide describes the current project screens and workflow rules. Examples use fictional people and PKR amounts. Use your business currency and approved policies for real records.</p>
+<details class="contents" open><summary>Contents - 31 chapters</summary><ol><li><a href="#topic-1">1. Start here: choose the right section</a></li><li><a href="#topic-2">2. Roles, permissions and approval responsibilities</a></li><li><a href="#topic-3">3. First-time setup checklist</a></li><li><a href="#topic-4">4. Payroll Settings</a></li><li><a href="#topic-5">5. Employee profiles and login links</a></li><li><a href="#topic-6">6. Enroll an employee in payroll</a></li><li><a href="#topic-7">7. Salary details, schedules and history</a></li><li><a href="#topic-8">8. Payroll: review leave requests</a></li><li><a href="#topic-9">9. Payroll: loans, advances and recovery</a></li><li><a href="#topic-10">10. Payroll: overtime and attendance review</a></li><li><a href="#topic-11">11. Payroll: create, calculate and approve salary runs</a></li><li><a href="#topic-12">12. Payroll: adjustments and final settlement</a></li><li><a href="#topic-13">13. Payroll: record salary payments and reversals</a></li><li><a href="#topic-14">14. Payroll Expense &amp; Reports</a></li><li><a href="#topic-15">15. My Payroll: payslips and salary payments</a></li><li><a href="#topic-16">16. My Payroll: request leave</a></li><li><a href="#topic-17">17. My Payroll: loan, advance and overtime requests</a></li><li><a href="#topic-18">18. Expenses: create and submit a cost</a></li><li><a href="#topic-19">19. Expenses: approve, reject or return</a></li><li><a href="#topic-20">20. Expenses: partial or full payment</a></li><li><a href="#topic-21">21. Expenses: corrections, receipts and register</a></li><li><a href="#topic-22">22. Finance: starting date and Chart of Accounts</a></li><li><a href="#topic-23">23. Finance: prepare, post and reverse journals</a></li><li><a href="#topic-24">24. Finance: opening balances and historical allocation</a></li><li><a href="#topic-25">25. Finance: accounting reports</a></li><li><a href="#topic-26">26. Finance: close or reopen a month</a></li><li><a href="#topic-27">27. Notifications, loading and saved state</a></li><li><a href="#topic-28">28. Worked examples</a></li><li><a href="#topic-29">29. Daily, payroll-day and month-end routines</a></li><li><a href="#topic-30">30. Troubleshooting and plain-language terms</a></li><li><a href="#topic-31">31. Current scope and boundaries</a></li></ol></details>
+<h2 id="topic-1">1. Start here: choose the right section</h2>
+<p>Payroll is for salary setup, employee enrollment, HR review, salary calculation, approval and payment recording.</p>
+<p>Expenses is for operating costs such as tea, cleaning and office supplies. Employees submit costs, reviewers approve them and cashiers record payment.</p>
+<p>Finance is for accounts, journals, opening balances, accounting reports and closing or reopening a month.</p>
+<p>My Payroll is the employee's personal area: their own payslips, salary payments, leave, loan/advance and overtime requests.</p>
+<h3>Navigate the application</h3>
+<ol start="1"><li>Sign in with your own account.</li><li>Check the business workspace in the header, especially if you are a Super Admin.</li><li>Expand Payroll, My Payroll, Expenses or Finance in the left menu.</li><li>Choose the screen you need. Only screens shared with your account appear.</li><li>On a phone, open the menu first. Selecting a screen closes it.</li><li>Use User guide at the top of a workflow screen to return here. Search the manual by task, field or error.</li></ol>
+<p>Viewing and taking action require different permissions. Access to a record does not automatically permit approval, payment, reversal or editing.</p>
+<h3>Main workflows</h3>
+<ul><li>Payroll: settings &gt; salaries and enrollment &gt; HR review &gt; calculate run &gt; submit &gt; authorized approval &gt; record payment &gt; reports.</li><li>Expenses: create &gt; draft or submit &gt; independent review &gt; partial/full payment &gt; history.</li><li>Finance: set up accounts &gt; review opening balances &gt; prepare/post journals &gt; reports &gt; month close.</li><li>My Payroll: submit personal requests &gt; track decisions &gt; view released payslips &gt; check salary payments.</li></ul>
+<p>A payment entry records money paid outside ItemHive. It does not transfer money. Approval does not mean payment.</p>
+<h2 id="topic-2">2. Roles, permissions and approval responsibilities</h2>
+<p>Super Admin assigns access in Permission Management. A job title such as Accountant or Cashier does not itself grant access. Financial and personal payroll features require explicit grants.</p>
+<h3>Suggested responsibilities</h3>
+<ul><li>Employee: own payslips/payments, leave, loan/advance, overtime and own expense submission, according to the permissions shared.</li><li>HR reviewer: only the permitted request families: leave, loan/advance or overtime/attendance. HR: All Request Types is the broad alternative.</li><li>Payroll preparer: salary settings, enrollment, run preparation and calculation. Share the related screens needed for the job.</li><li>Payroll approver: approve submitted runs with Payroll: Approve permission. Super Admin can also approve.</li><li>Salary cashier: record salary payments. Reversal is a separate permission.</li><li>Loan operator: view loan balances and manage disbursement, repayment or cancellation, without necessarily receiving salary access.</li><li>Expense reviewer: approve, reject or return another user's submitted expenses.</li><li>Expense cashier: pay approved expenses. Payment reversal and approved-cost voiding require separate permissions.</li><li>Accountant: accounts, journal preparation and reports. Initial setup/account maintenance require Finance: Setup &amp; Manage Accounts.</li><li>Journal approver: post/reject and reverse eligible journals; journal preparation is separate.</li><li>Period manager: close a month; reopening requires the separate reopening grant.</li></ul>
+<h3>Share a feature</h3>
+<ol start="1"><li>As Super Admin, open Permission Management.</li><li>Search by account name, email or business and select the account.</li><li>Tick only the required screens and actions.</li><li>Choose Save Permissions.</li><li>Ask the user to refresh their session if the menu has not updated.</li><li>Confirm access using the user's own account before daily operation.</li></ol>
+<p>Employee-role accounts can receive personal payroll features and own expense submission. Those personal grants do not give business-wide accounting, approval or payment powers.</p>
+<h3>Approval rules</h3>
+<p>Salary runs need one approval from a Super Admin or an admin explicitly granted Payroll: Approve. The approver may also be the creator/preparer; no second administrator or second approval is required. Preparation/view access alone does not grant approval. Approved runs cannot be approved again. Expense, journal and HR creator restrictions still apply.</p>
+<h2 id="topic-3">3. First-time setup checklist</h2>
+<ol start="1"><li>Confirm the business workspace and identify preparer, approver and cashier.</li><li>Assign the required permissions.</li><li>Check employee profiles, joining dates, status and login links.</li><li>Save Payroll Settings, including currency, timezone and leave rules.</li><li>If using accounting, set up Finance with a reviewed starting date.</li><li>Add opening salaries and save employee enrollment.</li><li>Review attendance, holidays, leave, overtime and existing loans.</li><li>For existing unpaid salaries, expenses or loans, post reviewed opening balances and complete Opening Balance Allocation before settling them.</li><li>Check one complete workflow using preparer, reviewer, cashier and employee accounts.</li></ol>
+<p>The Finance starting date cannot be changed after setup. Payroll currency and timezone are protected once payroll has been approved. Do not use temporary dates or settings just to enable a button.</p>
+<h2 id="topic-4">4. Payroll Settings</h2>
+<p>Open Payroll &gt; Payroll Settings. Saving changes requires Payroll: Settings &amp; Salaries.</p>
+<h3>General and pay rules</h3>
+<ul><li>Payroll currency: salary calculation currency; choose a supported currency.</li><li>Business timezone: used for business dates and payroll timing. Asia/Karachi is an example for a Pakistan business.</li><li>Overtime multiplier: the business multiplier for eligible approved overtime.</li><li>Enable payroll: enables the workflow.</li><li>I confirm business currency and timezone: confirms these have been checked.</li><li>Automatic sales commissions: enables the supported commission workflow; employee percentages and eligible sales data still need to be correct.</li><li>Daily/hourly staff paid non-work options: whether approved paid leave, off days and holidays are paid for those salary types.</li><li>Explicitly allow zero base pay: permits zero salary where deliberately required.</li><li>Late penalty per day / Early exit penalty per day: configured deductions for qualifying attendance events.</li><li>Holiday dates: YYYY-MM-DD dates separated by commas.</li></ul>
+<h3>Leave entitlements</h3>
+<p>Review Paid, Annual entitlement, Opening balance and Carry-forward cap for the applicable leave types. Employee salary settings can use a separate leave policy.</p>
+<ol start="1"><li>Review General &amp; pay rules.</li><li>Expand Leave entitlements and enter approved business rules.</li><li>Enter Reason for settings change.</li><li>Choose Save settings.</li><li>Refresh and confirm the saved values.</li></ol>
+<p>Migrate opening salaries helps convert existing HR salary information without salary history. Review its result and incomplete employees. It does not replace checking each employee's dates, rules and saved enrollment.</p>
+<h2 id="topic-5">5. Employee profiles and login links</h2>
+<p>An employee profile existing in Employees does not itself mean the person is enrolled in payroll.</p>
+<p>Before enrollment, confirm employee name/code, joining date, active status, department where used and salary/work schedule. For self-service, the login must be linked to the employee in the same business.</p>
+<h3>Give an existing employee a login</h3>
+<ol start="1"><li>Open Team in the correct workspace with team-management access.</li><li>Find Employees without a login.</li><li>Choose Create Login for the existing employee, rather than making a second person.</li><li>Complete the account form.</li><li>Ask Super Admin to assign the required My Payroll and expense permissions.</li><li>Confirm the employee's joining date and salary enrollment.</li></ol>
+<p>If My Payroll asks an admin to link the login, have an authorized admin check Team and Employees in that business. Creating an unrelated second profile will not fix the original login link.</p>
+<h2 id="topic-6">6. Enroll an employee in payroll</h2>
+<p>Open Payroll &gt; Employee Salaries, find the employee and choose Salary &amp; enrollment. Viewing alone does not allow saving; salary-setting access is required.</p>
+<h3>Enrollment procedure</h3>
+<ol start="1"><li>Wait for employee data to load; use Retry after a loading error.</li><li>Check the employee and joining date.</li><li>Tick Include in payroll.</li><li>If an opening salary covering joining is missing, enter Basic salary, salary type and Salary start date.</li><li>Set the opening salary date to the joining date or an earlier valid date. A later salary alone does not cover the beginning of employment.</li><li>Check Payment method. Bank requires bank name and bank account.</li><li>Review the optional work, leave, allowance and deduction sections if the employee needs different rules.</li><li>Enter Reason for change, for example Initial payroll enrollment.</li><li>Choose Save &amp; enroll. When needed, opening salary and enrollment save together.</li><li>Wait for success and confirm the saved status is Enrolled.</li><li>Reopen the employee or refresh the list to confirm persistence.</li></ol>
+<h3>Ticked does not mean saved</h3>
+<p>The checkbox changes the form. Enrollment becomes effective only after a successful save. Not saved yet or an unsaved-change message means the displayed selection has not been committed.</p>
+<h3>Save &amp; enroll is disabled</h3>
+<ul><li>Enter Reason for change.</li><li>Supply a valid opening date on or before joining.</li><li>Enter positive basic salary unless zero pay is explicitly allowed.</li><li>Use no more than two decimal places for money.</li><li>Complete both bank fields for Bank.</li><li>Check working days, shift times, break/grace minutes and component values.</li><li>Read the explanation beside or below Save.</li><li>Wait for loading, or Retry if data is not ready.</li></ul>
+<p>Last working day (optional) is for an employee whose employment is ending. Leave it blank for current employees. It is not required for enrollment.</p>
+<h2 id="topic-7">7. Salary details, schedules and history</h2>
+<p>Payroll uses the salary version effective on each date being calculated. A future salary is not automatically the current salary.</p>
+<h3>Field meanings</h3>
+<ul><li>Basic salary: the base for monthly, daily or hourly pay.</li><li>Salary start date: when this version begins.</li><li>Commission percentage: the employee percentage for eligible commissions, where enabled.</li><li>Working days: normal employee workdays.</li><li>Shift start/end: scheduled hours; overnight shifts are supported.</li><li>Break minutes: unpaid break time used in work calculations.</li><li>Grace minutes: configured attendance grace time.</li><li>Leave policy: business defaults or employee-specific rules.</li></ul>
+<p>Components have a name, kind, mode and value. Fixed amount uses currency; Percent uses a percentage of earned base. Adjust for days paid controls supported proration of fixed components.</p>
+<p>Allowances increase earnings. Deductions reduce take-home pay. Employer contributions affect employer cost and are not necessarily extra money payable to the employee.</p>
+<h3>Change salary</h3>
+<ol start="1"><li>Open Salary &amp; enrollment and expand Salary history.</li><li>Save or reset unsaved profile changes first.</li><li>Choose Change salary, or Copy salary to start from an earlier version.</li><li>Enter the new effective date and review all values.</li><li>Enter a clear reason and choose Save salary change.</li><li>Check Salary history and the current/next salary shown.</li></ol>
+<p>Two salary versions cannot start on the same date. New versions preserve earlier history and do not rewrite an approved payroll snapshot.</p>
+<h3>Calculation basics</h3>
+<p>Monthly salary uses actual calendar-day proration. Joining/leaving and effective salary changes can split a month. Daily/hourly staff use payable days or eligible hours and configured non-work rules. Attendance, approved leave/overtime, holidays, commissions and recovery can change the result.</p>
+<p>Example: PKR 30,000 for an otherwise fully payable 30-day month has a PKR 1,000 daily share for that month. This is not a fixed daily rate for every month. Review the actual employee breakdown.</p>
+<h2 id="topic-8">8. Payroll: review leave requests</h2>
+<p>Open Payroll &gt; Leave Requests with HR leave-request or broader HR permission.</p>
+<h3>Submit for an employee</h3>
+<ol start="1"><li>Choose New leave request and select the employee.</li><li>Enter Start date, End date, Leave type and Reason.</li><li>Tick Half day only for a single-date half-day request.</li><li>Submit for review. A different person must approve a manager-created request.</li></ol>
+<h3>Review</h3>
+<ol start="1"><li>Find the pending request using search/status.</li><li>Check employee, dates, leave type, fraction and reason.</li><li>Review entitlement and the effect on attendance/payroll.</li><li>Choose Approve or Reject and give a decision reason.</li><li>Confirm the saved status and decision.</li></ol>
+<p>Approval checks employment dates, overlaps, entitlement and dates already claimed by approved payroll. Approved leave becomes a payroll input. Submission alone does not make leave approved or paid.</p>
+<p>Authorized reviewers can Cancel approval for eligible leave before those dates are included in approved payroll. Once included, use a reviewed payroll adjustment rather than changing paid history.</p>
+<h2 id="topic-9">9. Payroll: loans, advances and recovery</h2>
+<p>A loan/advance moves through request, approval, disbursement and recovery. Approval and payment are separate.</p>
+<h3>Review a request</h3>
+<ol start="1"><li>Open Payroll &gt; Loan &amp; Advance Requests.</li><li>Review employee, amount, monthly installment, recovery start month and reason.</li><li>Installment must be positive and cannot exceed principal.</li><li>A different authorized reviewer approves or rejects with a reason.</li><li>Approval creates a loan record with zero outstanding: no cash has moved yet.</li></ol>
+<h3>Disburse an approved loan</h3>
+<ol start="1"><li>Open Payroll &gt; Loan Payments &amp; Recovery.</li><li>Find the approved loan and choose disbursement.</li><li>Review amount, external reference and reason in the movement form.</li><li>Record the actual disbursement and check the new status/balance.</li><li>Check Loan movements for the entry.</li></ol>
+<p>Current loan movements use cash. ItemHive records the movement; it does not transfer funds. Bank loan disbursement is not implemented in this workflow.</p>
+<h3>Recovery, repayment and cancellation</h3>
+<p>Payroll recovers the configured installment from disbursed loans starting in the selected month, subject to remaining balance. Recovery is committed when the run is approved, not simply when calculated.</p>
+<p>For direct repayment, choose repayment on a disbursed loan, enter amount/reference/reason and save. The balance decreases. A zero balance becomes settled.</p>
+<p>Only an approved, undisbursed loan can be cancelled. Do not cancel to erase a disbursement. Historical loans without ledger links need reviewed opening allocation before accounting-linked recovery/settlement.</p>
+<p>Example: disburse PKR 12,000 with PKR 3,000 monthly recovery. Four valid recoveries clear it if no separate repayments or adjustments change the balance.</p>
+<h2 id="topic-10">10. Payroll: overtime and attendance review</h2>
+<p>Open Payroll &gt; Overtime &amp; Attendance Requests. Employees can submit overtime; attendance-resolution requests are manager-only.</p>
+<h3>Overtime</h3>
+<ol start="1"><li>Choose New work request and select employee and overtime type where shown.</li><li>Enter Work date and Extra minutes as whole minutes.</li><li>Explain the extra work in Reason and submit.</li><li>Have a different authorized reviewer decide it.</li><li>Review its salary effect before payroll approval.</li></ol>
+<p>Enter 90 for one hour and thirty minutes. Extra minutes must be whole minutes from 1 to 1,440. A late clock-out does not automatically make overtime payable: eligible approved overtime and business rules control payment.</p>
+<h3>Attendance resolution</h3>
+<ol start="1"><li>Check actual Attendance punches first.</li><li>Submit a manager attendance request for the work date and explain the resolution.</li><li>Have an authorized reviewer decide it.</li><li>Recalculate an unapproved run after source changes.</li></ol>
+<p>Do not substitute a request for checking missing/conflicting punches. Approval cannot rewrite dates already claimed by approved payroll.</p>
+<h2 id="topic-11">11. Payroll: create, calculate and approve salary runs</h2>
+<p>Open Payroll &gt; Salary Runs &amp; Approvals. Preparation needs Payroll: Prepare; approval needs Payroll: Approve.</p>
+<h3>Create and calculate</h3>
+<ol start="1"><li>Finish enrollment, salary setup, attendance and relevant HR decisions.</li><li>Choose New run.</li><li>Select Payroll month and Run type. Use regular for ordinary monthly payroll.</li><li>Select employees, or Select all enrolled employees.</li><li>Enter Reason and choose Create.</li><li>Open the run and choose Calculate. Enter the requested reason and confirm.</li><li>Open each employee's Breakdown. Check salary dates, payable units, attendance, earnings, deductions, recovery and net pay.</li><li>Correct every exception and Calculate again after changing inputs.</li><li>Compare gross pay, deductions, net pay and employer cost with the reviewed payroll worksheet.</li></ol>
+<p>Regular calculation is allowed only after the covered month ends in the business timezone. Final settlement also requires its covered employment period to end. Do not alter timezone or employment dates to bypass this rule.</p>
+<h3>Submit and approve</h3>
+<ol start="1"><li>The preparer chooses Submit on a calculated run and enters a reason.</li><li>A Super Admin or an admin with Payroll: Approve opens the submitted run. This can be the same person who created or prepared it.</li><li>The reviewer checks employee breakdowns/totals and chooses Approve or Return with a reason.</li><li>For a return, the preparer corrects the cause and recalculates before resubmitting.</li><li>After approval, check the released payslips. The cashier can record actual payment.</li></ol>
+<p>If sources change after calculation, submission/approval can be blocked. Return and recalculate when salary, attendance, HR decisions, commissions or loan balances changed.</p>
+<h3>Run statuses</h3>
+<ul><li>Draft: new or returned; not ready for approval.</li><li>Calculated: results exist and need checking.</li><li>Submitted: awaiting one authorized approval.</li><li>Approved: released salary snapshot protected from rewriting.</li></ul>
+<p>Only one regular run is allowed for a business/month. Use the appropriate adjustment or final-settlement workflow instead of a second regular run.</p>
+<h2 id="topic-12">12. Payroll: adjustments and final settlement</h2>
+<p>Do not edit an approved run to hide an earlier error. Use reviewed corrections.</p>
+<h3>Add an adjustment before approval</h3>
+<ol start="1"><li>Open a draft/calculated run.</li><li>Under Adjustments / final settlement benefits, select employee.</li><li>Select bonus, reimbursement, deduction, allowance, benefit, encashment or recovery as appropriate.</li><li>Enter amount and a clear reason. Recovery needs the correct Loan ID where requested.</li><li>Choose Add adjustment.</li><li>Recalculate and review before submitting.</li></ol>
+<h3>Correct an approved run</h3>
+<ol start="1"><li>Identify the approved month, employee and precise difference.</li><li>Create an adjustment run and select Approved parent run.</li><li>Add only the reviewed difference. Adjustment runs do not pay monthly base again.</li><li>Calculate, resolve exceptions, submit and obtain one authorized payroll approval.</li><li>Record any resulting payable through Salary Payments.</li></ol>
+<p>Negative net or invalid recovery can block approval. Do not invent an offset to force approval; ask the payroll administrator to review the correction.</p>
+<h3>Final settlement</h3>
+<ol start="1"><li>Confirm the real Last working day.</li><li>Review unpaid salary, loans and approved settlement benefits.</li><li>Create a final run for the relevant employee/month.</li><li>Add reviewed settlement items, calculate and inspect covered dates.</li><li>Obtain one authorized payroll approval, then record payment.</li></ol>
+<p>Dates already included in approved payroll cannot be paid again as final-settlement base. Handle separate differences as reviewed adjustments.</p>
+<h2 id="topic-13">13. Payroll: record salary payments and reversals</h2>
+<p>Open Payroll &gt; Salary Payments. Recording and reversal have separate permissions.</p>
+<h3>Record payment</h3>
+<ol start="1"><li>Find the approved run under Approved runs ready for payment.</li><li>Choose Open for payment.</li><li>Check employee net, paid and outstanding.</li><li>Choose Record payment for the employee.</li><li>Enter actual amount, payment date, Cash/Bank, external reference and reason where requested.</li><li>Save and wait for confirmation.</li><li>Check Payment history and remaining outstanding.</li></ol>
+<p>Where Pay all remaining is available, review every balance and payment detail first. Do not use it when only some employees were actually paid.</p>
+<p>Partial payments are supported. For net PKR 49,000, a PKR 20,000 payment leaves PKR 29,000. A later PKR 29,000 clears it. Payment above remaining net is blocked.</p>
+<h3>Reverse a wrong entry</h3>
+<ol start="1"><li>Find the original Payment history entry.</li><li>Choose Reverse with reversal permission.</li><li>Enter requested correction information and a clear reason.</li><li>Confirm the original is marked reversed.</li><li>Check restored outstanding before entering a replacement.</li></ol>
+<p>Reversal changes payment/accounting history, not the approved salary calculation. The reversal date cannot precede the payment; accounting dates must satisfy applicable Finance locks.</p>
+<p>If a save response is lost, inspect history before a new payment. Keep the same pending form for retry where possible; a new form can represent a new instruction.</p>
+<h2 id="topic-14">14. Payroll Expense &amp; Reports</h2>
+<p>Open Payroll &gt; Payroll Expense &amp; Reports with reporting permission.</p>
+<ol start="1"><li>Select the month range and available employee/department/report filters.</li><li>Load and select the required report.</li><li>Confirm range, currency and scope.</li><li>Check totals/detail rows.</li><li>Use Excel, CSV or Print A4 / Save PDF where offered.</li></ol>
+<p>Reports include approved payroll cost/register information and related payments, commissions, leave and loans. Check exported content before sharing it.</p>
+<p>Gross is earnings before deductions. Net is gross less employee deductions/recovery. Employer cost includes configured employer contributions. Paid includes active recorded payments; reversed entries do not count. Outstanding is the remaining payable.</p>
+<p>Payroll reports follow service month. Finance posts new payroll approval on its business approval date. September salary approved in October can therefore appear in September payroll and October accounting movements. Compare date bases first.</p>
+<h2 id="topic-15">15. My Payroll: payslips and salary payments</h2>
+<p>My Payroll shows the linked employee's own records in the current business. My Payslips &amp; Payments must be shared. Personal access does not reveal other employees' salaries.</p>
+<h3>View/download a payslip</h3>
+<ol start="1"><li>Open My Payroll &gt; My Payslips.</li><li>Check employee name/code.</li><li>Search month or run type if needed.</li><li>Choose View / PDF.</li><li>Check earnings, deductions, net, paid and outstanding.</li><li>Review Attendance for worked minutes, overtime and payable units.</li><li>Use the PDF download action and check the downloaded employee/month.</li></ol>
+<p>Only approved runs release employee payslips. Draft/calculated/submitted runs do not. A released payslip does not prove money reached the employee's bank.</p>
+<h3>Check salary payments</h3>
+<ol start="1"><li>Open My Payroll &gt; My Salary Payments, or My salary payments from the payslip screen.</li><li>Review Date, Amount, Method, Reference and Status.</li><li>Search date/method/reference if needed.</li><li>Read the reversal reason on a reversed entry.</li><li>Use Export CSV for displayed filtered payment records.</li><li>If records differ from what you received, contact the cashier with month/reference.</li></ol>
+<p>Employees cannot edit salary, approve pay or reverse payments from this personal area.</p>
+<h2 id="topic-16">16. My Payroll: request leave</h2>
+<p>My Leave Requests permission and a linked employee profile are required.</p>
+<ol start="1"><li>Open My Payroll &gt; My Leave Requests and check balances.</li><li>Choose New leave request.</li><li>Enter Start date and End date.</li><li>Select casual, sick, annual, unpaid or other leave.</li><li>For Half day, use the same start/end date.</li><li>Enter Reason and submit.</li><li>Confirm pending status.</li><li>Check this screen or the bell for the decision and reason.</li></ol>
+<p>Example: half-day leave on 12 November 2026 uses 2026-11-12 for both dates and Half day ticked.</p>
+<p>Cancel is available while pending. Employees cannot directly cancel approved leave here; contact HR. Dates already included in approved payroll need a reviewed correction.</p>
+<p>Displayed balance is an entitlement guide. Approval also checks dates, overlaps, applicable rules and payroll claims. Submission guarantees neither approval nor paid treatment.</p>
+<h2 id="topic-17">17. My Payroll: loan, advance and overtime requests</h2>
+<h3>Request a loan or advance</h3>
+<ol start="1"><li>Open My Payroll &gt; My Loan &amp; Advance Requests.</li><li>Choose New loan / advance request and select loan or advance.</li><li>Enter Requested amount and Monthly installment.</li><li>Select Recovery starts month.</li><li>Enter Reason and submit.</li><li>Track status and decision reason.</li><li>Review Approved loans &amp; recovery for principal, recovery, outstanding, start month and status.</li></ol>
+<p>Installment must be positive and no greater than principal. An approved loan showing zero outstanding may be awaiting disbursement. Approval alone does not pay cash; ask the loan operator to check.</p>
+<p>You can cancel a pending request. You cannot disburse, change recovery records or approve your own request.</p>
+<h3>Request overtime</h3>
+<ol start="1"><li>Open My Payroll &gt; My Overtime Requests.</li><li>Choose New work request.</li><li>Enter Work date and Extra minutes, for example 90 for 1 hour 30 minutes.</li><li>Enter Reason and submit.</li><li>Track the review decision.</li><li>After payroll approval, check the payslip for eligible overtime treatment.</li></ol>
+<p>Overtime does not automatically correct attendance punches. Contact HR/attendance administration for clock-in/out problems; attendance-resolution requests are manager-only.</p>
+<h2 id="topic-18">18. Expenses: create and submit a cost</h2>
+<p>Open Expenses &gt; My Expenses with Expenses: Create &amp; Submit Own. An employee can use this without business-wide Finance access.</p>
+<h3>Enter the expense</h3>
+<ol start="1"><li>Choose New expense.</li><li>Enter Expense title, Amount and Expense date.</li><li>Select Category and Currency.</li><li>After Finance setup, choose an active Expense account appropriate to the cost.</li><li>Expand Vendor, invoice &amp; notes (optional) for Payee / vendor, Invoice / receipt no. and Notes.</li><li>Attach an available JPG, PNG, WebP or PDF receipt up to 1 MB.</li><li>Choose Save draft to finish later, or Submit for approval now.</li><li>Wait for confirmation and check My Expenses status.</li></ol>
+<p>Pressing Enter in a valid expense form submits for approval. Choose Save draft explicitly if not ready for review.</p>
+<h3>Field meanings</h3>
+<ul><li>Expense date: actual cost/invoice date; keep it accurate even when approval is later.</li><li>Category: operational grouping.</li><li>Expense account: the approved cost's accounting account after Finance setup.</li><li>Payee / vendor: supplier or person being paid.</li><li>Invoice / receipt no.: vendor document reference, not the later payment reference.</li><li>Notes: supporting explanation.</li><li>Receipt: evidence; attachment does not approve or pay the cost.</li></ul>
+<h3>Tea example</h3>
+<p>Enter Tea for the team, 500.00, the purchase date and suitable category. After Finance setup, select the operating account designated by your accountant. Add vendor/receipt where available and submit. Authorized reviewers receive it in Expense Approvals and a review notification. It does not automatically charge cash or the POS drawer.</p>
+<p>Do not add a second operating expense for a salary handled by Payroll. Use the business's reviewed procedure for supplier stock purchases or unsupported accounting sources.</p>
+<h2 id="topic-19">19. Expenses: approve, reject or return</h2>
+<p>Open Expenses &gt; Expense Approvals. Another authorized person must review the creator's submitted expense.</p>
+<h3>Approve</h3>
+<ol start="1"><li>Find the record and choose View or Approve.</li><li>Check title, amount, currency, creator, invoice date, vendor/reference, account and receipt.</li><li>Enter decision Reason.</li><li>Choose Accounting posting date. After Finance setup it must be in an open period, on/after starting date and not earlier than Expense date.</li><li>Choose Approve expense.</li><li>Confirm approved status; payment is now permitted.</li></ol>
+<p>After Finance setup, approval recognizes the cost and payable once. Payment later settles the payable rather than recording the cost again.</p>
+<h3>Reject or return</h3>
+<p>Choose Reject expense when not accepted. Choose Return for changes when the creator needs to correct details. Give a useful reason, such as Receipt missing: attach the vendor receipt and resubmit.</p>
+<p>Both actions use rejected status in the current system. History distinguishes reject from return. The creator can edit their draft/rejected record and resubmit.</p>
+<h3>Old invoice, current accounting date</h3>
+<p>Keep the original Expense date. If the cost is not already represented in opening balances, an authorized reviewer can use a valid later accounting date. Do not recognize the same historical cost twice.</p>
+<h2 id="topic-20">20. Expenses: partial or full payment</h2>
+<p>Open Expenses &gt; Expense Payments with payment permission. The default queue shows outstanding approved costs.</p>
+<ol start="1"><li>Review amount, paid and outstanding.</li><li>Choose Record payment.</li><li>Enter the actual positive amount, no greater than outstanding.</li><li>Choose Payment source.</li><li>Enter Payment date and Payment reference.</li><li>Choose Record payment and wait for confirmation.</li><li>Check View &gt; Payments and updated outstanding.</li></ol>
+<p>Payment cannot precede Expense date or its accounting posting date. Accounting-linked entries must also satisfy starting-date and period-lock rules.</p>
+<h3>Payment source</h3>
+<ul><li>Cash (not POS drawer): cash outside the active till.</li><li>Bank: an external bank movement already made.</li><li>POS drawer: actual paid-out from an open shift in the same business/currency.</li></ul>
+<p>POS drawer is unavailable without a suitable open shift. Using Cash for a till payment would omit the paid-out from the shift report.</p>
+<h3>Partial payment example</h3>
+<p>Approve PKR 10,000, pay PKR 4,000, then PKR 6,000. Cost remains PKR 10,000. Outstanding becomes PKR 6,000, then zero. Server checks block active concurrent overpayments.</p>
+<p>Paid costs leave the default outstanding queue. Choose Paid or All approved expenses to find their history or reverse an entry.</p>
+<h2 id="topic-21">21. Expenses: corrections, receipts and register</h2>
+<h3>Correct a draft or returned cost</h3>
+<ol start="1"><li>Open My Expenses and find your draft/rejected record.</li><li>Choose Edit and correct its details, receipt or account.</li><li>Save draft or Submit for approval.</li></ol>
+<p>Submitted records are locked until review. A creator can cancel their own draft, submitted or rejected expense. Approved costs require the controlled process below.</p>
+<h3>Reverse a payment</h3>
+<ol start="1"><li>Open View &gt; Payments and choose Reverse on the active entry.</li><li>Enter a valid correction date and Reason.</li><li>Confirm reversed status and restored outstanding.</li><li>Record a replacement only after checking the new balance.</li></ol>
+<p>For a drawer reversal, return cash to the current open shift. The original closed shift snapshot remains unchanged; the return belongs to the current shift.</p>
+<h3>Void an approved cost</h3>
+<p>A different person with Expenses: Void Approved Costs must act. Reverse all active payments first. Open the expense, choose Void approved expense, enter correction date/reason and confirm. Its approval accounting is reversed where applicable and history remains.</p>
+<p>An opening-linked historical expense cannot be voided as a new cost. Allocation is permanent; request a reviewed accounting correction rather than looking for an allocation undo button.</p>
+<h3>Receipts and duplicates</h3>
+<p>View includes the receipt, payment breakdown and History. Receipt access follows expense ownership/permissions. Duplicate normalized vendor and invoice/reference identity is blocked within the business. Cancelled documents retain invoice identity; use a reviewed distinct correction reference for a replacement.</p>
+<h3>Register and exports</h3>
+<p>Expense Register needs Finance: View All Expenses. Lists start with all dates so older pending/unpaid records remain visible. Use date, search, category, status and applicable payment filters. Totals follow filters and remain separated by currency.</p>
+<p>Export page exports the current page only. Check page size and filters before sharing. Clear filters and refresh when a record seems missing.</p>
+<h2 id="topic-22">22. Finance: starting date and Chart of Accounts</h2>
+<p>Open Finance &gt; Chart of Accounts. View and management have different permissions.</p>
+<h3>Set up Finance once</h3>
+<ol start="1"><li>Check workspace and the business payroll/accounting currency.</li><li>Agree the accounting starting date with your accountant.</li><li>Choose Set up Finance.</li><li>Enter Accounting starting date and Setup reason.</li><li>Choose Set up accounts.</li><li>Review the fixed starting date and default accounts.</li></ol>
+<p>Setup creates groups/posting accounts for cash, bank, POS drawer, employee loans, salary/expense payables, payroll liabilities, equity and expenses. It does not replay historical salary, expense or loan records. The starting date cannot be changed later.</p>
+<h3>Create an account</h3>
+<ol start="1"><li>Choose New account.</li><li>Enter unique Code and Account name.</li><li>Choose asset, liability, equity, income or expense.</li><li>Choose an active nonposting Parent group of the same type, if needed.</li><li>Tick Posting account to receive journal amounts; leave unticked for an organizing group.</li><li>Set Active, enter Change reason and Save account.</li></ol>
+<p>Groups cannot receive journal lines. Protected control accounts cannot be disabled/retyped. Used codes/types/posting modes have restrictions to preserve history. Deactivate eligible unused custom accounts rather than removing history. Renaming does not rewrite posted journal snapshots.</p>
+<h2 id="topic-23">23. Finance: prepare, post and reverse journals</h2>
+<p>Open Finance &gt; Journals &amp; Opening Balances. View, preparation and post/reverse rights are separate.</p>
+<h3>Prepare and submit</h3>
+<ol start="1"><li>Choose New journal.</li><li>Enter Posting date, Currency and Description / reference.</li><li>Select active posting accounts.</li><li>Enter a debit OR credit on each line, never both.</li><li>Add lines as needed: 2 to 100 are supported.</li><li>Check Debit, Credit and Difference. Totals must be equal and positive; Difference must be zero.</li><li>Save draft.</li><li>Check View, Edit if needed, then Submit with a reason.</li></ol>
+<p>Manual journals cannot directly change source-controlled employee loan, salary payable or expense payable accounts except reviewed opening balances. Correct automatic salary/expense/loan entries through their source workflows to keep balances aligned.</p>
+<h3>Post or reject</h3>
+<ol start="1"><li>A different authorized reviewer opens the submitted entry.</li><li>Check dates, currency, accounts, amounts and description.</li><li>Choose Post or Reject and give a reason.</li><li>Check status and History.</li></ol>
+<p>Drafts do not appear in posted reports. The preparer can edit/resubmit a rejected entry or cancel their own unposted draft, rejected or submitted journal.</p>
+<h3>Reverse</h3>
+<ol start="1"><li>Find the posted manual or eligible unallocated opening journal.</li><li>Choose Reverse with post/reverse permission.</li><li>Enter date on/after original posting and a clear reason.</li><li>Confirm and inspect the original plus linked reversal.</li><li>Prepare any replacement through independent review.</li></ol>
+<p>Posted entries cannot be edited or reversed twice. Source-generated entries need source corrections. An opening journal already allocated to historical sources cannot be generically reversed here.</p>
+<h2 id="topic-24">24. Finance: opening balances and historical allocation</h2>
+<p>Use this when Finance begins after the business already has unpaid expenses, unpaid approved salaries or disbursed loans. These are reviewed historical balances, not new current-period costs.</p>
+<h3>Opening journal</h3>
+<ol start="1"><li>Reconcile cash/bank, unpaid costs/salaries, employee loans and other opening balances outside ItemHive.</li><li>In Journals &amp; Opening Balances choose New journal.</li><li>Tick Opening balances (finance start date). Finance setup plus journal preparation permissions are required.</li><li>Use exactly the Finance starting date and matching currency.</li><li>Enter reviewed balanced lines and description.</li><li>Save and submit for another authorized reviewer to post.</li></ol>
+<h3>Link sources</h3>
+<ol start="1"><li>Pause affected payments and recovery while reconciling/linking.</li><li>Open Finance &gt; Opening Balance Allocation.</li><li>Choose Posted opening journal.</li><li>Select the old unpaid expenses, salary runs and loans it represents.</li><li>Compare each Selected total to the matching journal control balance. Currency/totals must match exactly.</li><li>Enter Reason / reference and choose Link balances.</li><li>Confirm success and source accounting links before resuming settlements.</li></ol>
+<p>Only eligible unlinked sources appear. Linking is permanent. Do not duplicate old costs as both new expense entries and opening payables. Do not select unrelated items to force a total match.</p>
+<p>After allocation, later salary/expense payments reduce opening payables; loan recovery reduces the linked loan balance without recognizing old cost again. Historical loans must be allocated before new accounting-linked payroll recovery.</p>
+<p>For a wrong allocation, stop affected settlement and request an accountant-reviewed correction. There is no general unlink/reverse-allocation button.</p>
+<h2 id="topic-25">25. Finance: accounting reports</h2>
+<p>Open Finance &gt; Accounting Reports. Choose Report, From, To / As of and Currency. Account Ledger also needs Account. Refresh and confirm displayed range before exporting.</p>
+<h3>Trial Balance</h3>
+<p>Shows opening debit-minus-credit, period debits/credits and closing account balances. Closing debit/credit totals should match; check Difference. A balanced report does not prove every required business transaction was entered.</p>
+<h3>Income &amp; Expenses</h3>
+<p>Shows posted period income/expense movements and result. It is complete business profit only when all required income/cost sources have been entered through supported postings or reviewed journals.</p>
+<h3>Balance Sheet</h3>
+<p>Shows assets, liabilities and equity through the end date, with accumulated income less expenses as equity. Balances include posted movements through the end date, not just movements inside From/To.</p>
+<h3>Account Ledger</h3>
+<p>Shows opening balance and individual movements for one account/range. Detail is limited to the first 1,000 rows. Narrow dates if a truncation notice appears; export does not add omitted rows.</p>
+<h3>Export and scope</h3>
+<p>Export CSV uses displayed report data and currency. Currencies remain separate; there is no exchange-rate conversion/consolidation.</p>
+<p>New supported expense approvals/payments and payroll approvals/payments/loan movements update Finance after setup. Automatic sales, stock/COGS and customer collection integrations are not included. Review missing sources/opening balances before treating reports as complete statements.</p>
+<h2 id="topic-26">26. Finance: close or reopen a month</h2>
+<p>Open Finance &gt; Period Close. Close and reopen require separate permissions.</p>
+<h3>Before close</h3>
+<ul><li>Reconcile cash/bank to external evidence.</li><li>Compare expense/salary payable to registers.</li><li>Review loan balances/movements.</li><li>Resolve unposted journals that prevent close.</li><li>Check opening balances/source links.</li><li>Retain the required monthly report pack.</li></ul>
+<h3>Close</h3>
+<ol start="1"><li>Select Month and Action &gt; Close month.</li><li>Enter Reason.</li><li>Choose Review &amp; close.</li><li>Check confirmation and choose Close month.</li><li>Confirm closed status.</li></ol>
+<p>Months without a closure record are open. Close prevents new accounting postings dated in that month. It does not perform bank reconciliation or certify completeness.</p>
+<h3>Reopen</h3>
+<ol start="1"><li>Use Finance: Reopen Closed Periods permission.</li><li>Select the closed month and Reopen month.</li><li>Enter the approved reason.</li><li>Choose Review &amp; reopen, review, then Reopen month.</li><li>Make the correction and review reports.</li><li>Close again when finished.</li></ol>
+<p>Use a valid current-period correction date where appropriate rather than falsifying original invoice dates. Do not reopen just to avoid investigating an error.</p>
+<h2 id="topic-27">27. Notifications, loading and saved state</h2>
+<p>Open the header bell or Show all notifications for the Notifications Center.</p>
+<h3>Alerts and recipients</h3>
+<ul><li>Expense reviewers: other creators' submitted costs needing approval.</li><li>Expense cashiers: approved expenses still outstanding.</li><li>Expense creators/relevant viewers: approval, rejection, return, cancellation, payment and reversal updates.</li><li>HR reviewers: pending permitted request types.</li><li>Linked employees: own decisions, enrollment changes, released payslips, salary payments/reversals and loan movements.</li><li>Payroll approvers: all eligible submitted salary runs, including their own prepared runs.</li><li>Salary cashiers: unpaid approved runs and relevant reversal updates.</li><li>Run preparers/permitted payroll viewers: approval and return decisions.</li><li>Loan operators: approved loans awaiting payment.</li><li>Journal reviewers: other preparers' submitted manual/opening journals.</li><li>Relevant journal users: posting, rejection, reversal/cancellation updates.</li><li>Period managers: month close/reopen updates by another user.</li></ul>
+<p>Financial alerts follow current business and permission rules. The bell prioritizes unread items. The center puts pending work first and offers All, Needs action, Unread, Payroll, Expenses and Finance filters.</p>
+<h3>Read and refresh</h3>
+<p>Opening an alert marks it read and opens the related screen. Mark all read does not approve, pay or resolve work. Read status belongs to the account/workspace in this browser; it does not synchronize across devices.</p>
+<p>Alerts refresh after successful workflow changes, on returning to the app and every 30 seconds while visible. Use Refresh/Retry after errors. Background bell refresh does not block a workflow form.</p>
+<p>Pending work remains regardless of age. Recent updates cover 30 days, with up to 100 source records per queue. Alerts are not a full audit log; use source screens/History for complete review.</p>
+<h3>Loading and unsaved edits</h3>
+<p>Wait for the main workflow loader and read errors before relying on displayed data. A checkbox or amount edit is not saved until the save succeeds.</p>
+<p>Workspace changes can clear forms/selections. A save already sent may finish in the original workspace. Return there and inspect the record before repeating it.</p>
+<h2 id="topic-28">28. Worked examples</h2>
+<h3>Salary: setup through payment</h3>
+<p>Assume a fully payable month with PKR 50,000 basic, PKR 2,000 allowance, PKR 1,000 employee deduction and PKR 2,000 valid loan recovery, with no other adjustment.</p>
+<ol start="1"><li>Add salary effective on/before joining, tick Include in payroll and Save &amp; enroll.</li><li>Review attendance, leave, overtime and disbursed loan.</li><li>Create/calculate regular payroll after month end.</li><li>Review gross PKR 52,000, deductions/recovery PKR 3,000 and net PKR 49,000.</li><li>Submit and obtain one authorized payroll approval; the authorized creator/preparer can approve it.</li><li>The employee receives a released payslip; loan recovery is committed.</li><li>Record PKR 20,000 actually paid; outstanding becomes PKR 29,000.</li><li>Record PKR 29,000 when actually paid; outstanding becomes zero.</li><li>Compare payroll service-month reports to Finance approval/payment dates.</li></ol>
+<p>Actual calculation depends on configured rules/components. Do not force these sample totals onto a different month or employee.</p>
+<h3>Tea expense and correction</h3>
+<ol start="1"><li>The employee enters Tea for the team for PKR 500 and submits it.</li><li>Another reviewer checks receipt/account and approves with a valid accounting date.</li><li>After Finance setup, approval records cost PKR 500 and payable PKR 500.</li><li>The cashier records PKR 200 actually paid; outstanding is PKR 300.</li><li>A later PKR 300 payment clears outstanding. Cost remains PKR 500.</li><li>If the PKR 300 entry was wrong, an authorized reverser corrects it with a date/reason. Outstanding returns to PKR 300.</li><li>Check History and relevant notifications.</li></ol>
+<p>If personal money bought the tea, explain it in payee/notes and follow the approved reimbursement process. Identify who is actually owed. Approval does not automatically reimburse the employee.</p>
+<h2 id="topic-29">29. Daily, payroll-day and month-end routines</h2>
+<h3>Daily</h3>
+<ol start="1"><li>Review attendance/punch issues and pending HR decisions.</li><li>Enter operating costs with receipts where available.</li><li>Obtain independent review.</li><li>Record actual approved payments from the correct cash, bank or drawer source.</li><li>Review notifications and unresolved errors.</li></ol>
+<h3>Before payroll approval</h3>
+<ol start="1"><li>Check employees, joining/leaving dates and saved enrollment.</li><li>Check salary effective dates, schedules and components.</li><li>Finish leave/overtime/attendance decisions.</li><li>Check disbursed loans, balances and start months.</li><li>Complete needed opening allocations.</li><li>Calculate after the covered period ends and resolve exceptions.</li><li>Review employee breakdowns and totals.</li><li>Obtain one authorized payroll approval, then record actual payments.</li></ol>
+<h3>Month end</h3>
+<ol start="1"><li>Reconcile cash, bank, expense/salary payable and employee loans.</li><li>Identify sales, stock, tax or other missing sources needing reviewed journals.</li><li>Resolve unposted journals and opening links.</li><li>Review the correct report dates/currency.</li><li>Retain the required report pack.</li><li>Close with an authorized account and clear reason.</li></ol>
+<h2 id="topic-30">30. Troubleshooting and plain-language terms</h2>
+<h3>Ticked Include in payroll, but still Not enrolled</h3>
+<p>Check unsaved status, loading errors and validation. Enter reason, ensure opening salary covers joining, complete Bank details if needed and Save &amp; enroll. Wait for success, then reopen/refresh. A future salary alone does not cover joining.</p>
+<h3>Why Last working day?</h3>
+<p>It limits employment and supports final settlement for a leaving employee. Leave blank for current employees; it is not a normal enrollment requirement.</p>
+<h3>Salary or enrollment Save is disabled</h3>
+<p>Read the explanation below Save. Check reason, dates, positive salary/zero-pay policy, decimal precision, duplicate start dates, Bank fields and work schedule. Wait or Retry loading. Reset changes discards unsaved edits and reloads saved data.</p>
+<h3>Page or action is missing</h3>
+<p>Ask Super Admin for the exact permission. Viewing, preparation, approval, payment and reversal are different. Employee-role users cannot do business-wide approvals. Salary creators/preparers may approve with Payroll: Approve; expense, journal and HR creator restrictions still apply.</p>
+<h3>My Payroll says the login is not linked</h3>
+<p>Ask an authorized admin to check Team/Employees in the same business and confirm the correct person. Personal payroll permissions alone do not establish the profile link.</p>
+<h3>Payslip missing or salary looks unpaid</h3>
+<p>Check workspace/month and approved run status. Only approved runs release payslips. Payment status needs actual recorded payments; approval alone is not paid. Ask the cashier to check month/reference.</p>
+<h3>Leave/overtime approval fails</h3>
+<p>Read the message and check employment dates, overlaps, entitlement, fractions/minutes, payroll claims and reviewer independence. Correct the source issue. Paid payroll dates need reviewed adjustments.</p>
+<h3>Run cannot submit or approve</h3>
+<p>Resolve exceptions. If sources changed, return/recalculate, review and resubmit. Check the covered period has ended. Approval needs a Super Admin or an admin with Payroll: Approve; the creator/preparer is eligible with that permission.</p>
+<h3>Approved loan has zero outstanding</h3>
+<p>Check disbursement. Approval is permission to pay; disbursement increases balance. Recovery/repayment reduces it.</p>
+<h3>Expense account missing/inactive</h3>
+<p>After Finance setup choose an active operating expense posting account. Group, inactive or payroll control accounts are not operating-expense choices. Return submitted records for account correction if needed.</p>
+<h3>Duplicate invoice or timed-out save</h3>
+<p>Inspect records/History before entering another. Duplicate identity and retry keys are checked, but a new form may mean a new instruction. Confirm whether the first save finished.</p>
+<h3>Record changed while working</h3>
+<p>Refresh and review the latest version. Retry only the still-needed action; earlier outstanding may be stale.</p>
+<h3>Paid expense disappeared</h3>
+<p>Default payment queue shows outstanding only. Choose Paid or All approved expenses, clear filters and check workspace/dates.</p>
+<h3>Posting date blocked</h3>
+<p>Check starting date, original source date and month lock. Use a valid correction date or request authorized reopening. Do not falsify source dates.</p>
+<h3>Opening journal will not link/reverse</h3>
+<p>Check posted status, start date, currency and prior allocation. Selected source totals must match control balances. Linking is permanent; linked journals cannot be reversed generically.</p>
+<h3>Notification error or old alerts</h3>
+<p>Refresh/Retry and check workspace/permissions. Allow normal refresh. Recent updates cover 30 days and bounded queues; source screens retain the transaction review. Mark all read changes read state only.</p>
+<h3>Glossary</h3>
+<ul><li>Effective date: when a salary version begins.</li><li>Enrollment: saved inclusion in payroll.</li><li>Gross: earnings before deductions.</li><li>Net: earnings after employee deductions/recovery.</li><li>Employer cost: salary cost including employer contributions.</li><li>Payable: an amount owed.</li><li>Outstanding: the amount left to pay or recover.</li><li>Accrual: recognizing a cost and amount owed before payment.</li><li>Posting date: accounting date of a movement.</li><li>Cutover/starting date: fixed beginning of the Finance workflow.</li><li>Opening allocation: linking historical sources to a reviewed opening journal.</li><li>Reversal: offsetting a recorded payment/posting while preserving history.</li><li>Void: controlled cancellation of an eligible approved cost.</li></ul>
+<h2 id="topic-31">31. Current scope and boundaries</h2>
+<p>This guide covers the implemented payroll, expense and accounting foundation.</p>
+<ul><li>Cash/Bank entries record external payments; no live bank transfer/refund execution.</li><li>Configured payroll earnings/deductions are supported; statutory tax filing/calculation and automatic remittance are not provided.</li><li>Generic deduction/employer liabilities need accountant-reviewed classification/settlement.</li><li>Loan movement recording currently uses cash.</li><li>Initialization does not recreate old ledger history. Historical balances need reviewed opening journals/allocation.</li><li>Sales, collections, credit/installments, inventory valuation/COGS and supplier purchasing are not automatically integrated into this ledger.</li><li>Bank-statement import/reconciliation, supplier bills/procurement, recurring expenses, itemized expense tax lines, budgets, fixed assets/depreciation and exchange-rate conversion are not implemented here.</li><li>Receipts are stored with expenses; object-store receipt malware scanning is not implemented.</li><li>Opening allocation has no general undo workflow.</li><li>Notifications are in-app with browser-local read status; they are not email, SMS or push delivery.</li></ul>
+<p>Have the responsible accountant/payroll administrator review setup, rules, opening balances and reports before operation. Available screens, balanced entries or successful software tests do not certify complete statutory compliance or complete business accounting.</p>
+<p class="end">ItemHive | Payroll, Expenses, Finance and My Payroll | Edition 20 October 2026</p></main></body></html>

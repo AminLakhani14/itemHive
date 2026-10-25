@@ -23,9 +23,10 @@ export interface NotificationItem {
     detail: string;
     time: string;
     path?: string;
-    category: 'installment' | 'order' | 'stock' | 'transaction' | 'billing';
+    category: 'installment' | 'order' | 'stock' | 'transaction' | 'billing' | 'payroll' | 'expense' | 'finance';
     severity: 'warning' | 'success' | 'info';
     sortTime: number;
+    requiresAction?: boolean;
 }
 
 interface BuildNotificationsOptions {
