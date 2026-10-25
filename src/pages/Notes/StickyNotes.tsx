@@ -1,327 +1,273 @@
 import React from 'react';
-import {
-    Box,
-    Typography,
-    Grid,
-    Card,
-    CardContent,
-    TextField,
-    Button,
-    IconButton,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Stack,
-    Chip,
-    Tooltip,
-    Divider,
-    Alert,
-    CircularProgress
-} from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import { Pin, Trash2, Edit3, Plus } from 'lucide-react';
+import { Alert, Box, Button, Card, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { Check, Maximize2, Minimize2, Pin, Plus, StickyNote as NoteIcon, Trash2 } from 'lucide-react';
+import axios from 'axios';
 import api from '../../api/axios';
 
 type StickyNote = {
-    _id: string;
-    title: string;
-    body: string;
-    color: string;
-    pinned: boolean;
-    updatedAt: string;
-    createdAt: string;
+    _id: string; title: string; body: string; color: string; pinned: boolean; updatedAt: string; createdAt: string;
 };
-
-const COLOR_OPTIONS = [
-    { label: 'Lemon', value: '#FDE68A' },
-    { label: 'Mint', value: '#A7F3D0' },
-    { label: 'Sky', value: '#BFDBFE' },
-    { label: 'Peach', value: '#FBCFE8' },
+type Draft = Pick<StickyNote, 'title' | 'body' | 'color'>;
+const COLORS = [
+    { label: 'Lemon', value: '#FDE68A' }, { label: 'Mint', value: '#A7F3D0' },
+    { label: 'Sky', value: '#BFDBFE' }, { label: 'Peach', value: '#FBCFE8' },
     { label: 'Lavender', value: '#DDD6FE' },
 ];
+const ink = '#292524';
+const message = (error: unknown, fallback: string) => axios.isAxiosError<{ message?: string }>(error) ? error.response?.data?.message || fallback : fallback;
 
-const StickyNotes: React.FC = () => {
-    const theme = useTheme();
-    const [notes, setNotes] = React.useState<StickyNote[]>([]);
-    const [title, setTitle] = React.useState('');
-    const [body, setBody] = React.useState('');
-    const [color, setColor] = React.useState(COLOR_OPTIONS[0].value);
-    const [editing, setEditing] = React.useState<StickyNote | null>(null);
-    const [loading, setLoading] = React.useState(false);
-    const [saving, setSaving] = React.useState(false);
+function NoteEditor({ note, onPersist, onClose, expanded = true, onMaximize, onPin, onDelete, busy = false }: {
+    note: StickyNote | null; onPersist: (note: StickyNote) => void; onClose: () => void;
+    expanded?: boolean; onMaximize?: () => void; onPin?: () => Promise<void>;
+    onDelete?: () => Promise<void>; busy?: boolean;
+}) {
+    const [draft, setDraft] = React.useState<Draft>(() => ({ title: note?.title || '', body: note?.body || '', color: note?.color || COLORS[0].value }));
+    const [status, setStatus] = React.useState(note ? 'saved' : 'idle');
+    const [createdAt, setCreatedAt] = React.useState(note?.createdAt);
     const [error, setError] = React.useState('');
+    const [closing, setClosing] = React.useState(false);
+    const current = React.useRef(draft);
+    const id = React.useRef(note?._id);
+    const dirty = React.useRef(false);
+    const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const request = React.useRef<Promise<boolean> | null>(null);
+    const cardRef = React.useRef<HTMLElement | null>(null);
 
-    const loadNotes = React.useCallback(async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const response = await api.get('/notes');
-            setNotes(response.data || []);
-        } catch (fetchError: any) {
-            setError(fetchError.response?.data?.message || 'Unable to load sticky notes.');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    React.useLayoutEffect(() => {
+        const card = cardRef.current;
+        if (!expanded || !card) return;
+        window.scrollTo({ top: 0 });
+        const fitToViewport = () => {
+            const viewport = window.visualViewport;
+            const bottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+            const main = card.closest('main');
+            const padding = main ? parseFloat(getComputedStyle(main).paddingBottom) : 16;
+            card.style.setProperty('--note-height', `${Math.max(0, bottom - card.getBoundingClientRect().top - padding - 2)}px`);
+        };
+        fitToViewport();
+        const observer = new ResizeObserver(fitToViewport);
+        if (card.parentElement) observer.observe(card.parentElement);
+        window.addEventListener('resize', fitToViewport);
+        window.visualViewport?.addEventListener('resize', fitToViewport);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener('resize', fitToViewport);
+            window.visualViewport?.removeEventListener('resize', fitToViewport);
+        };
+    }, [expanded]);
+
+    // Serialize requests and drain any changes made while a save was in flight.
+    const flush = React.useCallback((): Promise<boolean> => {
+        clearTimeout(timer.current);
+        if (request.current) return request.current;
+        const persist = async () => {
+            while (dirty.current) {
+                const snapshot = current.current;
+                if (!id.current && !snapshot.title.trim() && !snapshot.body.trim()) {
+                    dirty.current = false;
+                    setStatus('idle');
+                    return true;
+                }
+                dirty.current = false;
+                setStatus('saving');
+                setError('');
+                try {
+                    const payload = { ...snapshot, title: snapshot.title.trim() || 'Untitled' };
+                    const response = id.current
+                        ? await api.patch<StickyNote>(`/notes/${id.current}`, payload)
+                        : await api.post<StickyNote>('/notes', payload);
+                    id.current = response.data._id;
+                    setCreatedAt(response.data.createdAt);
+                    onPersist(response.data);
+                } catch (saveError) {
+                    dirty.current = true;
+                    setStatus('error');
+                    setError(message(saveError, 'Unable to auto-save. Your changes are still here. Please retry.'));
+                    return false;
+                }
+            }
+            setStatus(id.current ? 'saved' : 'idle');
+            return true;
+        };
+        request.current = persist().finally(() => { request.current = null; });
+        return request.current;
+    }, [onPersist]);
 
     React.useEffect(() => {
-        loadNotes();
-    }, [loadNotes]);
+        const beforeUnload = (event: BeforeUnloadEvent) => {
+            if (dirty.current || request.current) event.preventDefault();
+        };
+        window.addEventListener('beforeunload', beforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', beforeUnload);
+            clearTimeout(timer.current);
+            void flush();
+        };
+    }, [flush]);
 
-    const sortedNotes = React.useMemo(() => {
-        return [...notes].sort((a, b) => {
-            if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-            return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        });
-    }, [notes]);
-
-    const handleAdd = async () => {
-        if (!title.trim() && !body.trim()) return;
-        setSaving(true);
-        setError('');
-        try {
-            const response = await api.post('/notes', {
-                title: title.trim(),
-                body: body.trim(),
-                color,
-            });
-            setNotes(prev => [response.data, ...prev]);
-            setTitle('');
-            setBody('');
-            setColor(COLOR_OPTIONS[0].value);
-        } catch (saveError: any) {
-            setError(saveError.response?.data?.message || 'Unable to save note.');
-        } finally {
-            setSaving(false);
-        }
+    const change = (updates: Partial<Draft>) => {
+        current.current = { ...current.current, ...updates };
+        setDraft(current.current);
+        dirty.current = true;
+        setStatus('pending');
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => { void flush(); }, 650);
     };
-
-    const handleTogglePin = async (note: StickyNote) => {
-        setSaving(true);
-        setError('');
-        try {
-            const response = await api.patch(`/notes/${note._id}`, { pinned: !note.pinned });
-            setNotes(prev => prev.map(item => (item._id === note._id ? response.data : item)));
-        } catch (saveError: any) {
-            setError(saveError.response?.data?.message || 'Unable to update note.');
-        } finally {
-            setSaving(false);
-        }
+    const collapse = async () => {
+        setClosing(true);
+        if (await flush()) onClose();
+        setClosing(false);
     };
-
-    const handleDelete = async (id: string) => {
-        setSaving(true);
-        setError('');
+    const runAction = async (action: () => void | Promise<void>) => {
+        setClosing(true);
         try {
-            await api.delete(`/notes/${id}`);
-            setNotes(prev => prev.filter(note => note._id !== id));
-        } catch (deleteError: any) {
-            setError(deleteError.response?.data?.message || 'Unable to delete note.');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleEditSave = async () => {
-        if (!editing) return;
-        setSaving(true);
-        setError('');
-        try {
-            const response = await api.patch(`/notes/${editing._id}`, {
-                title: editing.title.trim(),
-                body: editing.body.trim(),
-                color: editing.color,
-            });
-            setNotes(prev => prev.map(note => (note._id === editing._id ? response.data : note)));
-            setEditing(null);
-        } catch (saveError: any) {
-            setError(saveError.response?.data?.message || 'Unable to update note.');
-        } finally {
-            setSaving(false);
-        }
+            if (await flush()) await action();
+        } finally { setClosing(false); }
     };
 
     return (
-        <Box>
-            <Box sx={{ mb: 4 }}>
-                <Typography variant="h4" fontWeight={800}>Sticky Notes</Typography>
-                <Typography variant="body2" color="text.secondary">
-                    Quick notes for reminders, supplier calls, or urgent tasks.
-                </Typography>
+        <Card ref={cardRef} component="section" aria-label={expanded ? 'Expanded sticky note' : 'Sticky note'} sx={{ bgcolor: draft.color, color: ink, borderRadius: 1, height: expanded ? 'var(--note-height, 60dvh)' : '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: expanded ? 0 : 240, boxShadow: expanded ? '0 12px 36px rgba(0,0,0,0.16)' : '0 4px 14px rgba(0,0,0,0.1)', border: '1px solid rgba(0,0,0,0.08)' }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 2, py: 1, flexShrink: 0, bgcolor: alpha('#000', 0.05) }}>
+                <Stack direction="row" spacing={1} alignItems="center"><NoteIcon size={17} /><Typography variant="body2" fontWeight={700}>{note?.pinned ? 'Pinned note' : note ? 'Sticky note' : 'New note'}</Typography></Stack>
+                <Stack direction="row">
+                    {onPin && <Tooltip title={note?.pinned ? 'Unpin note' : 'Pin note'}><IconButton size="small" aria-label={note?.pinned ? 'Unpin note' : 'Pin note'} disabled={closing || busy} onClick={() => { void runAction(onPin); }} sx={{ color: ink, bgcolor: note?.pinned ? alpha('#000', 0.1) : 'transparent' }}><Pin size={16} /></IconButton></Tooltip>}
+                    {expanded && <Tooltip title="Minimize note"><IconButton size="small" aria-label="Minimize note" onClick={() => { void collapse(); }} disabled={closing || busy} sx={{ color: ink }}><Minimize2 size={18} /></IconButton></Tooltip>}
+                </Stack>
+            </Stack>
+            <Box sx={{ px: expanded ? { xs: 2, md: 3 } : 2.5, py: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                <TextField autoFocus={!note} fullWidth variant="standard" placeholder="Title" value={draft.title} disabled={closing || busy} onChange={event => change({ title: event.target.value })}
+                    slotProps={{ input: { disableUnderline: true }, htmlInput: { 'aria-label': 'Note title' } }}
+                    sx={{ mb: 1, flexShrink: 0, '& input': { color: ink, fontSize: expanded ? { xs: 22, md: 26 } : 20, fontWeight: 700 } }} />
+                <Box component="textarea" aria-label="Note content" placeholder="Take a note..." value={draft.body}
+                    disabled={closing || busy} onChange={event => change({ body: event.target.value })}
+                    sx={{ width: '100%', flex: 1, minHeight: expanded ? 0 : 100, height: expanded ? undefined : 140, resize: 'none', overflowY: 'auto', border: 0, outline: 0, bgcolor: 'transparent', color: ink, fontFamily: 'inherit', fontSize: expanded ? 16 : 14, lineHeight: 1.8, p: 0, '&::placeholder': { color: alpha(ink, 0.6) } }} />
             </Box>
+            {error && <Alert severity="error" action={<Button color="inherit" onClick={() => { void flush(); }}>Retry</Button>} sx={{ mx: 2, mb: 2 }}>{error}</Alert>}
+            <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} alignItems="center" justifyContent="space-between" sx={{ px: 2, py: 1, flexShrink: 0, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                {expanded && <Stack direction="row" spacing={1} role="group" aria-label="Note color">
+                    {COLORS.map(option => <Tooltip title={option.label} key={option.value}>
+                        <IconButton aria-label={`${option.label} note`} aria-pressed={draft.color === option.value} disabled={closing} onClick={() => change({ color: option.value })}
+                            sx={{ width: 30, height: 30, bgcolor: option.value, color: ink, border: '1px solid rgba(0,0,0,0.25)', '&:hover': { bgcolor: option.value, outline: `2px solid ${ink}` } }}>
+                            {draft.color === option.value && <Check size={16} />}
+                        </IconButton>
+                    </Tooltip>)}
+                </Stack>}
+                <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+                    {createdAt && <Typography variant="caption" sx={{ color: alpha(ink, 0.75), overflowWrap: 'anywhere' }}>
+                        Created: {new Date(createdAt).toLocaleString()}
+                    </Typography>}
+                    <Stack direction="row" alignItems="center" spacing={1} role="status" aria-live="polite">
+                        {status === 'saving' && <CircularProgress size={12} sx={{ color: ink }} />}
+                        {status === 'saved' && <Check size={14} />}
+                        <Typography variant="caption" sx={{ color: alpha(ink, 0.75) }}>
+                            {status === 'idle' ? 'Start typing · Changes save automatically' : status === 'pending' ? 'Unsaved changes…' : status === 'saving' ? 'Saving…' : status === 'error' ? 'Not saved · Please retry' : 'All changes saved'}
+                        </Typography>
+                    </Stack>
+                </Stack>
+                <Stack direction="row">
+                    {!expanded && onMaximize && <Tooltip title="Maximize note"><IconButton size="small" aria-label="Maximize note" disabled={closing || busy} onClick={onMaximize} sx={{ color: ink }}><Maximize2 size={16} /></IconButton></Tooltip>}
+                    {onDelete && <Tooltip title="Delete note"><IconButton size="small" aria-label="Delete note" disabled={closing || busy} onClick={() => { void runAction(onDelete); }} sx={{ color: ink }}><Trash2 size={16} /></IconButton></Tooltip>}
+                </Stack>
+            </Stack>
+        </Card>
+    );
+}
 
-            <Card sx={{ borderRadius: 4, mb: 4, overflow: 'hidden' }}>
-                <CardContent>
-                    <Typography variant="h6" fontWeight={800} gutterBottom>
-                        Add a Note
-                    </Typography>
-                    <Grid container spacing={2}>
-                        <Grid size={{ xs: 12, md: 4 }}>
-                            <TextField
-                                fullWidth
-                                label="Title"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                            />
-                        </Grid>
-                        <Grid size={{ xs: 12, md: 8 }}>
-                            <TextField
-                                fullWidth
-                                label="Note"
-                                value={body}
-                                onChange={(e) => setBody(e.target.value)}
-                                multiline
-                                rows={2}
-                            />
-                        </Grid>
-                        <Grid size={12}>
-                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                                {COLOR_OPTIONS.map((option) => (
-                                    <Chip
-                                        key={option.value}
-                                        label={option.label}
-                                        onClick={() => setColor(option.value)}
-                                        sx={{
-                                            bgcolor: alpha(option.value, 0.7),
-                                            border: color === option.value ? '2px solid' : '1px solid',
-                                            borderColor: color === option.value ? theme.palette.primary.main : 'divider',
-                                            fontWeight: 700
-                                        }}
-                                    />
-                                ))}
-                                <Box sx={{ flexGrow: 1 }} />
-                                <Button
-                                    variant="contained"
-                                    startIcon={<Plus size={18} />}
-                                    onClick={handleAdd}
-                                    disabled={saving}
-                                    sx={{ borderRadius: 2, fontWeight: 800 }}
-                                >
-                                    Add Note
-                                </Button>
-                            </Stack>
-                        </Grid>
-                    </Grid>
-                </CardContent>
-            </Card>
+const StickyNotes: React.FC = () => {
+    const [notes, setNotes] = React.useState<StickyNote[]>([]);
+    const [editor, setEditor] = React.useState<{ note: StickyNote | null } | null>(null);
+    const [activeId, setActiveId] = React.useState<string>();
+    const [expandedId, setExpandedId] = React.useState<string>();
+    const [loading, setLoading] = React.useState(true);
+    const [busy, setBusy] = React.useState<string[]>([]);
+    const [deleteTarget, setDeleteTarget] = React.useState<StickyNote | null>(null);
+    const [error, setError] = React.useState('');
 
-            {error && (
-                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-                    {error}
-                </Alert>
-            )}
+    React.useEffect(() => {
+        let active = true;
+        api.get<StickyNote[]>('/notes').then(response => { if (active) setNotes(response.data || []); })
+            .catch(fetchError => { if (active) setError(message(fetchError, 'Unable to load sticky notes.')); })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, []);
 
-            {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-                    <CircularProgress />
-                </Box>
-            ) : sortedNotes.length === 0 ? (
-                <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
-                    No notes yet. Add your first sticky note above.
-                </Box>
-            ) : (
-                <Grid container spacing={3}>
-                    {sortedNotes.map((note) => (
-                        <Grid key={note._id} size={{ xs: 12, sm: 6, md: 4 }}>
-                            <Card
-                                sx={{
-                                    borderRadius: 4,
-                                    height: '100%',
-                                    bgcolor: alpha(note.color, 0.65),
-                                    border: '1px solid',
-                                    borderColor: alpha(note.color, 0.8),
-                                    position: 'relative',
-                                    overflow: 'hidden'
-                                }}
-                            >
-                                <CardContent>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                                        <Typography variant="h6" fontWeight={900}>
-                                            {note.title}
-                                        </Typography>
-                                        <Tooltip title={note.pinned ? 'Unpin' : 'Pin'}>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => handleTogglePin(note)}
-                                                disabled={saving}
-                                                sx={{
-                                                    bgcolor: note.pinned ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
-                                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
-                                                }}
-                                            >
-                                                <Pin size={18} />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </Box>
-                                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>
-                                        {note.body || '-'}
-                                    </Typography>
-                                    <Divider sx={{ mb: 1.5, borderColor: alpha('#000', 0.08) }} />
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="caption" color="text.secondary">
-                                            Updated: {new Date(note.updatedAt).toLocaleString()}
-                                        </Typography>
-                                        <Box>
-                                            <IconButton size="small" onClick={() => setEditing(note)} disabled={saving}>
-                                                <Edit3 size={16} />
-                                            </IconButton>
-                                            <IconButton size="small" onClick={() => handleDelete(note._id)} disabled={saving}>
-                                                <Trash2 size={16} />
-                                            </IconButton>
-                                        </Box>
-                                    </Box>
-                                </CardContent>
-                            </Card>
+    const onPersist = React.useCallback((note: StickyNote) => {
+        setNotes(previous => previous.some(item => item._id === note._id)
+            ? previous.map(item => item._id === note._id ? note : item) : [note, ...previous]);
+    }, []);
+    const onNewPersist = React.useCallback((note: StickyNote) => {
+        setActiveId(note._id);
+        onPersist(note);
+    }, [onPersist]);
+
+    const mutateNote = async (note: StickyNote, remove = false) => {
+        setBusy(previous => [...previous, note._id]);
+        setError('');
+        try {
+            if (remove) {
+                await api.delete(`/notes/${note._id}`);
+                setNotes(previous => previous.filter(item => item._id !== note._id));
+                setExpandedId(previous => previous === note._id ? undefined : previous);
+                setDeleteTarget(null);
+            } else {
+                const response = await api.patch<StickyNote>(`/notes/${note._id}`, { pinned: !note.pinned });
+                setNotes(previous => previous.map(item => item._id === note._id ? response.data : item));
+            }
+        } catch (mutationError) {
+            setError(message(mutationError, remove ? 'Unable to delete note.' : 'Unable to update note.'));
+        } finally { setBusy(previous => previous.filter(id => id !== note._id)); }
+    };
+    const sortedNotes = [...notes].sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    return (
+        <Box>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2} sx={{ mb: { xs: 2, md: 3 } }}>
+                <Box><Typography variant="h4" fontWeight={800}>Sticky Notes</Typography>
+                    <Typography variant="body2" color="text.secondary">A little space for your thoughts. Everything saves automatically.</Typography></Box>
+                <Button variant="contained" startIcon={<Plus size={18} />} disabled={loading || Boolean(editor)} onClick={() => { setActiveId(undefined); setEditor({ note: null }); }} sx={{ flexShrink: 0 }}>New note</Button>
+            </Stack>
+            {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>{error}</Alert>}
+            {editor && <NoteEditor note={editor.note} onPersist={onNewPersist} onClose={() => { setEditor(null); setActiveId(undefined); }} />}
+            {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box> : (
+                <Grid container spacing={3} sx={{ display: editor ? 'none' : 'flex' }}>
+                    {sortedNotes.filter(note => !editor || note._id !== activeId).map(note => (
+                        <Grid key={note._id} size={expandedId === note._id ? 12 : { xs: 12, sm: 6, lg: 4 }} sx={{ display: expandedId && expandedId !== note._id ? 'none' : undefined }}>
+                            <NoteEditor note={note} onPersist={onPersist} expanded={expandedId === note._id}
+                                onClose={() => setExpandedId(undefined)} onMaximize={() => setExpandedId(note._id)}
+                                onPin={() => mutateNote(note)} onDelete={async () => { setError(''); setDeleteTarget(note); }} busy={busy.includes(note._id)} />
                         </Grid>
                     ))}
                 </Grid>
             )}
-
-            <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ fontWeight: 800 }}>Edit Note</DialogTitle>
+            {!loading && notes.length === 0 && !editor && <Stack alignItems="center" spacing={1.5} sx={{ py: 10, color: 'text.secondary' }}><NoteIcon size={40} strokeWidth={1.25} /><Typography>No notes yet. Click New note and start typing.</Typography></Stack>}
+            <Dialog open={Boolean(deleteTarget)} onClose={() => { if (!busy.includes(deleteTarget?._id || '')) setDeleteTarget(null); }}
+                maxWidth="xs" fullWidth aria-labelledby="delete-note-title" aria-describedby="delete-note-description"
+                slotProps={{ paper: { sx: { borderRadius: 3, p: 1 } } }}>
+                <DialogTitle id="delete-note-title" sx={{ pb: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Box sx={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 2, bgcolor: theme => alpha(theme.palette.error.main, 0.12), color: 'error.main' }}><Trash2 size={22} /></Box>
+                        <Typography component="span" variant="h6" fontWeight={700}>Delete this note?</Typography>
+                    </Box>
+                </DialogTitle>
                 <DialogContent>
-                    {editing && (
-                        <Stack spacing={2} sx={{ mt: 1 }}>
-                            <TextField
-                                fullWidth
-                                label="Title"
-                                value={editing.title}
-                                onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                            />
-                            <TextField
-                                fullWidth
-                                label="Note"
-                                value={editing.body}
-                                onChange={(e) => setEditing({ ...editing, body: e.target.value })}
-                                multiline
-                                rows={4}
-                            />
-                            <Stack direction="row" spacing={1} flexWrap="wrap">
-                                {COLOR_OPTIONS.map((option) => (
-                                    <Chip
-                                        key={option.value}
-                                        label={option.label}
-                                        onClick={() => setEditing({ ...editing, color: option.value })}
-                                        sx={{
-                                            bgcolor: alpha(option.value, 0.7),
-                                            border: editing.color === option.value ? '2px solid' : '1px solid',
-                                            borderColor: editing.color === option.value ? theme.palette.primary.main : 'divider',
-                                            fontWeight: 700
-                                        }}
-                                    />
-                                ))}
-                            </Stack>
-                        </Stack>
-                    )}
+                    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                    <Typography id="delete-note-description" variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        This note will be permanently deleted. You cannot undo this action.
+                    </Typography>
+                    <Box sx={{ mt: 2, p: 1.5, bgcolor: deleteTarget?.color || COLORS[0].value, color: ink, borderRadius: 1.5 }}>
+                        <Typography fontWeight={700} noWrap>{deleteTarget?.title || 'Untitled'}</Typography>
+                        {deleteTarget?.body && <Typography variant="body2" noWrap sx={{ mt: 0.5, opacity: 0.8 }}>{deleteTarget.body}</Typography>}
+                    </Box>
                 </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button variant="outlined" onClick={() => setEditing(null)} disabled={saving}>Cancel</Button>
-                    <Button variant="contained" onClick={handleEditSave} disabled={saving}>Save</Button>
+                <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+                    <Button autoFocus variant="outlined" color="inherit" disabled={busy.includes(deleteTarget?._id || '')} onClick={() => setDeleteTarget(null)}>No, keep note</Button>
+                    <Button variant="contained" color="error" disabled={busy.includes(deleteTarget?._id || '')}
+                        startIcon={busy.includes(deleteTarget?._id || '') ? <CircularProgress size={16} color="inherit" /> : <Trash2 size={16} />}
+                        onClick={() => { if (deleteTarget) void mutateNote(deleteTarget, true); }}>Yes, delete</Button>
                 </DialogActions>
             </Dialog>
         </Box>
     );
 };
-
 export default StickyNotes;
