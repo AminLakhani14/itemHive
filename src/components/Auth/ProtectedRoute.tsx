@@ -10,10 +10,11 @@ interface ProtectedRouteProps {
     allowedRoles?: UserRole[];
     requireInstallmentAccess?: boolean;
     requiredScreen?: ScreenPermission;
+    requiredScreens?: ScreenPermission[];
     requireDigitalMenuAccess?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, requireInstallmentAccess, requiredScreen, requireDigitalMenuAccess }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, requireInstallmentAccess, requiredScreen, requiredScreens, requireDigitalMenuAccess }) => {
     const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
     const { app } = useSelector((state: RootState) => state.settings);
     const location = useLocation();
@@ -34,7 +35,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
         return <Navigate to="/access-denied" state={{ from: location.pathname }} replace />;
     }
 
-    if (requiredScreen && !hasScreenAccess(user, requiredScreen)) {
+    if ((requiredScreen && !hasScreenAccess(user, requiredScreen)) || (requiredScreens && !requiredScreens.some(p => hasScreenAccess(user, p)))) {
         return <Navigate to="/access-denied" state={{ from: location.pathname }} replace />;
     }
 

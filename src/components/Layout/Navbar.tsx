@@ -40,6 +40,7 @@ import { buildNotifications, type InstallmentNotificationPlan, type Notification
 import type { AppDispatch } from '../../store';
 import { hasInstallmentAccess, hasScreenAccess } from '../../lib/screenPermissions';
 import { useLogoPlate } from '../../lib/logoVisibility';
+import { notificationScreenPermissions, useWorkflowNotifications } from '../../lib/workflowNotifications';
 
 interface NavbarProps {
     onMenuClick: () => void;
@@ -88,9 +89,10 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     const { products } = useSelector((state: RootState) => state.inventory);
     const { notifications, app } = useSelector((state: RootState) => state.settings);
     const canAccessInstallments = hasInstallmentAccess(user, app?.installmentsEnabled)
-        && hasScreenAccess(user, 'notifications');
+        && hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'installments');
     const canAccessNotes = hasScreenAccess(user, 'notes');
-    const canAccessNotifications = hasScreenAccess(user, 'notifications');
+    const canAccessNotifications = notificationScreenPermissions.some(p => hasScreenAccess(user, p));
+    const workflow = useWorkflowNotifications();
     const canAccessSettings = hasScreenAccess(user, 'settings');
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const [notifAnchorEl, setNotifAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -122,27 +124,27 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     };
 
     React.useEffect(() => {
+        let generation = 0;
         const loadInstallmentNotifications = async () => {
+            const current = ++generation;
+            setInstallmentPlans([]);
             if (!canAccessInstallments) {
                 setInstallmentPlans([]);
                 return;
             }
             try {
                 const response = await api.get('/installments');
-                setInstallmentPlans((response.data || []) as InstallmentNotificationPlan[]);
+                if (current === generation) setInstallmentPlans((response.data || []) as InstallmentNotificationPlan[]);
             } catch {
-                setInstallmentPlans([]);
+                if (current === generation) setInstallmentPlans([]);
             }
         };
 
         loadInstallmentNotifications();
         window.addEventListener('itemhive-installments-updated', loadInstallmentNotifications);
-        window.addEventListener('itemhive-branch-changed', loadInstallmentNotifications);
-        return () => {
-            window.removeEventListener('itemhive-installments-updated', loadInstallmentNotifications);
-            window.removeEventListener('itemhive-branch-changed', loadInstallmentNotifications);
-        };
-    }, [canAccessInstallments, location.pathname]);
+        window.addEventListener('itemhive-workspace-changed', loadInstallmentNotifications);
+        return () => { generation++; window.removeEventListener('itemhive-installments-updated', loadInstallmentNotifications); window.removeEventListener('itemhive-workspace-changed', loadInstallmentNotifications); };
+    }, [canAccessInstallments, location.pathname, user?.id, user?.businessId]);
 
     React.useEffect(() => {
         const loadMonthlyPaymentAlerts = async () => {
@@ -219,21 +221,23 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                     category: 'billing' as const,
                     severity: 'warning' as const,
                     sortTime: Date.now(),
+                    requiresAction: true,
                 })),
+                ...workflow.items,
                 ...buildNotifications({
                 installmentPlans,
-                orders,
-                transactions,
-                products,
+                orders: hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'orders') ? orders : [],
+                transactions: hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'transactions') ? transactions : [],
+                products: hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'inventory') ? products : [],
                 orderUpdatesEnabled: notifications.orderUpdates,
                 lowStockAlertsEnabled: notifications.lowStockAlerts,
                 }),
-            ],
-        [installmentPlans, monthlyPaymentAlerts, notifications.lowStockAlerts, notifications.orderUpdates, orders, products, transactions]
+            ].sort((a, b) => Number(Boolean(b.requiresAction)) - Number(Boolean(a.requiresAction)) || b.sortTime - a.sortTime),
+        [installmentPlans, monthlyPaymentAlerts, notifications.lowStockAlerts, notifications.orderUpdates, orders, products, transactions, workflow.items, user]
     );
 
-    const recentNotifications = React.useMemo(() => allNotifications.slice(0, 6), [allNotifications]);
-    const hasConfigurableNotificationsEnabled = notifications.orderUpdates || notifications.lowStockAlerts;
+    const recentNotifications = React.useMemo(() => [...allNotifications.filter(n => !workflow.read.includes(n.id)), ...allNotifications.filter(n => workflow.read.includes(n.id))].slice(0, 6), [allNotifications, workflow.read]);
+    const notificationCount = allNotifications.filter(n => !workflow.read.includes(n.id)).length;
 
     const handleLogout = () => {
         localStorage.removeItem(BRANCH_STORAGE_KEY);
@@ -466,8 +470,8 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                     )}
 
                     {canAccessNotifications && (
-                        <IconButton color="inherit" onClick={handleNotifOpen}>
-                            <Badge badgeContent={recentNotifications.length} color="secondary">
+                        <IconButton color="inherit" onClick={handleNotifOpen} aria-label="Open notifications">
+                            <Badge badgeContent={notificationCount} color="secondary" max={99}>
                                 <NotificationsIcon size={20} />
                             </Badge>
                         </IconButton>
@@ -592,16 +596,13 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                         <Box sx={{ px: 2, py: 1 }}>
                             <Typography variant="subtitle2">Notifications</Typography>
                             <Typography variant="caption" color="text.secondary">
-                                Latest order and stock updates
+                                Approvals, payments and business updates
                             </Typography>
                         </Box>
-                        {!hasConfigurableNotificationsEnabled && recentNotifications.length === 0 ? (
+                        {workflow.error && <Box sx={{ px: 2, py: 1 }}><Typography variant="caption" color="error">{workflow.error}</Typography><Button size="small" onClick={() => void workflow.refresh()}>Retry</Button></Box>}
+                        {recentNotifications.length === 0 ? (
                             <Box sx={{ px: 2, py: 2, color: 'text.secondary' }}>
-                                Notifications are turned off in Settings.
-                            </Box>
-                        ) : recentNotifications.length === 0 ? (
-                            <Box sx={{ px: 2, py: 2, color: 'text.secondary' }}>
-                                No notifications yet.
+                                {workflow.loading ? 'Loading notifications...' : 'No notifications yet.'}
                             </Box>
                         ) : (
                             recentNotifications.map((n: NotificationItem) => (
@@ -609,14 +610,15 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                                     key={n.id}
                                     onClick={() => {
                                         handleNotifClose();
+                                        workflow.markRead([n.id]);
                                         if (n.path) {
                                             navigate(n.path);
                                         }
                                     }}
-                                    sx={{ alignItems: 'flex-start', gap: 1 }}
+                                    sx={{ alignItems: 'flex-start', gap: 1, whiteSpace: 'normal' }}
                                 >
-                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', mt: 0.8 }} />
-                                    <Box>
+                                    <Box sx={{ width: 8, height: 8, flexShrink: 0, borderRadius: '50%', bgcolor: workflow.read.includes(n.id) ? 'divider' : 'primary.main', mt: 0.8 }} />
+                                    <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                                         <Typography variant="body2" fontWeight={700}>{n.title}</Typography>
                                         <Typography variant="caption" color="text.secondary">{n.detail}</Typography>
                                         <Typography variant="caption" color="text.secondary" display="block">{n.time}</Typography>

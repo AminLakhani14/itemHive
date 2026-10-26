@@ -25,9 +25,14 @@ const HistorySchema = new Schema({
 const ExpenseSchema = new Schema({
   businessId: { type: Schema.Types.ObjectId, ref: 'Business', required: true },
   key: { type: String, required: true },
+  invoiceKey: String,
+  accountId: { type: Schema.Types.ObjectId, ref: 'FinanceAccount' },
+  journalEntryId: { type: Schema.Types.ObjectId, ref: 'JournalEntry' },
+  accountingOrigin: { type: String, enum: ['approval', 'opening'] },
   title: { type: String, required: true, maxlength: 120 },
   category: { type: String, required: true, maxlength: 80 },
   dateKey: { type: String, required: true },
+  postingDateKey: String,
   payee: { type: String, default: '', maxlength: 120 },
   reference: { type: String, default: '', maxlength: 120 },
   notes: { type: String, default: '', maxlength: 1000 },
@@ -44,6 +49,7 @@ const ExpenseSchema = new Schema({
   history: { type: [HistorySchema], default: [] },
 }, { timestamps: true });
 ExpenseSchema.index({ businessId: 1, key: 1 }, { unique: true });
+ExpenseSchema.index({ businessId: 1, invoiceKey: 1 }, { unique: true, partialFilterExpression: { invoiceKey: { $type: 'string' } } });
 ExpenseSchema.index({ businessId: 1, dateKey: -1, _id: -1 });
 ExpenseSchema.index({ businessId: 1, createdBy: 1, status: 1 });
 ExpenseSchema.plugin(branchScopedPlugin);

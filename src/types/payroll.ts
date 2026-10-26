@@ -57,7 +57,7 @@ export interface PayrollProfile {
     | "paymentMethod"
     | "bankName"
     | "bankAccount"
-  >;
+  > & { joiningDate: string; salary: number; salaryType: 'monthly' | 'daily' | 'hourly'; payrollRevision: number };
   structures: SalaryStructure[];
   balances: Record<string, number>;
 }
@@ -151,6 +151,7 @@ export interface PayrollRun {
   };
 }
 export interface PayrollRequest {
+  createdBy: string;
   _id: string;
   employeeId: string;
   kind: string;
@@ -171,6 +172,7 @@ export interface PayrollRequest {
   createdAt: string;
 }
 export interface PayrollLoan {
+  journalEntryId?: string;
   _id: string;
   employeeId: string;
   kind: string;

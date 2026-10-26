@@ -1,18 +1,37 @@
 import type { User } from '../features/auth/authSlice';
 
 export const ADMIN_SCREEN_PERMISSIONS = [
-    { key: 'expenses', label: 'Finance · Expenses', group: 'Finance' },
-    { key: 'my_payroll', label: 'My Payroll', group: 'Payroll' },
+    { key: 'self_payroll', label: 'My Payslips & Payments', group: 'Employee Self Service' },
+    { key: 'self_leave', label: 'My Leave Requests', group: 'Employee Self Service' },
+    { key: 'self_loan', label: 'My Loan & Advance Requests', group: 'Employee Self Service' },
+    { key: 'self_overtime', label: 'My Overtime Requests', group: 'Employee Self Service' },
+    { key: 'finance_expense_create', label: 'Expenses: Create & Submit Own', group: 'Finance' },
+    { key: 'finance_accounts', label: 'Chart of Accounts: View', group: 'Finance' },
+    { key: 'finance_settings', label: 'Finance: Setup & Manage Accounts', group: 'Finance' },
+    { key: 'finance_journal_view', label: 'Journals: View', group: 'Finance' },
+    { key: 'finance_journal_prepare', label: 'Journals: Prepare', group: 'Finance' },
+    { key: 'finance_journal_approve', label: 'Journals: Post & Reverse', group: 'Finance' },
+    { key: 'finance_reports', label: 'Finance: Accounting Reports', group: 'Finance' },
+    { key: 'finance_period_close', label: 'Finance: Close Periods', group: 'Finance' },
     { key: 'finance_view', label: 'Finance: View All Expenses', group: 'Finance' },
     { key: 'finance_expense_approve', label: 'Finance: Approve Expenses', group: 'Finance' },
     { key: 'finance_pay', label: 'Finance: Expense Payments', group: 'Finance' },
+    { key: 'finance_expense_reverse', label: 'Expenses: Reverse Payments', group: 'Finance' },
+    { key: 'finance_expense_void', label: 'Expenses: Void Approved Costs', group: 'Finance' },
+    { key: 'finance_period_reopen', label: 'Finance: Reopen Closed Periods', group: 'Finance' },
+    { key: 'payroll_payment_reverse', label: 'Payroll: Reverse Salary Payments', group: 'Payroll' },
+    { key: 'payroll_leave_requests', label: 'HR: Leave Requests', group: 'Payroll' },
+    { key: 'payroll_loan_requests', label: 'HR: Loan & Advance Requests', group: 'Payroll' },
+    { key: 'payroll_work_requests', label: 'HR: Overtime & Attendance Requests', group: 'Payroll' },
+    { key: 'payroll_loans_view', label: 'Loans: View Balances & Movements', group: 'Payroll' },
+    { key: 'payroll_loans_manage', label: 'Loans: Disburse, Repay & Cancel', group: 'Payroll' },
     { key: 'payroll_view', label: 'Payroll: View', group: 'Payroll' },
     { key: 'payroll_prepare', label: 'Payroll: Prepare', group: 'Payroll' },
     { key: 'payroll_approve', label: 'Payroll: Approve', group: 'Payroll' },
     { key: 'payroll_pay', label: 'Payroll: Payments', group: 'Payroll' },
     { key: 'payroll_reports', label: 'Payroll: Reports', group: 'Payroll' },
     { key: 'payroll_settings', label: 'Payroll: Settings & Salaries', group: 'Payroll' },
-    { key: 'payroll_hr', label: 'Payroll: HR Requests', group: 'Payroll' },
+    { key: 'payroll_hr', label: 'HR: All Request Types (broad access)', group: 'Payroll' },
     { key: 'dashboard', label: 'Dashboard', group: 'Overview' },
     { key: 'pos', label: 'POS Terminal', group: 'Sales' },
     { key: 'orders', label: 'Order Desk', group: 'Sales' },
@@ -69,7 +88,9 @@ export const getDigitalMenuAccess = (user: User | null | undefined): 'none' | 'm
 };
 
 export const hasScreenAccess = (user: User | null | undefined, permission: ScreenPermission) => {
-    if (permission.startsWith('payroll_') || permission.startsWith('finance_')) return user?.role === 'super_admin' || (user?.role === 'admin' && Boolean(user.screenPermissions?.includes(permission)));
+    if (!user) return false;
+    if (permission.startsWith('self_') || permission === 'finance_expense_create') return user.role === 'super_admin' || Boolean(user.screenPermissions?.includes(permission));
+    if (permission.startsWith('payroll_') || permission.startsWith('finance_')) return user.role === 'super_admin' || (user.role === 'admin' && Boolean(user.screenPermissions?.includes(permission)));
     if (!user || user.role !== 'admin') return true;
     // These screens were always available before client onboarding introduced their controls.
     if (['expenses', 'my_payroll'].includes(permission) && (user.screenPermissionsVersion ?? 1) < 2) return true;

@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
 import ModernLoader from '../Common/ModernLoader';
+import WorkflowApiLoader from '../Common/WorkflowApiLoader';
 
 import React, { useState, useEffect } from 'react';
 import { Box, CssBaseline } from '@mui/material';
@@ -48,7 +49,7 @@ const MainLayout: React.FC = () => {
         <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
             <CssBaseline />
             {/* One consistent app-wide loader for initial data and API refreshes. */}
-            {initiallyLoading && <ModernLoader fullPage />}
+            <WorkflowApiLoader initiallyLoading={initiallyLoading} />
             <Navbar onMenuClick={handleDrawerToggle} />
             <Sidebar mobileOpen={mobileOpen} onDrawerToggle={handleDrawerToggle} />
             <Box

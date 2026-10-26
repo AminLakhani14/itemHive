@@ -98,6 +98,7 @@ export const SalaryStructure = model(
 );
 
 export const PayrollRequest = model("PayrollRequest", {
+  key: String,
   ...employee,
   kind: {
     type: String,
@@ -115,10 +116,11 @@ export const PayrollRequest = model("PayrollRequest", {
   decidedBy: Schema.Types.ObjectId,
   decisionReason: String,
   decidedAt: Date,
-});
+}, [[{ businessId: 1, key: 1 }, { unique: true, partialFilterExpression: { key: { $type: 'string' } } }]]);
 export const PayrollLoan = model(
   "PayrollLoan",
   {
+    journalEntryId: Schema.Types.ObjectId,
     ...employee,
     requestId: { type: Schema.Types.ObjectId, required: true },
     kind: { type: String, enum: ["loan", "advance"], required: true },
@@ -195,6 +197,8 @@ export const PayrollRun = model(
     version: { type: Number, default: 0 },
     policy: Schema.Types.Mixed,
     sourceHash: String,
+    journalEntryId: Schema.Types.ObjectId,
+    accountingOrigin: String,
     adjustments: { type: [Schema.Types.Mixed], default: [] },
     items: { type: [Schema.Types.Mixed], default: [] },
     totals: Schema.Types.Mixed,

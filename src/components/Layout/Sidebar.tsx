@@ -10,16 +10,44 @@ import {
     Toolbar,
     Typography,
     Divider,
+    Collapse,
+    Tooltip,
     alpha,
     IconButton,
+    useMediaQuery,
     useTheme
 } from '@mui/material';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import {
+    LayoutDashboard,
+    Package,
+    History,
+    BarChart3,
+    Monitor as TerminalIcon,
+    ClipboardList,
+    FileClock,
+    ChartNoAxesCombined,
+    WalletCards,
+    CalendarClock,
+    Users,
+    Contact,
+    ReceiptText,
+    QrCode,
+    UserPlus,
+    ClipboardCheck,
+    ShieldCheck,
+    Scale,
+    IdCard,
+    ScanFace,
+    ChevronLeft,
+    ChevronDown,
+    ChevronRight
+} from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../store';
 import { toggleSidebar } from '../../features/theme/themeSlice';
 import { getDigitalMenuAccess, hasInstallmentAccess, hasScreenAccess } from '../../lib/screenPermissions';
+import { workflowGroups, type WorkflowScreen } from '../../lib/workflowScreens';
 import { useLogoPlate } from '../../lib/logoVisibility';
 
 import { NAV_MODULES } from '../../lib/navigation';
@@ -34,6 +62,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
     const location = useLocation();
     const navigate = useNavigate();
@@ -57,6 +86,12 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
             : state.auth.user?.appearance?.logo) || '/favicon.png';
     });
     const { isSidebarCollapsed } = useSelector((state: RootState) => state.theme);
+    const compact = isSidebarCollapsed && !isMobile;
+    const activeGroup = workflowGroups.find(g => g.screens.some(s => s.path === location.pathname))?.path;
+    const [expanded, setExpanded] = React.useState<Record<string, boolean>>(() => activeGroup ? { [activeGroup]: true } : {});
+    React.useEffect(() => {
+        if (activeGroup) setExpanded(previous => ({ ...previous, [activeGroup]: true }));
+    }, [activeGroup, location.pathname]);
     const { app } = useSelector((state: RootState) => state.settings);
     const hasCustomLogo = logo !== '/favicon.png';
     const logoPlate = useLogoPlate(logo, sidebarColor || theme.palette.background.paper, [theme.palette.background.default]);
@@ -64,25 +99,47 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
     const currentRole = user?.role || 'user';
     const canAccessInstallments = hasInstallmentAccess(user, app?.installmentsEnabled);
 
-    const menuItems = NAV_MODULES;
+    const menuItems: Array<{ text: string; icon: React.ReactNode; path: string; roles: string[]; permission?: ScreenPermission; permissions?: ScreenPermission[]; children?: WorkflowScreen[]; requiresInstallmentAccess?: boolean; requiresDigitalMenuAccess?: boolean; requiresSignupApproval?: boolean }> = [
+        { text: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/', roles: ['super_admin', 'admin', 'user'], permission: 'dashboard' },
+        { text: 'POS Terminal', icon: <TerminalIcon size={20} />, path: '/pos', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
+        { text: 'Shift Management', icon: <ChartNoAxesCombined size={20} />, path: '/pos-reports', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
+        { text: 'Order Drafts', icon: <FileClock size={20} />, path: '/order-drafts', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
+        { text: 'Inventory', icon: <Package size={20} />, path: '/inventory', roles: ['super_admin', 'admin', 'user'], permission: 'inventory' },
+        { text: 'Product Units', icon: <Scale size={20} />, path: '/inventory/units', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_units' },
+        { text: 'Inventory Requests', icon: <ClipboardCheck size={20} />, path: '/inventory/requests', roles: ['super_admin', 'admin', 'user'], permission: 'inventory_requests' },
+        { text: 'Order Desk', icon: <ClipboardList size={20} />, path: '/orders', roles: ['super_admin', 'admin', 'user'], permission: 'orders' },
+        { text: 'Digital Menus', icon: <QrCode size={20} />, path: '/digital-menus', roles: ['super_admin', 'admin', 'user'], permission: 'digital_menus', requiresDigitalMenuAccess: true },
+        { text: 'Transactions', icon: <History size={20} />, path: '/transactions', roles: ['super_admin', 'admin', 'user'], permission: 'transactions' },
+        { text: 'Customers', icon: <Contact size={20} />, path: '/customers', roles: ['super_admin', 'admin', 'user'], permission: 'customers' },
+        { text: 'Customer Records', icon: <ReceiptText size={20} />, path: '/customer-records', roles: ['super_admin', 'admin', 'user'], permission: 'customer_records' },
+        { text: 'Credit Customers', icon: <WalletCards size={20} />, path: '/credits', roles: ['super_admin', 'admin', 'user'], permission: 'credits' },
+        { text: 'Installments', icon: <CalendarClock size={20} />, path: '/installments', roles: ['super_admin', 'admin', 'user'], permission: 'installments', requiresInstallmentAccess: true },
+        { text: 'Employees', icon: <IdCard size={20} />, path: '/employees', roles: ['super_admin', 'admin'], permission: 'employees' },
+        ...workflowGroups.map(group => ({ text: group.title, icon: group.id === 'personal' ? <IdCard size={20} /> : group.id === 'expenses' ? <ReceiptText size={20} /> : <WalletCards size={20} />, path: group.path, roles: ['super_admin', 'admin', 'user'], permissions: group.screens.flatMap(s => s.permissions), children: group.screens })),
+        { text: 'Attendance', icon: <ScanFace size={20} />, path: '/attendance', roles: ['super_admin', 'admin', 'user'], permission: 'attendance' },
+        { text: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['super_admin', 'admin'], permission: 'reports' },
+        { text: 'Team', icon: <Users size={20} />, path: '/team', roles: ['super_admin', 'admin'], permission: 'team' },
+        { text: 'Permissions', icon: <ShieldCheck size={20} />, path: '/permission-management', roles: ['super_admin'] },
+        { text: 'Signup Requests', icon: <UserPlus size={20} />, path: '/signup-requests', roles: ['super_admin'], requiresSignupApproval: true },
+    ];
 
     const drawer = (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <Toolbar sx={{
-                px: isSidebarCollapsed ? 2 : 2.5,
+                px: compact ? 2 : 2.5,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 2,
-                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                justifyContent: compact ? 'center' : 'flex-start',
                 minHeight: '80px !important'
             }}>
-                {!isSidebarCollapsed && <Box
+                {!compact && <Box
                     component="img"
                     src={logo}
                     alt="Logo"
                     sx={{ width: hasCustomLogo ? '100%' : 32, height: hasCustomLogo ? 64 : 32, maxWidth: '100%', objectFit: 'contain', flexShrink: 0, ...(logoPlate && { bgcolor: logoPlate, borderRadius: 1.5, p: 0.75 }) }}
                 />}
-                {!isSidebarCollapsed && !hasCustomLogo && (
+                {!compact && !hasCustomLogo && (
                     <Typography
                         variant="h6"
                         fontWeight={900}
@@ -109,6 +166,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                 display: { xs: 'none', sm: 'block' }
             }}>
                 <IconButton
+                    aria-label={compact ? "Expand sidebar" : "Collapse sidebar"}
                     onClick={() => dispatch(toggleSidebar())}
                     sx={{
                         width: 30,
@@ -128,13 +186,11 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                         p: 0,
                     }}
                 >
-                    {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+                    {compact ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
                 </IconButton>
             </Box>
 
-            <Box sx={{ p: isSidebarCollapsed ? 2 : 3, textAlign: isSidebarCollapsed ? 'center' : 'left' }}>
 
-            </Box>
             <Box
                 sx={{
                     flexGrow: 1,
@@ -154,21 +210,34 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                     {menuItems
                         .filter(item => item.roles.includes(currentRole)
                             && (!item.permission || hasScreenAccess(user, item.permission))
+                            && (!item.permissions || item.permissions.some(p => hasScreenAccess(user, p)))
                             && (!item.requiresInstallmentAccess || canAccessInstallments)
                             && (!item.requiresDigitalMenuAccess || getDigitalMenuAccess(user) !== 'none')
                             && (!item.requiresSignupApproval || !app?.autoRegistrationEnabled))
                         .map((item) => {
-                            const isActive = location.pathname === item.path || (['/employees', '/digital-menus', '/team'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
+                            const children = item.children?.filter(screen => screen.permissions.some(permission => hasScreenAccess(user, permission)));
+                            const isActive = children ? children.some(screen => screen.path === location.pathname) : location.pathname === item.path || (['/employees', '/digital-menus'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
+                            const isExpanded = !!expanded[item.path] && !compact;
                             return (
-                                <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+                                <ListItem key={item.text} disablePadding sx={{ mb: 0.5, display: 'block' }}>
+                                    <Tooltip title={compact ? item.text : ''} placement="right">
                                     <ListItemButton
+                                        aria-label={item.text}
+                                        aria-expanded={children ? isExpanded : undefined}
+                                        aria-controls={children ? 'nav-' + item.path.slice(1) : undefined}
+                                        aria-current={!children && isActive ? 'page' : undefined}
                                         onClick={() => {
+                                            if (children) {
+                                                if (compact) dispatch(toggleSidebar());
+                                                setExpanded(previous => ({ ...previous, [item.path]: compact || !previous[item.path] }));
+                                                return;
+                                            }
                                             navigate(item.path);
                                             if (mobileOpen) onDrawerToggle();
                                         }}
                                         sx={{
-                                            p: isSidebarCollapsed ? 1.5 : 2,
-                                            justifyContent: isSidebarCollapsed ? 'center' : 'initial',
+                                            p: compact ? 1.5 : 1.25,
+                                            justifyContent: compact ? 'center' : 'initial',
                                             borderRadius: 2,
                                             backgroundColor: isActive ? 'primary.main' : 'transparent',
                                             color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'text.primary'),
@@ -183,8 +252,8 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                                     >
                                         <ListItemIcon
                                             sx={{
-                                                minWidth: isSidebarCollapsed ? 0 : 40,
-                                                mr: isSidebarCollapsed ? 0 : 0,
+                                                minWidth: compact ? 0 : 40,
+                                                mr: compact ? 0 : 0,
                                                 justifyContent: 'center',
                                                 color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'text.secondary')
                                             }}
@@ -193,20 +262,36 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                                         </ListItemIcon>
                                         <ListItemText
                                             primary={item.text}
-                                            sx={{ opacity: isSidebarCollapsed ? 0 : 1, width: isSidebarCollapsed ? 0 : 'auto', m: 0 }}
+                                            sx={{ opacity: compact ? 0 : 1, width: compact ? 0 : 'auto', m: 0 }}
                                             primaryTypographyProps={{
                                                 fontSize: '0.9rem',
                                                 fontWeight: isActive ? 700 : 600
                                             }}
                                         />
+                                        {children && !compact && <ChevronDown size={17} style={{ flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : undefined }} />}
                                     </ListItemButton>
+                                    </Tooltip>
+                                    {children && <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                                        <List id={'nav-' + item.path.slice(1)} aria-label={item.text + ' screens'} disablePadding sx={{ ml: 2.25, mt: 0.5, pl: 1, borderLeft: '1px solid', borderColor: 'divider' }}>
+                                            {children.map(screen => {
+                                                const selected = location.pathname === screen.path;
+                                                return <ListItem key={screen.path} disablePadding>
+                                                    <ListItemButton component={Link} to={screen.path} selected={selected} aria-current={selected ? 'page' : undefined}
+                                                        onClick={() => { if (mobileOpen) onDrawerToggle(); }}
+                                                        sx={{ px: 1.25, py: 0.85, mb: 0.25, borderRadius: 1.5, color: sidebarFontColor || (selected ? 'primary.main' : 'text.secondary'), '&.Mui-selected': { bgcolor: alpha(theme.palette.primary.main, 0.12) }, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) } }}>
+                                                        <ListItemText primary={screen.title} sx={{ m: 0 }} primaryTypographyProps={{ fontSize: '0.82rem', lineHeight: 1.4, fontWeight: selected ? 700 : 500 }} />
+                                                    </ListItemButton>
+                                                </ListItem>;
+                                            })}
+                                        </List>
+                                    </Collapse>}
                                 </ListItem>
                             );
                         })}
                 </List>
             </Box>
-            {!isSidebarCollapsed && <Box sx={{ mt: 'auto', p: 2 }}>
-                <Divider sx={{ mb: isSidebarCollapsed ? 2 : 1.5 }} />
+            {!compact && <Box sx={{ mt: 'auto', p: 2 }}>
+                <Divider sx={{ mb: compact ? 2 : 1.5 }} />
                 <Typography variant="caption" component="p" noWrap sx={{ textAlign: 'center', color: sidebarFontColor || 'text.secondary', opacity: 0.8 }}>
                     Powered by <Box component="span" sx={{ fontWeight: 800 }}>ItemHive</Box>
                 </Typography>

@@ -458,7 +458,7 @@ export const updateUserCreationLimit = async (req: AuthRequest, res: Response) =
 
 export const getAdminPermissionAssignments = async (_req: AuthRequest, res: Response) => {
     try {
-        const admins = await User.find({ role: 'admin' })
+        const admins = await User.find({ role: { $in: ['admin', 'user'] } })
             .select('name email role isActive businessId screenPermissions screenPermissionsVersion digitalMenuAccess')
             .sort({ name: 1, email: 1 });
 
@@ -474,12 +474,13 @@ export const updateAdminScreenPermissions = async (req: AuthRequest, res: Respon
         if (!user) {
             return res.status(404).json({ message: 'Admin user not found' });
         }
-        if (normalizeRole(user.role) !== 'admin') {
-            return res.status(400).json({ message: 'Screen permissions can only be assigned to Admin users' });
+        if (normalizeRole(user.role) === 'super_admin') {
+            return res.status(400).json({ message: 'Super Admin access cannot be restricted' });
         }
 
         const screenPermissions = Array.from(new Set(req.body.screenPermissions))
-            .filter(isAdminScreenPermission);
+            .filter(isAdminScreenPermission)
+            .filter(key => normalizeRole(user.role) === 'admin' || key.startsWith('self_') || key === 'finance_expense_create');
         user.screenPermissions = screenPermissions;
         user.screenPermissionsVersion = 3;
         await user.save();

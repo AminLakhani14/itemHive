@@ -28,7 +28,10 @@ import { payrollRouter, myPayrollRouter, salespersonRouter } from './routes/payr
 import { payrollModels } from './models/Payroll';
 import expenseRoutes from './routes/expenseRoutes';
 import organizationRoutes from './routes/organizationRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import Expense from './models/Expense';
+import financeRoutes from './routes/financeRoutes';
+import { financeModels } from './models/Finance';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { ensureTenantIndexes } from './utils/tenantIndexes';
 import { syncStaffEmployees } from './utils/employeeAccounts';
@@ -143,6 +146,8 @@ app.use('/api/me/payroll', myPayrollRouter);
 app.use('/api/salespeople', salespersonRouter);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/organization', organizationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/finance', financeRoutes);
 
 // ── 404 & Error Handling ──────────────────────────────────────
 app.use(notFound);
@@ -155,6 +160,7 @@ const startServer = async () => {
         await ensureTenantIndexes();
         for (const model of payrollModels) await model.createIndexes();
         await Expense.createIndexes();
+        for (const model of financeModels) await model.createIndexes();
         // Every staff login in Team has an employee profile, including ones created before they were linked.
         await syncStaffEmployees();
     } catch (error) {

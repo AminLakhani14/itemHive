@@ -14,6 +14,9 @@ import { useDispatch } from 'react-redux';
 import type { AppDispatch } from './store';
 import { fetchSettings } from './features/settings/settingsSlice';
 import { logout, refreshCurrentUser } from './features/auth/authSlice';
+import { hasScreenAccess } from './lib/screenPermissions';
+import { payrollScreens, financeScreens, personalScreens, expenseScreens } from './lib/workflowScreens';
+import { notificationScreenPermissions } from './lib/workflowNotifications';
 
 // Lazy load pages for better performance i LOVE YOU
 import Login from './pages/Auth/Login';
@@ -42,6 +45,14 @@ const EmployeeProfilePage = React.lazy(() => import('./pages/Employees/EmployeeP
 const AttendancePage = React.lazy(() => import('./pages/Attendance/AttendancePage'));
 const PayrollPage = React.lazy(() => import('./pages/Payroll/PayrollPage'));
 const MyPayrollPage = React.lazy(() => import('./pages/Payroll/MyPayrollPage'));
+const WorkflowHomePage = React.lazy(() => import('./pages/Payroll/WorkflowHomePage'));
+const RequestsPage = React.lazy(() => import('./pages/Payroll/RequestsPage'));
+const AccountsPage = React.lazy(() => import('./pages/Finance/AccountsPage'));
+const OpeningSourcesPage = React.lazy(() => import('./pages/Finance/OpeningSourcesPage'));
+const JournalsPage = React.lazy(() => import('./pages/Finance/JournalsPage'));
+const FinanceReportsPage = React.lazy(() => import('./pages/Finance/FinanceReportsPage'));
+const PeriodsPage = React.lazy(() => import('./pages/Finance/PeriodsPage'));
+const WorkflowManualPage = React.lazy(() => import('./pages/Payroll/WorkflowManualPage'));
 const ExpensesPage = React.lazy(() => import('./pages/Finance/ExpensesPage'));
 const NotificationsPage = React.lazy(() => import('./pages/Notifications/NotificationsPage'));
 const StickyNotes = React.lazy(() => import('./pages/Notes/StickyNotes'));
@@ -73,6 +84,15 @@ const AppThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   });
   const theme = React.useMemo(() => getAppTheme(mode, appearance), [mode, appearance]);
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+};
+
+const HomeRoute = () => {
+  const user = useSelector((state: RootState) => state.auth.user);
+  if (hasScreenAccess(user, 'dashboard')) return <Dashboard />;
+  for (const [path, screens] of [['/payroll', payrollScreens], ['/finance', financeScreens], ['/my', personalScreens], ['/expenses', expenseScreens]] as const) {
+    if (screens.some(screen => screen.permissions.some(permission => hasScreenAccess(user, permission)))) return <Navigate to={path} replace />;
+  }
+  return <Navigate to="/profile" replace />;
 };
 
 const AppContent: React.FC = () => {
@@ -110,7 +130,7 @@ const AppContent: React.FC = () => {
                 <MainLayout />
               </ProtectedRoute>
             }>
-              <Route index element={<ProtectedRoute requiredScreen="dashboard"><Dashboard /></ProtectedRoute>} />
+              <Route index element={<HomeRoute />} />
               <Route path="inventory" element={<ProtectedRoute requiredScreen="inventory"><ProductList /></ProtectedRoute>} />
               <Route path="inventory/categories" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="inventory_categories"><Navigate to="/settings#categories" replace /></ProtectedRoute>} />
               <Route path="inventory/add" element={<ProtectedRoute requiredScreen="inventory_add"><AddProduct /></ProtectedRoute>} />
@@ -170,9 +190,37 @@ const AppContent: React.FC = () => {
                   <EmployeesPage />
                 </ProtectedRoute>
               } />
-              <Route path="payroll" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="payroll_view"><PayrollPage /></ProtectedRoute>} />
+              <Route path="payroll" element={<ProtectedRoute><WorkflowHomePage area="payroll" /></ProtectedRoute>} />
               <Route path="my-payroll" element={<ProtectedRoute requiredScreen="my_payroll"><MyPayrollPage /></ProtectedRoute>} />
               <Route path="expenses" element={<ProtectedRoute requiredScreen="expenses"><ExpensesPage /></ProtectedRoute>} />
+              <Route path="payroll/employees" element={<ProtectedRoute requiredScreens={["payroll_view","payroll_settings"]}><PayrollPage key="payroll/employees" section="overview" /></ProtectedRoute>} />
+              <Route path="payroll/runs" element={<ProtectedRoute requiredScreens={["payroll_view","payroll_prepare","payroll_approve"]}><PayrollPage key="payroll/runs" section="runs" /></ProtectedRoute>} />
+              <Route path="payroll/loans" element={<ProtectedRoute requiredScreens={["payroll_view","payroll_loans_view","payroll_loans_manage"]}><PayrollPage key="payroll/loans" section="loans" /></ProtectedRoute>} />
+              <Route path="payroll/payments" element={<ProtectedRoute requiredScreens={["payroll_pay","payroll_payment_reverse"]}><PayrollPage key="payroll/payments" section="payments" /></ProtectedRoute>} />
+              <Route path="payroll/reports" element={<ProtectedRoute requiredScreens={["payroll_reports"]}><PayrollPage key="payroll/reports" section="reports" /></ProtectedRoute>} />
+              <Route path="payroll/settings" element={<ProtectedRoute requiredScreens={["payroll_settings"]}><PayrollPage key="payroll/settings" section="settings" /></ProtectedRoute>} />
+              <Route path="payroll/leave-requests" element={<ProtectedRoute requiredScreens={["payroll_hr","payroll_leave_requests"]}><RequestsPage key="payroll/leave-requests" kind="leave" self={false} /></ProtectedRoute>} />
+              <Route path="payroll/loan-requests" element={<ProtectedRoute requiredScreens={["payroll_hr","payroll_loan_requests"]}><RequestsPage key="payroll/loan-requests" kind="loan" self={false} /></ProtectedRoute>} />
+              <Route path="payroll/work-requests" element={<ProtectedRoute requiredScreens={["payroll_hr","payroll_work_requests"]}><RequestsPage key="payroll/work-requests" kind="work" self={false} /></ProtectedRoute>} />
+              <Route path="my/leave-requests" element={<ProtectedRoute requiredScreen="self_leave"><RequestsPage key="my/leave-requests" kind="leave" self={true} /></ProtectedRoute>} />
+              <Route path="my/loan-requests" element={<ProtectedRoute requiredScreen="self_loan"><RequestsPage key="my/loan-requests" kind="loan" self={true} /></ProtectedRoute>} />
+              <Route path="my/overtime-requests" element={<ProtectedRoute requiredScreen="self_overtime"><RequestsPage key="my/overtime-requests" kind="work" self={true} /></ProtectedRoute>} />
+              <Route path="finance" element={<ProtectedRoute><WorkflowHomePage area="finance" /></ProtectedRoute>} />
+              <Route path="finance/accounts" element={<ProtectedRoute requiredScreens={["finance_accounts","finance_settings"]}><AccountsPage /></ProtectedRoute>} />
+              <Route path="finance/opening-balances" element={<ProtectedRoute requiredScreen="finance_settings"><OpeningSourcesPage /></ProtectedRoute>} />
+              <Route path="finance/journals" element={<ProtectedRoute requiredScreens={["finance_journal_view","finance_journal_prepare","finance_journal_approve"]}><JournalsPage /></ProtectedRoute>} />
+              <Route path="finance/reports" element={<ProtectedRoute requiredScreens={["finance_reports"]}><FinanceReportsPage /></ProtectedRoute>} />
+              <Route path="finance/periods" element={<ProtectedRoute requiredScreens={["finance_period_close","finance_period_reopen"]}><PeriodsPage /></ProtectedRoute>} />
+              <Route path="finance/expenses" element={<ProtectedRoute requiredScreen="finance_view"><ExpensesPage key="finance/expenses" view="register" /></ProtectedRoute>} />
+              <Route path="finance/my-expenses" element={<ProtectedRoute requiredScreen="finance_expense_create"><ExpensesPage key="finance/my-expenses" view="mine" /></ProtectedRoute>} />
+              <Route path="finance/expense-approvals" element={<ProtectedRoute requiredScreen="finance_expense_approve"><ExpensesPage key="finance/expense-approvals" view="approvals" /></ProtectedRoute>} />
+              <Route path="finance/expense-payments" element={<ProtectedRoute requiredScreens={["finance_pay","finance_expense_reverse","finance_expense_void"]}><ExpensesPage key="finance/expense-payments" view="payments" /></ProtectedRoute>} />
+              <Route path="my" element={<ProtectedRoute><WorkflowHomePage area="personal" /></ProtectedRoute>} />
+              <Route path="my-payroll" element={<ProtectedRoute requiredScreen="self_payroll"><Navigate replace to="/my/payslips" /></ProtectedRoute>} />
+              <Route path="my/payslips" element={<ProtectedRoute requiredScreen="self_payroll"><MyPayrollPage key="my/payslips" /></ProtectedRoute>} />
+              <Route path="my/salary-payments" element={<ProtectedRoute requiredScreen="self_payroll"><MyPayrollPage key="my/salary-payments" section="payments" /></ProtectedRoute>} />
+              <Route path="expenses" element={<ProtectedRoute><WorkflowHomePage area="expenses" /></ProtectedRoute>} />
+              <Route path="workflow-manual" element={<ProtectedRoute><WorkflowManualPage /></ProtectedRoute>} />
               {/* One route for "new" and saved profiles keeps the page mounted when a new profile gets its id. */}
               <Route path="employees/:id" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="employees">
@@ -185,7 +233,7 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               } />
               <Route path="notifications" element={
-                <ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreen="notifications">
+                <ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreens={notificationScreenPermissions}>
                   <NotificationsPage />
                 </ProtectedRoute>
               } />
