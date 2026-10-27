@@ -62,14 +62,9 @@ export type ScreenPermission = typeof ADMIN_SCREEN_PERMISSIONS[number]['key'];
 
 export const ALL_ADMIN_SCREEN_KEYS = ADMIN_SCREEN_PERMISSIONS.map((permission) => permission.key);
 
-// Finance and payroll actions need their parent screen, and removing the parent removes its actions.
-export const toggleScreenPermission = (current: ScreenPermission[], key: ScreenPermission): ScreenPermission[] => {
-    if (current.includes(key)) return current.filter((item) => item !== key
-        && !(key === 'expenses' && item.startsWith('finance_'))
-        && !(key === 'payroll_view' && item.startsWith('payroll_')));
-    const parent = key.startsWith('finance_') ? 'expenses' : key.startsWith('payroll_') ? 'payroll_view' : null;
-    return [...new Set([...current, key, ...(parent ? [parent as ScreenPermission] : [])])];
-};
+// Finance and payroll actions are granted one by one; viewing never implies approval or payment rights.
+export const toggleScreenPermission = (current: ScreenPermission[], key: ScreenPermission): ScreenPermission[] =>
+    current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
 
 export const hasExplicitScreenPermission =(user: User | null | undefined, permission: ScreenPermission) =>
     user?.role === 'admin' && Boolean(user.screenPermissions?.includes(permission));
@@ -92,8 +87,7 @@ export const hasScreenAccess = (user: User | null | undefined, permission: Scree
     if (permission.startsWith('self_') || permission === 'finance_expense_create') return user.role === 'super_admin' || Boolean(user.screenPermissions?.includes(permission));
     if (permission.startsWith('payroll_') || permission.startsWith('finance_')) return user.role === 'super_admin' || (user.role === 'admin' && Boolean(user.screenPermissions?.includes(permission)));
     if (!user || user.role !== 'admin') return true;
-    // These screens were always available before client onboarding introduced their controls.
-    if (['expenses', 'my_payroll'].includes(permission) && (user.screenPermissionsVersion ?? 1) < 2) return true;
+    // Organization was always available before client onboarding introduced its control.
     if (permission === 'organization' && (user.screenPermissionsVersion ?? 1) < 3) return true;
     // null/undefined preserves full access for existing Admin accounts until
     // the Super Admin explicitly saves a permission assignment.

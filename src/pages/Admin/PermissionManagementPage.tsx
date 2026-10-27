@@ -4,9 +4,11 @@ import {
     Alert,
     Box,
     Button,
+    Checkbox,
     Chip,
     CircularProgress,
     Divider,
+    FormControlLabel,
     List,
     ListItemButton,
     ListItemText,
@@ -20,10 +22,10 @@ import { CheckCheck, Search, ShieldCheck, ShieldOff } from 'lucide-react';
 import api from '../../api/axios';
 import type { User } from '../../features/auth/authSlice';
 import {
+    ADMIN_SCREEN_PERMISSIONS,
     ALL_ADMIN_SCREEN_KEYS,
     type ScreenPermission,
 } from '../../lib/screenPermissions';
-import ScreenPermissionPicker from '../../components/Common/ScreenPermissionPicker';
 
 interface ApiErrorResponse {
     message?: string;
@@ -74,6 +76,22 @@ const PermissionManagementPage: React.FC = () => {
     const filteredAdmins = admins.filter((admin) =>
         `${admin.name} ${admin.email} ${admin.businessName || ''}`.toLowerCase().includes(search.trim().toLowerCase())
     );
+
+    const groups = React.useMemo(() => {
+        const grouped = new Map<string, typeof ADMIN_SCREEN_PERMISSIONS[number][]>();
+        ADMIN_SCREEN_PERMISSIONS.forEach((permission) => {
+            grouped.set(permission.group, [...(grouped.get(permission.group) || []), permission]);
+        });
+        return [...grouped.entries()];
+    }, []);
+
+    const togglePermission = (permission: ScreenPermission) => {
+        setSelectedPermissions((current) =>
+            current.includes(permission)
+                ? current.filter((item) => item !== permission)
+                : [...current, permission]
+        );
+    };
 
     const savePermissions = async () => {
         if (!selectedAdmin) return;

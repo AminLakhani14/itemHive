@@ -194,7 +194,6 @@ export const requireScreenAccess = (...permissions: AdminScreenPermission[]) => 
         }
 
         if (!permissions.some((permission) => req.user?.screenPermissions?.includes(permission)
-            || (['expenses', 'my_payroll'].includes(permission) && (req.user?.screenPermissionsVersion ?? 1) < 2)
             || (permission === 'organization' && (req.user?.screenPermissionsVersion ?? 1) < 3))) {
             return res.status(403).json({ message: 'You do not have permission to access this screen' });
         }

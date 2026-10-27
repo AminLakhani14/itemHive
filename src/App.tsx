@@ -191,8 +191,6 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               } />
               <Route path="payroll" element={<ProtectedRoute><WorkflowHomePage area="payroll" /></ProtectedRoute>} />
-              <Route path="my-payroll" element={<ProtectedRoute requiredScreen="my_payroll"><MyPayrollPage /></ProtectedRoute>} />
-              <Route path="expenses" element={<ProtectedRoute requiredScreen="expenses"><ExpensesPage /></ProtectedRoute>} />
               <Route path="payroll/employees" element={<ProtectedRoute requiredScreens={["payroll_view","payroll_settings"]}><PayrollPage key="payroll/employees" section="overview" /></ProtectedRoute>} />
               <Route path="payroll/runs" element={<ProtectedRoute requiredScreens={["payroll_view","payroll_prepare","payroll_approve"]}><PayrollPage key="payroll/runs" section="runs" /></ProtectedRoute>} />
               <Route path="payroll/loans" element={<ProtectedRoute requiredScreens={["payroll_view","payroll_loans_view","payroll_loans_manage"]}><PayrollPage key="payroll/loans" section="loans" /></ProtectedRoute>} />

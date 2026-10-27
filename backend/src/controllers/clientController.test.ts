@@ -19,7 +19,7 @@ const payload = () => ({
         { name: 'Karachi Branch', location: '12 Test Road', phone: '+92 300 1111111', city: 'Karachi', bindAdmin: true },
         { name: 'Lahore Branch', location: '34 Test Street', phone: '+92 300 2222222', city: 'Lahore', bindAdmin: false },
     ],
-    screenPermissions: ['dashboard', 'inventory', 'expenses'],
+    screenPermissions: ['dashboard', 'inventory', 'finance_expense_create'],
 });
 const request = (body = payload(), role = 'super_admin') => ({ body, user: { id: '507f1f77bcf86cd799439011', role } }) as unknown as AuthRequest;
 function response() {
@@ -93,10 +93,10 @@ test('only super admins can create clients', async () => {
 });
 
 test('new module restrictions also protect the API while preserving existing client access', () => {
-    for (const permission of ['expenses', 'my_payroll'] as const) {
+    for (const permission of ['organization'] as const) {
         for (const [role, version, permissions, expected] of [
-            ['admin', 2, [], 403], ['admin', 2, [permission], 200],
-            ['admin', 1, [], 200], ['super_admin', 2, [], 200],
+            ['admin', 3, [], 403], ['admin', 3, [permission], 200],
+            ['admin', 2, [], 200], ['super_admin', 3, [], 200],
         ] as const) {
             const req = request(payload(), role);
             req.user!.screenPermissions = [...permissions];

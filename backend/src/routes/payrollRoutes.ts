@@ -1,7 +1,7 @@
 import { Router } from "express";
 import Joi from "joi";
 import mongoose from "mongoose";
-import { protect, authorize, requireScreenAccess, type AuthRequest } from "../middleware/auth";
+import { protect, authorize, type AuthRequest } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import Employee from "../models/Employee";
 import EmployeeLeave from "../models/EmployeeLeave";
@@ -1513,7 +1513,7 @@ payrollRouter.get(
 );
 
 export const myPayrollRouter = Router();
-myPayrollRouter.use(protect, requireScreenAccess('my_payroll'));
+myPayrollRouter.use(protect);
 const ownRequestKinds = (req: AuthRequest) => [
   ...(canFinancial(req, 'self_leave') ? ['leave'] : []),
   ...(canFinancial(req, 'self_loan') ? ['loan', 'advance'] : []),

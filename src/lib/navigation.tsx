@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ScreenPermission } from './screenPermissions';
+import { workflowGroups, type WorkflowScreen } from './workflowScreens';
 import {
     LayoutDashboard,
     Package,
@@ -27,7 +28,7 @@ import {
     CalendarRange,
 } from 'lucide-react';
 
-export const NAV_MODULES: Array<{ text: string; icon: React.ReactNode; path: string; roles: string[]; permission?: ScreenPermission; requiresInstallmentAccess?: boolean; requiresDigitalMenuAccess?: boolean; requiresSignupApproval?: boolean }> = [
+export const NAV_MODULES: Array<{ text: string; icon: React.ReactNode; path: string; roles: string[]; permission?: ScreenPermission; permissions?: ScreenPermission[]; children?: WorkflowScreen[]; requiresInstallmentAccess?: boolean; requiresDigitalMenuAccess?: boolean; requiresSignupApproval?: boolean }> = [
         { text: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/', roles: ['super_admin', 'admin', 'user'], permission: 'dashboard' },
         { text: 'POS Terminal', icon: <TerminalIcon size={20} />, path: '/pos', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
         { text: 'Shift Management', icon: <ChartNoAxesCombined size={20} />, path: '/pos-reports', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
@@ -45,9 +46,7 @@ export const NAV_MODULES: Array<{ text: string; icon: React.ReactNode; path: str
         { text: 'Credit Customers', icon: <WalletCards size={20} />, path: '/credits', roles: ['super_admin', 'admin', 'user'], permission: 'credits' },
         { text: 'Installments', icon: <CalendarClock size={20} />, path: '/installments', roles: ['super_admin', 'admin', 'user'], permission: 'installments', requiresInstallmentAccess: true },
         { text: 'Employees', icon: <IdCard size={20} />, path: '/employees', roles: ['super_admin', 'admin'], permission: 'employees' },
-        { text: 'Payroll', icon: <WalletCards size={20} />, path: '/payroll', roles: ['super_admin', 'admin'], permission: 'payroll_view' },
-        { text: 'My Payroll', icon: <ReceiptText size={20} />, path: '/my-payroll', roles: ['super_admin', 'admin', 'user'], permission: 'my_payroll' },
-        { text: 'Finance · Expenses', icon: <WalletCards size={20} />, path: '/expenses', roles: ['super_admin', 'admin', 'user'], permission: 'expenses' },
+        ...workflowGroups.map(group => ({ text: group.title, icon: group.id === 'personal' ? <IdCard size={20} /> : group.id === 'expenses' ? <ReceiptText size={20} /> : <WalletCards size={20} />, path: group.path, roles: ['super_admin', 'admin', 'user'], permissions: group.screens.flatMap(s => s.permissions), children: group.screens })),
         { text: 'Attendance', icon: <ScanFace size={20} />, path: '/attendance', roles: ['super_admin', 'admin', 'user'], permission: 'attendance' },
         { text: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['super_admin', 'admin'], permission: 'reports' },
         { text: 'Team', icon: <Users size={20} />, path: '/team', roles: ['super_admin', 'admin'], permission: 'team' },
