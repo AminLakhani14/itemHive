@@ -1070,7 +1070,7 @@ const POSTerminal: React.FC = () => {
                     flexDirection: 'column',
                     borderRadius: 3,
                     overflow: 'hidden',
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'background.paper' : '#FFFFFF',
+                    bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: 'divider',
                     boxShadow: (theme) => theme.palette.mode === 'dark' ? 'none' : `0 18px 44px -34px ${alpha(theme.palette.primary.dark, 0.55)}`,
@@ -1203,7 +1203,7 @@ const POSTerminal: React.FC = () => {
                 <Box
                     sx={{
                         p: { xs: 1.25, sm: 1.5 },
-                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'background.paper' : '#FFFFFF',
+                        bgcolor: 'background.paper',
                         position: 'relative',
                         zIndex: 2,
                         flexShrink: 0,

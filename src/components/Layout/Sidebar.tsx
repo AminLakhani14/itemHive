@@ -171,12 +171,12 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                                             justifyContent: isSidebarCollapsed ? 'center' : 'initial',
                                             borderRadius: 2,
                                             backgroundColor: isActive ? 'primary.main' : 'transparent',
-                                            color: sidebarFontColor || (isActive ? 'primary.contrastText' : 'text.primary'),
+                                            color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'text.primary'),
                                             '&:hover': {
                                                 backgroundColor: isActive ? 'primary.dark' : (theme) => alpha(theme.palette.primary.main, 0.1),
-                                                color: sidebarFontColor || (isActive ? 'primary.contrastText' : 'primary.main'),
+                                                color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'primary.main'),
                                                 '& .MuiListItemIcon-root': {
-                                                    color: sidebarFontColor || (isActive ? 'primary.contrastText' : 'primary.main'),
+                                                    color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'primary.main'),
                                                 }
                                             },
                                         }}
@@ -186,7 +186,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                                                 minWidth: isSidebarCollapsed ? 0 : 40,
                                                 mr: isSidebarCollapsed ? 0 : 0,
                                                 justifyContent: 'center',
-                                                color: sidebarFontColor || (isActive ? 'primary.contrastText' : 'text.secondary')
+                                                color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'text.secondary')
                                             }}
                                         >
                                             {item.icon}
