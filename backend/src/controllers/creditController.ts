@@ -136,7 +136,7 @@ export const createCreditPayment = async (req: AuthRequest, res: Response) => {
             const activeShift = await POSShift.findOneAndUpdate(
                 { ...buildTenantFilter(req.user!), status: 'open' },
                 { $inc: { activityVersion: 1 } },
-                { new: true, session },
+                { returnDocument: 'after', session },
             );
             [payment] = await CreditPayment.create([{
                 customerName,

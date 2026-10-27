@@ -100,7 +100,7 @@ export const createInstallmentPlan = async (req: AuthRequest, res: Response) => 
             const activeShift = await POSShift.findOneAndUpdate(
                 { _id: shiftId, status: 'open', ...buildTenantFilter(req.user!) },
                 { $inc: { activityVersion: 1 } },
-                { new: true, session },
+                { returnDocument: 'after', session },
             );
             if (!activeShift) throw new Error('This POS shift is closed. Open a new shift before taking payment');
             resolvedShiftId = activeShift._id;
@@ -247,7 +247,7 @@ export const payInstallment = async (req: AuthRequest, res: Response) => {
             const activeShift = await POSShift.findOneAndUpdate(
                 { ...buildTenantFilter(req.user!), status: 'open' },
                 { $inc: { activityVersion: 1 } },
-                { new: true, session },
+                { returnDocument: 'after', session },
             );
             scheduleItem.status = 'paid';
             scheduleItem.paidAt = new Date();

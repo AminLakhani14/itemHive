@@ -68,7 +68,7 @@ export const updateNote = async (req: AuthRequest, res: Response) => {
         const note = await StickyNote.findOneAndUpdate(
             { _id: id, user: req.user?.id, ...buildTenantFilter(req.user!) },
             { $set: updates },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!note) {

@@ -296,7 +296,7 @@ export const updateAppearance = async (req: AuthRequest, res: Response) => {
         }
         const user = await User.findByIdAndUpdate(req.user?.id,
             { $set: { appearance: { themeColor, backgroundColor, sidebarColor, navbarColor, sidebarFontColor, navbarFontColor, borderColor, headingColor, secondaryTextColor, secondaryColor, successColor, warningColor, errorColor, fontColor, logo } } },
-            { new: true, runValidators: true });
+            { returnDocument: 'after', runValidators: true });
         if (!user) return res.status(404).json({ message: 'User not found' });
         return res.json({ appearance: user.appearance });
     } catch {

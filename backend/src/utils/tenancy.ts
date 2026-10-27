@@ -27,13 +27,13 @@ export const ensureLegacyBusiness = () => Business.findOneAndUpdate(
             isLegacy: true,
         },
     },
-    { new: true, upsert: true, setDefaultsOnInsert: true }
+    { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
 ).orFail();
 
 export const getGlobalAppSettings = () => AppSetting.findOneAndUpdate(
     { key: 'global-auth' },
     { $setOnInsert: { key: 'global-auth' } },
-    { new: true, upsert: true, setDefaultsOnInsert: true }
+    { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
 ).orFail();
 
 export const ensureUserBusiness = async (user: IUser) => {
@@ -66,7 +66,7 @@ export const getAppSettingsForTenant = async (tenant: TenantContext) => {
         settings = await AppSetting.findOneAndUpdate(
             { key: 'global' },
             { $set: { key: tenantKey, businessId: getTenantObjectId(tenant) } },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -74,7 +74,7 @@ export const getAppSettingsForTenant = async (tenant: TenantContext) => {
         settings = await AppSetting.findOneAndUpdate(
             { key: tenantKey },
             { $setOnInsert: { key: tenantKey, businessId: getTenantObjectId(tenant) } },
-            { new: true, upsert: true, setDefaultsOnInsert: true }
+            { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
         ).orFail();
     }
 

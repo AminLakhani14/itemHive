@@ -115,7 +115,7 @@ router.post('/', financialAccess('finance_expense_create'), validate(Joi.object(
 router.put('/:id', financialAccess('finance_expense_create'), validate(Joi.object({ ...body, version })), handler(async (req, res) => {
   await expenseAccount(req);
   const invoice = invoiceKey(req.body);
-  const e = await Expense.findOneAndUpdate({ ...tenant(req), _id: req.params.id, createdBy: req.user!.id, status: { $in: ['draft', 'rejected'] }, version: req.body.version }, { $set: { ...payload(req.body), status: 'draft', ...(invoice ? { invoiceKey: invoice } : {}) }, ...(!invoice ? { $unset: { invoiceKey: 1 } } : {}), $inc: { version: 1 }, $push: { history: history(req, 'edited') } }, { new: true });
+  const e = await Expense.findOneAndUpdate({ ...tenant(req), _id: req.params.id, createdBy: req.user!.id, status: { $in: ['draft', 'rejected'] }, version: req.body.version }, { $set: { ...payload(req.body), status: 'draft', ...(invoice ? { invoiceKey: invoice } : {}) }, ...(!invoice ? { $unset: { invoiceKey: 1 } } : {}), $inc: { version: 1 }, $push: { history: history(req, 'edited') } }, { returnDocument: 'after' });
   if (!e) fail('Expense changed or is no longer editable', 409);
   res.json(summary(e!.toObject()));
 }));
@@ -156,7 +156,7 @@ router.post('/:id/decision', validate(Joi.object({ version, action: Joi.string()
 }));
 
 async function drawer(req: AuthRequest, session: mongoose.ClientSession, currency: string) {
-  const shift = await POSShift.findOneAndUpdate({ ...tenant(req), status: 'open', currency }, { $inc: { activityVersion: 1 } }, { new: true, session });
+  const shift = await POSShift.findOneAndUpdate({ ...tenant(req), status: 'open', currency }, { $inc: { activityVersion: 1 } }, { returnDocument: 'after', session });
   if (!shift) fail('Open a POS shift with the same business currency first', 409);
   return shift!;
 }

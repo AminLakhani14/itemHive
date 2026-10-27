@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 
 export interface AppError extends Error {
     status?: number;
-    code?: string;
+    code?: string | number;
 }
 
 /**
@@ -13,10 +13,11 @@ export const errorHandler = (
     err: AppError,
     req: Request,
     res: Response,
-    _next: NextFunction
+    next: NextFunction
 ) => {
-    const status = err.status || 500;
-    const message = err.message || 'Internal Server Error';
+    if (res.headersSent) return next(err);
+    const status = err.status || (err.code === 11000 ? 409 : ['CastError', 'ValidationError'].includes(err.name) ? 400 : 500);
+    const message = err.code === 11000 ? 'A record with these details already exists.' : err.message || 'Internal Server Error';
 
     // Don't expose stack traces in production
     const response: Record<string, any> = {

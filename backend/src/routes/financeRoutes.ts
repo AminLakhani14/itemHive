@@ -53,7 +53,7 @@ router.post('/initialize', financialAccess('finance_settings'), validate(Joi.obj
 const accountBody = { code: Joi.string().trim().pattern(/^[A-Za-z0-9.-]{1,20}$/).required(), name: text.max(120).required(), type: Joi.string().valid('asset', 'liability', 'equity', 'income', 'expense').required(), parentId: id.allow('', null).default(null), posting: Joi.boolean().required(), active: Joi.boolean().required(), reason: optionalNote };
 async function saveAccount(req: AuthRequest, editing: boolean) {
   return mongoose.connection.transaction(async session => {
-    const policy = await FinancePolicy.findOneAndUpdate(tenant(req), { $inc: { lock: 1 } }, { new: true, session });
+    const policy = await FinancePolicy.findOneAndUpdate(tenant(req), { $inc: { lock: 1 } }, { returnDocument: 'after', session });
     if (!policy) throw new Error('Initialize finance first');
     const a = editing ? await FinanceAccount.findOne({ ...tenant(req), _id: req.params.id }).session(session) : new FinanceAccount(tenant(req));
     if (!a) throw new Error('Account not found');
@@ -169,9 +169,9 @@ router.get('/periods', financialAccess('finance_period_close', 'finance_period_r
 router.post('/periods', financialAccess('finance_period_close', 'finance_period_reopen'), validate(Joi.object({ month: Joi.string().pattern(/^\d{4}-(0[1-9]|1[0-2])$/).required(), closed: Joi.boolean().required(), reason: Joi.when('closed', { is: false, then: text.required(), otherwise: optionalNote }) })), handler(async (req, res) => {
   if (!canFinancial(req, req.body.closed ? 'finance_period_close' : 'finance_period_reopen')) throw Object.assign(new Error('This period action has not been shared with your account'), { status: 403 });
   res.json(await mongoose.connection.transaction(async session => {
-    const policy = await FinancePolicy.findOneAndUpdate(tenant(req), { $inc: { lock: 1 } }, { new: true, session }); if (!policy) throw new Error('Initialize finance first');
+    const policy = await FinancePolicy.findOneAndUpdate(tenant(req), { $inc: { lock: 1 } }, { returnDocument: 'after', session }); if (!policy) throw new Error('Initialize finance first');
     if (req.body.closed && await JournalEntry.exists({ ...tenant(req), status: { $in: ['draft', 'submitted', 'rejected'] }, dateKey: { $gte: req.body.month + '-01', $lte: req.body.month + '-31' } }).session(session)) throw new Error('Resolve unposted journals before closing this month');
-    return FinancePeriod.findOneAndUpdate({ ...tenant(req), month: req.body.month }, { $set: { closed: req.body.closed, reason: req.body.reason, actorId: req.user!.id }, $push: { history: history(req, req.body.closed ? 'closed' : 'reopened') } }, { upsert: true, new: true, session });
+    return FinancePeriod.findOneAndUpdate({ ...tenant(req), month: req.body.month }, { $set: { closed: req.body.closed, reason: req.body.reason, actorId: req.user!.id }, $push: { history: history(req, req.body.closed ? 'closed' : 'reopened') } }, { upsert: true, returnDocument: 'after', session });
   }));
 }));
 export default router;

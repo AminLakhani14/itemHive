@@ -6,7 +6,7 @@ import BusinessTypeCatalog, { DEFAULT_BUSINESS_TYPES } from '../models/BusinessT
 export const getBusinessTypeCatalog = () => BusinessTypeCatalog.findOneAndUpdate(
     { key: 'global' },
     { $setOnInsert: { key: 'global', types: DEFAULT_BUSINESS_TYPES } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
 ).orFail();
 
 export const effectiveBusinessTypeId = (settings?: { businessTypeId?: string; restaurantEnabled?: boolean } | null) =>

@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=20.19.0",
     "npm": ">=9.0.0"
   },
   "scripts": {
@@ -13,7 +13,7 @@
     "start": "node dist/server.js",
     "seed": "ts-node-dev src/seed.ts",
     "migrate:product-images": "npm run build && node dist/scripts/optimizeProductImages.js",
-    "test": "npm run build && node --test dist/services/payrollCalculator.test.js dist/services/financeWorkflow.test.js",
+    "test": "npm run build && node scripts/run-tests.cjs",
     "test:expenses": "npm run test:finance",
     "test:digital-menus": "npm run build && node --test dist/controllers/digitalMenuController.test.js dist/utils/dealPricing.test.js dist/utils/pictureMenuContent.test.js dist/services/inventoryMenuAI.test.js dist/controllers/menuAIController.test.js dist/services/oldMenuImport.test.js dist/controllers/menuImportController.test.js dist/services/geminiKeys.test.js dist/services/menuAIProvider.test.js",
     "test:payroll": "npm run test",

@@ -25,7 +25,7 @@ export const getPublication = async (businessId: unknown) => {
     const deals = await DigitalMenu.find({ sourceMenuId: legacy._id, businessId: legacy.businessId, menuType: 'deal', isActive: true }).lean();
     const menu = menuSnapshot(legacy, deals.map(deal => ({ _id: String(deal._id), name: deal.name, productIds: deal.productIds, dealPrice: deal.dealPrice })));
     try {
-        publication = await MenuPublication.findOneAndUpdate({ _id: key }, { $setOnInsert: { menu, publishedAt: new Date() } }, { upsert: true, new: true }).lean();
+        publication = await MenuPublication.findOneAndUpdate({ _id: key }, { $setOnInsert: { menu, publishedAt: new Date() } }, { upsert: true, returnDocument: 'after' }).lean();
     } catch (error) {
         if ((error as { code?: number }).code !== 11000) throw error;
         publication = await MenuPublication.findById(key).lean();
@@ -37,9 +37,9 @@ export const publishSnapshot = async (businessId: unknown, menu: PublishedMenu) 
     const key = publicationKey(businessId);
     const update = { $set: { menu, publishedAt: new Date() } };
     try {
-        await MenuPublication.findOneAndUpdate({ _id: key }, update, { upsert: true, new: true });
+        await MenuPublication.findOneAndUpdate({ _id: key }, update, { upsert: true, returnDocument: 'after' });
     } catch (error) {
         if ((error as { code?: number }).code !== 11000) throw error;
-        await MenuPublication.findOneAndUpdate({ _id: key }, update, { new: true });
+        await MenuPublication.findOneAndUpdate({ _id: key }, update, { returnDocument: 'after' });
     }
 };

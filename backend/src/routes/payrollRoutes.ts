@@ -285,7 +285,7 @@ payrollRouter.put(
       const after = await PayrollPolicy.findOneAndUpdate(
         tenant(req),
         { $set: data },
-        { upsert: true, new: true, runValidators: true, session },
+        { upsert: true, returnDocument: 'after', runValidators: true, session },
       );
       await auditFor(
         req,
@@ -1312,7 +1312,7 @@ payrollRouter.post(
           const run = await PayrollRun.findOneAndUpdate(
             { ...tenant(req), _id: data.runId, status: "approved" },
             { $inc: { version: 1 } },
-            { new: true, session },
+            { returnDocument: 'after', session },
           );
           if (!run) throw new Error("Only approved payroll can be paid");
           if (run.journalEntryId) {
@@ -1601,7 +1601,7 @@ myPayrollRouter.post(
       {
         $set: { status: "cancelled", decisionReason: "Cancelled by employee", decidedBy: req.user!.id, decidedAt: new Date() },
       },
-      { new: true, session },
+      { returnDocument: 'after', session },
     );
     if (!r) throw new Error("Pending request not found");
     await auditFor(

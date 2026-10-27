@@ -148,7 +148,7 @@ export const createDigitalMenu = async (req: AuthRequest, res: Response) => {
         const filter = { businessId: getTenantObjectId(req.user!), sourceMenuId: sourceMenu._id, clientRequestId };
         // Retries after a lost response must not create the same accepted combo twice.
         try {
-            const menu = await DigitalMenu.findOneAndUpdate(filter, { $setOnInsert: { ...menuData, clientRequestId } }, { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true });
+            const menu = await DigitalMenu.findOneAndUpdate(filter, { $setOnInsert: { ...menuData, clientRequestId } }, { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true });
             return res.status(201).json(menu);
         } catch (err) {
             if ((err as { code?: number }).code !== 11000) throw err;

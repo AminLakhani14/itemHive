@@ -143,7 +143,7 @@ export const punchAttendance = async (req: AuthRequest, res: Response) => {
             const closed = await Attendance.findOneAndUpdate(
                 { _id: openRecord._id, checkOut: null },
                 { $set: { checkOut: now, checkOutMethod: 'face', checkOutPhoto: photo, updatedBy: req.user?.id } },
-                { new: true }
+                { returnDocument: 'after' }
             ).lean<LeanAttendance>();
 
             if (!closed) {
@@ -167,14 +167,14 @@ export const punchAttendance = async (req: AuthRequest, res: Response) => {
                 const updated = await Attendance.findOneAndUpdate(
                     { _id: todayRecord._id, checkIn: null },
                     { $set: { checkIn: now, checkInMethod: 'face', checkInPhoto: photo, updatedBy: req.user?.id } },
-                    { new: true }
+                    { returnDocument: 'after' }
                 ).lean<LeanAttendance>();
                 if (updated) return res.json({ action: 'check_in', employee, record: serializeRecord(updated) });
             } else if (now.getTime() - new Date(todayRecord.checkIn).getTime() >= MIN_SHIFT_MS) {
                 const updated = await Attendance.findOneAndUpdate(
                     { _id: todayRecord._id, checkOut: null },
                     { $set: { checkOut: now, checkOutMethod: 'face', checkOutPhoto: photo, updatedBy: req.user?.id } },
-                    { new: true }
+                    { returnDocument: 'after' }
                 ).lean<LeanAttendance>();
                 if (updated) return res.json({ action: 'check_out', employee, record: serializeRecord(updated) });
             }
@@ -271,13 +271,13 @@ export const upsertAttendanceRecord = async (req: AuthRequest, res: Response) =>
         let record: LeanAttendance | null = null;
         await session.withTransaction(async () => {
             const tenantFilter = buildTenantFilter(req.user!);
-            const employee = await Employee.findOneAndUpdate({ _id: employeeId, ...tenantFilter }, { $inc: { payrollRevision: 1 } }, { new: true, session });
+            const employee = await Employee.findOneAndUpdate({ _id: employeeId, ...tenantFilter }, { $inc: { payrollRevision: 1 } }, { returnDocument: 'after', session });
             if (!employee) throw new Error('Employee not found');
             if (await PayrollDayClaim.exists({ ...tenantFilter, employeeId, dateKey }).session(session)) throw new Error('Approved payroll attendance is locked. Use a payroll adjustment for corrections.');
             const existing = await Attendance.findOne({ ...tenantFilter, employeeId, dateKey }).session(session).lean<LeanAttendance>();
             const update = { checkIn, checkOut, checkInMethod: checkIn ? (existing && sameTime(existing.checkIn, checkIn) ? existing.checkInMethod : 'manual') : null, checkOutMethod: checkOut ? (existing && sameTime(existing.checkOut, checkOut) ? existing.checkOutMethod : 'manual') : null, note, updatedBy: req.user!.id };
             record = existing
-                ? await Attendance.findOneAndUpdate({ _id: existing._id, ...tenantFilter }, { $set: update }, { new: true, session }).lean<LeanAttendance>()
+                ? await Attendance.findOneAndUpdate({ _id: existing._id, ...tenantFilter }, { $set: update }, { returnDocument: 'after', session }).lean<LeanAttendance>()
                 : (await Attendance.create([{ ...update, employeeId, dateKey, timeZone: resolveTimeZone(req.body.timeZone), businessId: getTenantObjectId(req.user!) }], { session }))[0].toObject() as LeanAttendance;
             await audit(req.user!.businessId, req.user!.id, 'attendance.correct', String(record!._id), note || 'Manual attendance correction', existing ? { checkIn: existing.checkIn, checkOut: existing.checkOut, dateKey } : null, { checkIn, checkOut, dateKey }, session);
         });
