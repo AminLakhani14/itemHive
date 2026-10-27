@@ -2,6 +2,7 @@ import { buildPayrollPdfBlob } from "../../lib/payrollPdf";
 import React from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -27,6 +28,7 @@ import type {
 } from "../../types/payroll";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../store";
+import { validMoneyAmount } from '../../lib/workflowUx';
 
 export const money = (value: number, currency = "PKR") =>
   new Intl.NumberFormat("en", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
@@ -274,19 +276,15 @@ export function RequestForm({
   return (
     <Stack gap={2}>
       {!self && (
-        <TextField
-          select
-          label="Employee"
-          value={employeeId}
-          onChange={(e) => setEmployee(e.target.value)}
-        >
-          <MenuItem value="">Choose employee</MenuItem>
-          {employees.map((e) => (
-            <MenuItem value={e._id} key={e._id}>
-              {e.fullName}
-            </MenuItem>
-          ))}
-        </TextField>
+        <Autocomplete
+          size="small"
+          options={employees}
+          value={employees.find(e => e._id === employeeId) || null}
+          onChange={(_, employee) => setEmployee(employee?._id || '')}
+          getOptionLabel={e => `${e.fullName} · ${e.employeeCode}`}
+          isOptionEqualToValue={(a, b) => a._id === b._id}
+          renderInput={params => <TextField {...params} required label="Employee" placeholder="Search by name or employee code" />}
+        />
       )}
       {allowedKinds?.length !== 1 && <TextField
         select
@@ -366,7 +364,7 @@ export function RequestForm({
       />
       <Button
         variant="contained"
-        disabled={busy || !reason.trim() || (!self && !employeeId) || (kind === 'leave' ? !data.startDate || !data.endDate || data.startDate > data.endDate || (data.fraction === 0.5 && data.startDate !== data.endDate) : ['loan', 'advance'].includes(kind) ? data.amount <= 0 || data.installment <= 0 || data.installment > data.amount || !data.startMonth : kind === 'overtime' ? !Number.isInteger(data.minutes) || data.minutes <= 0 || data.minutes > 1440 || !data.dateKey : !data.dateKey)}
+        disabled={busy || !reason.trim() || (!self && !employeeId) || (kind === 'leave' ? !data.startDate || !data.endDate || data.startDate > data.endDate || (data.fraction === 0.5 && data.startDate !== data.endDate) : ['loan', 'advance'].includes(kind) ? !validMoneyAmount(data.amount) || !validMoneyAmount(data.installment, data.amount) || !data.startMonth : kind === 'overtime' ? !Number.isInteger(data.minutes) || data.minutes <= 0 || data.minutes > 1440 || !data.dateKey : !data.dateKey)}
         onClick={() =>
           submit({
             key,

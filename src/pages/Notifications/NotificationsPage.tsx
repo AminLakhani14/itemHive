@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { notificationTarget } from '../../lib/notifications';
 import { isAxiosError } from 'axios';
 import {
     Alert,
@@ -265,7 +266,7 @@ const NotificationsPage: React.FC = () => {
                                                         {notification.time}
                                                     </Typography>
                                                     {notification.path && (
-                                                        <Button size="small" onClick={() => { workflow.markRead([notification.id]); navigate(notification.path!); }}>
+                                                        <Button size="small" onClick={() => { workflow.markRead([notification.id]); navigate(notificationTarget(notification)!); }}>
                                                             Open
                                                         </Button>
                                                     )}

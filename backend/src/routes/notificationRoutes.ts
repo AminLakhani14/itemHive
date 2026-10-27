@@ -5,6 +5,7 @@ import { canFinancial } from '../middleware/financialAccess';
 import type { AdminScreenPermission } from '../utils/screenPermissions';
 import Employee from '../models/Employee';
 import Expense from '../models/Expense';
+import { FinanceAccount } from '../models/Finance';
 import { FinancePeriod, JournalEntry } from '../models/Finance';
 import { PayrollAudit, PayrollLoan, PayrollLoanMovement, PayrollPayment, PayrollRequest, PayrollRun } from '../models/Payroll';
 
@@ -12,7 +13,7 @@ interface Notice {
   id: string; title: string; detail: string; path: string;
   category: 'payroll' | 'expense' | 'finance';
   severity: 'warning' | 'success' | 'info'; sortTime: number; time: string;
-  requiresAction: boolean;
+  requiresAction: boolean; recordId?: string; recordKind?: 'expense' | 'request' | 'journal' | 'account' | 'period';
 }
 
 // Use the source documents and their committed history, so failed transactions and
@@ -26,7 +27,12 @@ export async function workflowNotifications(req: AuthRequest) {
   const add = (id: string, title: string, detail: string, path: string, category: Notice['category'], at: any, requiresAction = false, severity: Notice['severity'] = 'info') => {
     const sortTime = new Date(at).getTime();
     if (!Number.isFinite(sortTime) || (!requiresAction && sortTime < since.getTime())) return;
-    notices.set(id, { id, title, detail, path, category, sortTime, time: new Date(sortTime).toISOString(), requiresAction, severity: requiresAction ? 'warning' : severity });
+    const targets: Array<[Notice['recordKind'], RegExp]> = [
+      ['expense', /^expense-(?:review-|pay-)?([a-f\d]{24})(?:-|$)/], ['request', /^hr-(?:pending|decision)-([a-f\d]{24})(?:-|$)/],
+      ['journal', /^journal-(?:review-)?([a-f\d]{24})(?:-|$)/], ['account', /^account-([a-f\d]{24})(?:-|$)/], ['period', /^period-([a-f\d]{24})(?:-|$)/],
+    ];
+    const target = targets.map(([kind, pattern]) => ({ kind, match: pattern.exec(id) })).find(t => t.match);
+    notices.set(id, { ...(target ? { recordKind: target.kind, recordId: target.match![1] } : {}), id, title, detail, path, category, sortTime, time: new Date(sortTime).toISOString(), requiresAction, severity: requiresAction ? 'warning' : severity });
   };
   const ownEmployee = await Employee.findOne({ ...tenant, userId }).select('_id').lean();
   const employeeId = ownEmployee?._id;
@@ -92,8 +98,10 @@ export async function workflowNotifications(req: AuthRequest) {
       if (employeeId && can('self_payroll')) {
         const slips = await PayrollRun.find({ ...tenant, status: 'approved', 'items.employeeId': String(employeeId), approvedAt: { $gte: since } }).select('month approvedAt').sort({ approvedAt: -1 }).limit(100).lean();
         for (const r of slips) add(`payslip-${r._id}`, 'Your payslip is ready', `Your salary for ${r.month} has been approved.`, '/my/payslips', 'payroll', r.approvedAt, false, 'success');
-        const payments = await PayrollPayment.find({ ...tenant, employeeId, updatedAt: { $gte: since } }).select('createdAt reversedAt dateKey').sort({ updatedAt: -1 }).limit(100).lean();
-        for (const p of payments) add(`salary-payment-${p._id}-${p.reversedAt ? 'reversed' : 'paid'}`, p.reversedAt ? 'Salary payment reversed' : 'Salary payment recorded', `Open your payments for the entry dated ${p.dateKey}.`, '/my/salary-payments', 'payroll', p.reversedAt || p.createdAt, false, p.reversedAt ? 'warning' : 'success');
+        const payments = await PayrollPayment.find({ ...tenant, employeeId, updatedAt: { $gte: since } }).select('createdAt reversedAt reversalReason dateKey').sort({ updatedAt: -1 }).limit(100).lean();
+        for (const p of payments) add(`salary-payment-${p._id}-${p.reversedAt ? 'reversed' : 'paid'}`, p.reversedAt ? 'Salary payment reversed' : 'Salary payment recorded', `Entry dated ${p.dateKey}.${p.reversalReason ? ' Reason: ' + p.reversalReason : ' Open your payments for details.'}`, '/my/salary-payments', 'payroll', p.reversedAt || p.createdAt, false, p.reversedAt ? 'warning' : 'success');
+        const salaries = await PayrollAudit.find({ ...tenant, action: 'salary.create', 'after.employeeId': employeeId, actorId: { $ne: userId }, createdAt: { $gte: since } }).select('createdAt reason after.effectiveDate').sort({ createdAt: -1 }).limit(100).lean();
+        for (const a of salaries) add('salary-change-' + a._id, 'Your salary setup changed', 'Effective ' + a.after?.effectiveDate + (a.reason ? ': ' + a.reason : '') + '. Contact your payroll admin if a correction is needed.', '/my/payslips', 'payroll', a.createdAt);
         const changes = await PayrollAudit.find({ ...tenant, action: 'employee.payroll', targetId: String(employeeId), actorId: { $ne: userId }, createdAt: { $gte: since } }).select('createdAt before.payrollEnrolled after.payrollEnrolled').sort({ createdAt: -1 }).limit(100).lean();
         for (const a of changes) if (a.before?.payrollEnrolled !== a.after?.payrollEnrolled) add(`enrollment-${a._id}`, a.after?.payrollEnrolled ? 'You are included in payroll' : 'You were removed from payroll', 'Contact your payroll admin if this needs a correction.', '/my/payslips', 'payroll', a.createdAt);
       }
@@ -116,9 +124,9 @@ export async function workflowNotifications(req: AuthRequest) {
         for (const r of pending) add(`run-pay-${r._id}`, 'Salary payments due', `Unpaid salaries for ${r.month}.`, '/payroll/payments', 'payroll', r.approvedAt, true);
       }
       if (employeeId && can('self_loan')) {
-        const rows = await PayrollLoanMovement.find({ ...tenant, employeeId, createdAt: { $gte: since } }).select('kind createdAt').sort({ createdAt: -1 }).limit(100).lean();
+        const rows = await PayrollLoanMovement.find({ ...tenant, employeeId, createdAt: { $gte: since } }).select('kind reason reference createdAt').sort({ createdAt: -1 }).limit(100).lean();
         const labels: Record<string, string> = { disbursement: 'Loan payment recorded', repayment: 'Loan repayment recorded', recovery: 'Loan deducted from salary', cancellation: 'Loan cancelled' };
-        for (const m of rows) add(`loan-${m._id}`, labels[m.kind], 'Open your loan requests to check the balance.', '/my/loan-requests', 'payroll', m.createdAt, false, m.kind === 'cancellation' ? 'warning' : 'success');
+        for (const m of rows) add(`loan-${m._id}`, labels[m.kind], `Open your loan requests to check the balance.${m.kind === 'cancellation' && m.reason ? ' Reason: ' + m.reason : ''}`, '/my/loan-requests', 'payroll', m.createdAt, false, m.kind === 'cancellation' ? 'warning' : 'success');
       }
     })(),
     (async () => {
@@ -129,11 +137,15 @@ export async function workflowNotifications(req: AuthRequest) {
       if (can('finance_journal_prepare') || can('finance_journal_view') || can('finance_journal_approve')) {
         const rows = await JournalEntry.find({ ...tenant, source: { $in: ['manual', 'opening'] }, updatedAt: { $gte: since }, ...(!can('finance_journal_view') && !can('finance_journal_approve') ? { createdBy: userId } : {}) }).select('description history').sort({ updatedAt: -1 }).limit(100).lean();
         const labels: Record<string, string> = { post: 'Journal posted', reject: 'Journal rejected', reverse: 'Journal reversed', cancel: 'Journal cancelled' };
-        for (const j of rows) for (const [i, h] of j.history.entries()) if (labels[h.action] && String(h.actorId) !== userId) add(`journal-${j._id}-${i}`, labels[h.action], `${j.description}: ${h.reason}`, '/finance/journals', 'finance', h.at, false, h.action === 'post' ? 'success' : 'warning');
+        for (const j of rows) for (const [i, h] of j.history.entries()) if (labels[h.action] && String(h.actorId) !== userId) add(`journal-${j._id}-${i}`, labels[h.action], `${j.description}${h.reason ? ': ' + h.reason : ''}`, '/finance/journals', 'finance', h.at, false, h.action === 'post' ? 'success' : 'warning');
+      }
+      if (can('finance_accounts') || can('finance_settings')) {
+        const accounts = await FinanceAccount.find({ ...tenant, updatedAt: { $gte: since } }).select('code name history').sort({ updatedAt: -1 }).limit(100).lean();
+        for (const a of accounts) for (const [i, h] of a.history.entries()) if (h.action === 'updated' && String(h.actorId) !== userId) add('account-' + a._id + '-' + i, 'Finance account changed', a.code + ' ' + a.name + (h.reason ? ': ' + h.reason : ''), '/finance/accounts', 'finance', h.at);
       }
       if (can('finance_period_close') || can('finance_period_reopen')) {
         const rows = await FinancePeriod.find({ ...tenant, updatedAt: { $gte: since } }).select('month history').sort({ updatedAt: -1 }).limit(100).lean();
-        for (const p of rows) for (const [i, h] of p.history.entries()) if (String(h.actorId) !== userId) add(`period-${p._id}-${i}`, `Finance month ${h.action}`, `${p.month}: ${h.reason}`, '/finance/periods', 'finance', h.at, false, h.action === 'closed' ? 'success' : 'warning');
+        for (const p of rows) for (const [i, h] of p.history.entries()) if (String(h.actorId) !== userId) add(`period-${p._id}-${i}`, `Finance month ${h.action}`, `${p.month}${h.reason ? ': ' + h.reason : ''}`, '/finance/periods', 'finance', h.at, false, h.action === 'closed' ? 'success' : 'warning');
       }
     })(),
   ]);

@@ -62,7 +62,7 @@ import {
 } from '../../lib/employees';
 import DesignationManagerDialog from '../../components/Employees/DesignationManagerDialog';
 import CreateLoginDialog from '../../components/Employees/CreateLoginDialog';
-import EmployeePayrollPanel from '../../components/Payroll/EmployeePayrollPanel';
+import EmployeePayrollPanel, { type EmployeePayrollSection } from '../../components/Payroll/EmployeePayrollPanel';
 import { hasScreenAccess } from '../../lib/screenPermissions';
 import FaceEnrollmentDialog, { type FaceEnrollmentResult } from '../../components/Attendance/FaceEnrollmentDialog';
 import {
@@ -263,7 +263,7 @@ type ProfileTab = 'personal' | 'job' | 'education' | 'experience' | 'references'
 const PROFILE_TABS: Array<{ key: ProfileTab; label: string; icon: React.ReactElement }> = [
     { key: 'personal', label: 'Personal', icon: <UserRound size={17} /> },
     { key: 'job', label: 'Job & Salary', icon: <Wallet size={17} /> },
-    { key: 'payroll', label: 'Payroll', icon: <Wallet size={17} /> },
+    { key: 'payroll', label: 'Salary & Leaves', icon: <Wallet size={17} /> },
     { key: 'loans', label: 'Loans & Advances', icon: <Wallet size={17} /> },
     { key: 'payrollHistory', label: 'Payroll History', icon: <FileText size={17} /> },
     { key: 'education', label: 'Education', icon: <GraduationCap size={17} /> },
@@ -285,10 +285,26 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
     const { id: routeId = 'new' } = useParams();
     const id = employeeId || routeId;
     const isNew = id === 'new';
+    const context = React.useRef(0);
+    const [workspaceVersion, setWorkspaceVersion] = React.useState(0);
+    React.useEffect(() => {
+        context.current++;
+        const changed = () => {
+            context.current++;
+            setEmployee(null); setForm({ ...emptyForm, joiningDate: toLocalDateKey() }); setDocuments([]);
+            setPendingDocuments([]); setPendingFace(null); setConfirm(null); setFaceDialogOpen(false);
+            setLoginDialogOpen(false); setDesignationsOpen(false); setError(''); setSuccessMessage('');
+            setSaving(false); setBusy(false); setTab('personal'); setDocumentTitle(''); createdIdRef.current = '';
+            setLoading(!isNew); setWorkspaceVersion(v => v + 1);
+        };
+        window.addEventListener('itemhive-workspace-changed', changed);
+        return () => { context.current++; window.removeEventListener('itemhive-workspace-changed', changed); };
+    }, [id, isNew]);
     React.useEffect(() => {
         const changed = (event: Event) => {
             if ((event as CustomEvent<string>).detail !== id) return;
-            api.get<Employee>(`/employees/${id}`).then(({ data }) => { setEmployee(data); setForm(current => ({ ...current, salary: data.salary, salaryType: data.salaryType })); }).catch(() => {});
+            const current = context.current;
+            api.get<Employee>(`/employees/${id}`).then(({ data }) => { if (current !== context.current) return; setEmployee(data); setForm(current => ({ ...current, salary: data.salary, salaryType: data.salaryType })); }).catch(() => {});
         };
         window.addEventListener('itemhive-payroll-profile-updated', changed);
         return () => window.removeEventListener('itemhive-payroll-profile-updated', changed);
@@ -313,6 +329,7 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
     const [confirm, setConfirm] = React.useState<ConfirmState | null>(null);
     const [loginDialogOpen, setLoginDialogOpen] = React.useState(false);
     const [tab, setTab] = React.useState<ProfileTab>('personal');
+    const [payrollSection, setPayrollSection] = React.useState<EmployeePayrollSection>('salary');
     const [loading, setLoading] = React.useState(!isNew);
     const [notFound, setNotFound] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
@@ -327,10 +344,11 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
     const createdIdRef = React.useRef('');
 
     React.useEffect(() => {
+        const current = context.current;
         api.get('/employees/designations')
-            .then((response) => setDesignations(response.data || []))
-            .catch(() => setDesignations([]));
-    }, []);
+            .then((response) => { if (current === context.current) setDesignations(response.data || []); })
+            .catch(() => { if (current === context.current) setDesignations([]); });
+    }, [workspaceVersion]);
 
     React.useEffect(() => {
         if (isNew) {
@@ -341,25 +359,26 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
             return;
         }
 
+        const current = context.current;
         let cancelled = false;
         if (createdIdRef.current !== id) setLoading(true);
         setNotFound(false);
         api.get(`/employees/${id}`)
             .then((response) => {
-                if (cancelled) return;
+                if (cancelled || current !== context.current) return;
                 setEmployee(response.data);
                 setForm(toForm(response.data));
                 setDocuments(response.data.documents || []);
             })
             .catch((fetchError: unknown) => {
-                if (cancelled) return;
+                if (cancelled || current !== context.current) return;
                 if ((fetchError as AxiosError).response?.status === 404) setNotFound(true);
                 else setError(getErrorMessage(fetchError, 'Unable to load employee profile.'));
             })
-            .finally(() => { if (!cancelled) setLoading(false); });
+            .finally(() => { if (!cancelled && current === context.current) setLoading(false); });
 
         return () => { cancelled = true; };
-    }, [id, isNew]);
+    }, [id, isNew, workspaceVersion]);
 
     const designationOptions = React.useMemo(() => {
         const names = designations.map((designation) => designation.name);
@@ -373,17 +392,20 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
 
     const handlePhoto = (file?: File) => {
         if (!file) return;
+        const current = context.current;
         optimizeProductImage(file)
-            .then((photo) => updateField('photo', photo))
-            .catch((photoError: unknown) => setError(getErrorMessage(photoError, 'Unable to use this photo.')));
+            .then((photo) => { if (current === context.current) updateField('photo', photo); })
+            .catch((photoError: unknown) => { if (current === context.current) setError(getErrorMessage(photoError, 'Unable to use this photo.')); });
     };
 
     const handleLoginCreated = async () => {
+        const current = context.current;
         setLoginDialogOpen(false);
         setSuccessMessage('Login created. Set their rights in Team.');
         try {
             // Refresh only the saved record so unsaved edits in the form are kept.
             const response = await api.get(`/employees/${id}`);
+            if (current !== context.current) return;
             setEmployee(response.data);
         } catch {
             // The login exists either way; the card updates on the next visit.
@@ -397,36 +419,43 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
     };
 
     const handleDocumentFile = async (file?: File) => {
+        const current = context.current;
         if (!file) return;
         setError('');
         const title = documentTitle.trim() || file.name.replace(/\.[^.]+$/, '');
         try {
             const data = await readEmployeeDocument(file);
+            if (current !== context.current) return;
             if (isNew) {
                 setPendingDocuments((current) => [...current, { key: `${Date.now()}-${file.name}`, title, fileName: file.name, data, size: file.size }]);
             } else {
                 setBusy(true);
                 const response = await api.post(`/employees/${id}/documents`, { title, fileName: file.name, data });
+                if (current !== context.current) return;
                 setDocuments((current) => [response.data, ...current]);
                 setSuccessMessage('Document uploaded.');
             }
             setDocumentTitle('');
         } catch (uploadError: unknown) {
+            if (current !== context.current) return;
             setError(getErrorMessage(uploadError, 'Unable to upload document.'));
         } finally {
-            setBusy(false);
+            if (current === context.current) setBusy(false);
         }
     };
 
     const handleViewDocument = async (document: EmployeeDocumentMeta) => {
+        const current = context.current;
         setBusy(true);
         try {
             const response = await api.get(`/employees/${id}/documents/${document._id}`);
+            if (current !== context.current) return;
             await openEmployeeDocument(response.data);
         } catch (viewError: unknown) {
+            if (current !== context.current) return;
             setError(getErrorMessage(viewError, 'Unable to open document.'));
         } finally {
-            setBusy(false);
+            if (current === context.current) setBusy(false);
         }
     };
 
@@ -434,7 +463,9 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
         title: 'Delete Document',
         message: `Delete "${document.title}"? This cannot be undone.`,
         onConfirm: async () => {
+            const current = context.current;
             await api.delete(`/employees/${id}/documents/${document._id}`);
+            if (current !== context.current) return;
             setDocuments((current) => current.filter((item) => item._id !== document._id));
             setSuccessMessage('Document deleted.');
         },
@@ -444,24 +475,29 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
         title: 'Remove Face',
         message: `Remove the registered face for ${form.fullName}? They will not be able to mark attendance until a face is registered again.`,
         onConfirm: async () => {
+            const current = context.current;
             const response = await api.delete(`/employees/${id}/face`);
+            if (current !== context.current) return;
             setEmployee(response.data);
             setSuccessMessage('Face removed.');
         },
     });
 
     const runConfirm = async () => {
+        const current = context.current;
         if (!confirm) return;
         setBusy(true);
         setError('');
         try {
             await confirm.onConfirm();
+            if (current !== context.current) return;
             setConfirm(null);
         } catch (confirmError: unknown) {
+            if (current !== context.current) return;
             setError(getErrorMessage(confirmError, 'Something went wrong. Please try again.'));
             setConfirm(null);
         } finally {
-            setBusy(false);
+            if (current === context.current) setBusy(false);
         }
     };
 
@@ -482,6 +518,7 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
             return;
         }
 
+        const current = context.current;
         setSaving(true);
         setError('');
         const payload = {
@@ -510,8 +547,10 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
         let saved: Employee;
         try {
             const response = isNew ? await api.post('/employees', payload) : await api.put(`/employees/${id}`, payload);
+            if (current !== context.current) return;
             saved = response.data;
         } catch (saveError: unknown) {
+            if (current !== context.current) return;
             setError(getErrorMessage(saveError, 'Unable to save employee.'));
             setSaving(false);
             return;
@@ -522,14 +561,17 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
         if (pendingFace) {
             try {
                 saved = (await api.put(`/employees/${saved._id}/face`, { descriptors: pendingFace.descriptors })).data;
+                if (current !== context.current) return;
                 setPendingFace(null);
             } catch (faceError: unknown) {
                 problems.push(`Face was not registered: ${getErrorMessage(faceError, 'please try again.')}`);
             }
         }
 
+        if (current !== context.current) return;
         const failedDocuments: PendingDocument[] = [];
         for (const document of pendingDocuments) {
+            if (current !== context.current) return;
             try {
                 await api.post(`/employees/${saved._id}/documents`, { title: document.title, fileName: document.fileName, data: document.data });
             } catch (documentError: unknown) {
@@ -537,6 +579,7 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
                 problems.push(`${document.title} was not uploaded: ${getErrorMessage(documentError, 'please try again.')}`);
             }
         }
+        if (current !== context.current) return;
         setPendingDocuments(failedDocuments);
 
         setEmployee(saved);
@@ -585,9 +628,9 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
                         </Typography>
                     </Box>
                 </Stack>
-                <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSave} disabled={saving || busy} sx={{ fontWeight: 800, borderRadius: '8px' }}>
+                {(isNew || !['payroll', 'loans', 'payrollHistory'].includes(tab)) && <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSave} disabled={saving || busy} sx={{ fontWeight: 800, borderRadius: '8px' }}>
                     {saving ? 'Saving...' : isNew ? 'Create Employee' : 'Save Changes'}
-                </Button>
+                </Button>}
             </Box>
 
             {error && (
@@ -707,7 +750,7 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
                             </Tabs>
                         </Box>
                         <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-                            {['payroll', 'loans', 'payrollHistory'].includes(tab) && (isNew ? <Alert severity="info">Save the employee profile before configuring payroll.</Alert> : <EmployeePayrollPanel employeeId={id} view={tab === 'loans' ? 'loans' : tab === 'payrollHistory' ? 'history' : 'profile'} />)}
+                            {['payroll', 'loans', 'payrollHistory'].includes(tab) && (isNew ? <Alert severity="info">Save the employee profile before configuring payroll.</Alert> : <EmployeePayrollPanel employeeId={id} view={tab === 'loans' ? 'loans' : tab === 'payrollHistory' ? 'history' : 'profile'} section={payrollSection} onSectionChange={setPayrollSection} />)}
                             {tab === 'personal' && (
                                 <Stack spacing={3}>
                                     <Grid container spacing={2}>

@@ -22,6 +22,7 @@ import {
     TableCell,
     TableContainer,
     TableHead,
+    TablePagination,
     TableRow,
     TextField,
     Tooltip,
@@ -35,6 +36,7 @@ import api from '../../api/axios';
 import useAppCurrency from '../../hooks/useAppCurrency';
 import type { RootState } from '../../store';
 import { getRegionalIdLabel } from '../../lib/regional';
+import { compactPayrollSx } from '../../components/Payroll/PayrollLayout';
 import { getInitials } from '../../lib/employees';
 import DesignationManagerDialog from '../../components/Employees/DesignationManagerDialog';
 import { SALARY_TYPE_LABELS, type Designation, type Employee, type EmployeeStatus } from '../../types/employee';
@@ -58,8 +60,13 @@ const EmployeesPage: React.FC = () => {
     const [saving, setSaving] = React.useState(false);
     const [error, setError] = React.useState('');
     const [successMessage, setSuccessMessage] = React.useState('');
+    const [page, setPage] = React.useState(0);
+    const [limit, setLimit] = React.useState(25);
+    const generation = React.useRef(0);
+    const context = React.useRef(0);
 
     const loadData = React.useCallback(async () => {
+        const current = ++generation.current;
         setLoading(true);
         setError('');
         try {
@@ -67,18 +74,25 @@ const EmployeesPage: React.FC = () => {
                 api.get('/employees'),
                 api.get('/employees/designations'),
             ]);
+            if (current !== generation.current) return;
             setEmployees(employeesResponse.data || []);
             setDesignations(designationsResponse.data || []);
         } catch (fetchError: unknown) {
-            setError(getErrorMessage(fetchError, 'Unable to load employees.'));
+            if (current === generation.current) setError(getErrorMessage(fetchError, 'Unable to load employees.'));
         } finally {
-            setLoading(false);
+            if (current === generation.current) setLoading(false);
         }
     }, []);
 
     React.useEffect(() => {
-        loadData();
+        void loadData();
+        const changed = () => { context.current++; setSaving(false); setEmployees([]); setDesignations([]); setDeleteTarget(null); setDesignationsOpen(false); setSuccessMessage(''); setSearchTerm(''); setDesignationFilter('all'); setStatusFilter('active'); setPage(0); void loadData(); };
+        window.addEventListener('itemhive-workspace-changed', changed);
+        const updated = () => { void loadData(); };
+        window.addEventListener('itemhive-payroll-profile-updated', updated);
+        return () => { context.current++; generation.current++; window.removeEventListener('itemhive-workspace-changed', changed); window.removeEventListener('itemhive-payroll-profile-updated', updated); };
     }, [loadData]);
+    React.useEffect(() => setPage(0), [searchTerm, designationFilter, statusFilter]);
 
     const designationOptions = React.useMemo(
         () => Array.from(new Set(employees.map((employee) => employee.designation).filter(Boolean))).sort(),
@@ -96,6 +110,8 @@ const EmployeesPage: React.FC = () => {
         });
     }, [employees, searchTerm, statusFilter, designationFilter]);
 
+    const safePage = Math.min(page, Math.max(0, Math.ceil(filteredEmployees.length / limit) - 1));
+
     const stats = React.useMemo(() => {
         const active = employees.filter((employee) => employee.status === 'active');
         return {
@@ -110,17 +126,19 @@ const EmployeesPage: React.FC = () => {
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
+        const current = context.current;
         setSaving(true);
         setError('');
         try {
             await api.delete(`/employees/${deleteTarget._id}`);
+            if (current !== context.current) return;
             setEmployees((current) => current.filter((employee) => employee._id !== deleteTarget._id));
             setSuccessMessage('Employee deleted.');
             setDeleteTarget(null);
         } catch (deleteError: unknown) {
-            setError(getErrorMessage(deleteError, 'Unable to delete employee.'));
+            if (current === context.current) setError(getErrorMessage(deleteError, 'Unable to delete employee.'));
         } finally {
-            setSaving(false);
+            if (current === context.current) setSaving(false);
         }
     };
 
@@ -128,19 +146,19 @@ const EmployeesPage: React.FC = () => {
         { label: 'Employees', value: stats.total, color: 'text.primary' },
         { label: 'Active', value: stats.active, color: 'success.main' },
         { label: 'Face Registered', value: `${stats.faceRegistered} / ${stats.active}`, color: 'info.main' },
-        { label: 'Monthly Payroll', value: formatCurrency(stats.monthlyPayroll, { minimumFractionDigits: 0, maximumFractionDigits: 0 }), color: 'primary.main' },
+        { label: 'Monthly base salaries', value: formatCurrency(stats.monthlyPayroll, { minimumFractionDigits: 0, maximumFractionDigits: 0 }), color: 'primary.main' },
     ];
 
     return (
-        <Box>
-            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
+        <Box sx={compactPayrollSx}>
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' } }}>
                 <Box>
                     <Typography variant="h4" fontWeight={800}>Employees</Typography>
                     <Typography variant="body2" color="text.secondary">
                         Employee profiles, designations, salaries, documents, and face registration for attendance.
                     </Typography>
                 </Box>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', '& .MuiButton-root': { flex: { xs: '1 1 150px', sm: '0 0 auto' } } }}>
                     <Button variant="outlined" startIcon={<BriefcaseBusiness size={18} />} onClick={() => setDesignationsOpen(true)} sx={{ fontWeight: 800, borderRadius: '8px' }}>
                         Designations
                     </Button>
@@ -156,13 +174,13 @@ const EmployeesPage: React.FC = () => {
                 </Alert>
             )}
 
-            <Grid container spacing={2.5} sx={{ mb: 3 }}>
+            <Grid container spacing={1.5} sx={{ mb: 2 }}>
                 {statCards.map((card) => (
-                    <Grid key={card.label} size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Grid key={card.label} size={{ xs: 6, md: 3 }}>
                         <Card sx={{ borderRadius: '8px' }}>
                             <CardContent>
                                 <Typography variant="body2" color="text.secondary">{card.label}</Typography>
-                                <Typography variant="h4" fontWeight={900} color={card.color} noWrap>{card.value}</Typography>
+                                <Typography variant="h6" fontWeight={800} color={card.color} sx={{ overflowWrap: 'anywhere' }}>{card.value}</Typography>
                             </CardContent>
                         </Card>
                     </Grid>
@@ -170,10 +188,11 @@ const EmployeesPage: React.FC = () => {
             </Grid>
 
             <Card sx={{ borderRadius: '8px', overflow: 'hidden' }}>
-                <CardContent sx={{ p: 0 }}>
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <CardContent sx={{ '&&&': { p: 0 } }}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
                         <TextField
                             fullWidth
+                            size="small"
                             placeholder={`Search by name, code, ${regionalIdLabel}, phone, or designation...`}
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
@@ -185,11 +204,11 @@ const EmployeesPage: React.FC = () => {
                                 ),
                             }}
                         />
-                        <TextField select label="Designation" value={designationFilter} onChange={(event) => setDesignationFilter(event.target.value)} sx={{ minWidth: 200 }}>
+                        <TextField size="small" select label="Designation" value={designationFilter} onChange={(event) => setDesignationFilter(event.target.value)} sx={{ minWidth: 200 }}>
                             <MenuItem value="all">All designations</MenuItem>
                             {designationOptions.map((designation) => <MenuItem key={designation} value={designation}>{designation}</MenuItem>)}
                         </TextField>
-                        <TextField select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as EmployeeStatus | 'all')} sx={{ minWidth: 160 }}>
+                        <TextField size="small" select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as EmployeeStatus | 'all')} sx={{ minWidth: 160 }}>
                             <MenuItem value="active">Active</MenuItem>
                             <MenuItem value="inactive">Inactive</MenuItem>
                             <MenuItem value="all">All</MenuItem>
@@ -197,7 +216,7 @@ const EmployeesPage: React.FC = () => {
                     </Stack>
 
                     <TableContainer sx={{ overflowX: 'auto' }}>
-                        <Table sx={{ minWidth: 1220 }}>
+                        <Table size="small" sx={{ minWidth: 1080 }}>
                             <TableHead>
                                 <TableRow>
                                     <TableCell sx={{ fontWeight: 800 }}>EMPLOYEE</TableCell>
@@ -221,7 +240,7 @@ const EmployeesPage: React.FC = () => {
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    filteredEmployees.map((employee) => (
+                                    filteredEmployees.slice(safePage * limit, (safePage + 1) * limit).map((employee) => (
                                         <TableRow key={employee._id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/employees/${employee._id}`)}>
                                             <TableCell>
                                                 <Stack direction="row" spacing={1.5} alignItems="center">
@@ -287,6 +306,7 @@ const EmployeesPage: React.FC = () => {
                             </TableBody>
                         </Table>
                     </TableContainer>
+                    <TablePagination component="div" count={filteredEmployees.length} page={safePage} rowsPerPage={limit} rowsPerPageOptions={[10, 25, 50, 100]} onPageChange={(_, value) => setPage(value)} onRowsPerPageChange={e => { setLimit(Number(e.target.value)); setPage(0); }} />
                 </CardContent>
             </Card>
 

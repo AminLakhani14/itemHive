@@ -46,7 +46,7 @@ export function refreshWorkflowNotifications(force = false) {
             const items = response.data.map(item => ({ ...item, time: new Date(item.sortTime).toLocaleString() }));
             publish({ ...state, items, loading: false, error: '' });
         } catch {
-            if (requestGeneration === generation && key === scope()) publish({ ...state, items: [], loading: false, error: 'Payroll and finance alerts could not load. Please refresh.' });
+            if (requestGeneration === generation && key === scope()) publish({ ...state, loading: false, error: 'Payroll and finance alerts could not refresh. Previously loaded alerts are still shown. Please retry.' });
         } finally {
             if (requestGeneration === generation) {
                 inFlight = undefined;

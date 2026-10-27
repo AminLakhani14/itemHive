@@ -48,6 +48,7 @@ const date = Joi.string().custom((v, h) =>
 );
 const month = Joi.string().pattern(/^\d{4}-(0[1-9]|1[0-2])$/);
 const text = Joi.string().trim().min(1).max(500);
+const optionalNote = Joi.string().trim().allow('').max(500).default('');
 const amount = Joi.number().min(0).max(1_000_000_000).precision(2).strict();
 const schedule = Joi.object({
   workingDays: Joi.array()
@@ -82,7 +83,7 @@ const salaryFields = {
           }),
         )
         .optional(),
-      reason: text.required(),
+      reason: optionalNote,
       components: Joi.array()
         .max(50)
         .items(
@@ -99,7 +100,7 @@ const salaryFields = {
         .required(),
 };
 const reasonSchema = Joi.object({
-  reason: text.required(),
+  reason: optionalNote,
   version: Joi.number().integer().min(0).required(),
 });
 const handler =
@@ -162,6 +163,7 @@ const auditFor = (
     before,
     after,
     session,
+    req.user!.name,
   );
 async function employeeFor(
   req: AuthRequest,
@@ -256,7 +258,7 @@ payrollRouter.put(
           }),
         )
         .required(),
-      reason: text.required(),
+      reason: optionalNote,
     }),
   ),
   handler(async (req, res) => {
@@ -365,6 +367,7 @@ payrollRouter.get(
     res.json({
       profile: canSettings ? profile : maskProfile(profile),
       structures,
+      audit: (await PayrollAudit.find({ ...tenant(req), $or: [{ action: 'employee.payroll', targetId: String(e._id) }, { action: 'salary.create', 'after.employeeId': e._id }] }).select('actorId actorName action reason reasonProvided createdAt').sort({ createdAt: -1, _id: -1 }).limit(100).lean()),
       balances: await leaveBalances(
         req.user!.businessId,
         e,
@@ -385,13 +388,15 @@ payrollRouter.put(
       paymentMethod: Joi.string().valid("cash", "bank").required(),
       bankName: Joi.string().trim().allow("").max(100).required(),
       bankAccount: Joi.string().trim().allow("").max(100).required(),
-      reason: text.required(),
+      reason: optionalNote,
       openingSalary: Joi.object({ ...salaryFields, reason: Joi.forbidden() }).optional(),
     }),
   ),
   handler(async (req, res) => {
     const result = await transaction(async (session) => {
       const e = await employeeFor(req, String(req.params.id), session);
+      const correction = e.payrollEnrolled && (!req.body.payrollEnrolled || (e.employmentEndDate || '') !== req.body.employmentEndDate || e.paymentMethod !== req.body.paymentMethod || (e.bankName || '') !== req.body.bankName || (e.bankAccount || '') !== req.body.bankAccount);
+      if (correction && !req.body.reason.trim()) throw new Error('Reason is required for payroll removal, employment date or payment detail corrections');
       if (req.body.payrollRevision !== undefined && req.body.payrollRevision !== e.payrollRevision) throw new Error('Payroll profile changed. Refresh before saving');
       if (
         req.body.employmentEndDate &&
@@ -550,11 +555,14 @@ payrollRouter.get('/request-employees', requestAccess, handler(async (req, res) 
 payrollRouter.get(
   "/requests",
   requestAccess,
-  handler(async (req, res) =>
-    res.json(
-      await PayrollRequest.find({ ...tenant(req), kind: { $in: managedRequestKinds(req) } }).sort({ createdAt: -1 }).lean(),
-    ),
-  ),
+  handler(async (req, res) => {
+    const [rows, ownEmployees] = await Promise.all([
+      PayrollRequest.find({ ...tenant(req), kind: { $in: managedRequestKinds(req) } }).sort({ createdAt: -1 }).lean(),
+      Employee.find({ ...tenant(req), userId: req.user!.id }).select('_id').lean(),
+    ]);
+    const ownIds = new Set(ownEmployees.map(e => String(e._id)));
+    res.json(rows.map(r => ({ ...r, canApprove: r.status === 'pending' && String(r.createdBy) !== req.user!.id && !ownIds.has(String(r.employeeId)) })));
+  }),
 );
 payrollRouter.post(
   "/requests",
@@ -573,7 +581,7 @@ payrollRouter.post(
       status: Joi.string()
         .valid("approved", "rejected", "cancelled")
         .required(),
-      reason: text.required(),
+      reason: Joi.when('status', { is: 'approved', then: optionalNote, otherwise: text.required() }),
     }),
   ),
   handler(async (req, res) => {
@@ -743,7 +751,7 @@ payrollRouter.post(
         const before = r.toObject();
         r.status = req.body.status;
         r.decidedBy = req.user!.id;
-        r.decisionReason = req.body.reason;
+        r.decisionReason = req.body.reason || 'Request approved';
         r.decidedAt = new Date();
         await r.save({ session });
         await Employee.updateOne(
@@ -789,7 +797,7 @@ payrollRouter.post(
       amount: amount.optional(),
       key: text.required(),
       reference: text.required(),
-      reason: text.required(),
+      reason: Joi.when('kind', { is: 'cancellation', then: text.required(), otherwise: optionalNote }),
     }),
   ),
   handler(async (req, res) => {
@@ -849,8 +857,9 @@ payrollRouter.post(
               amountMinor: value,
               key: req.body.key,
               reference: req.body.reference,
-              reason: req.body.reason,
+              reason: req.body.reason || `Loan ${req.body.kind}: ${req.body.reference}`,
               actorId: req.user!.id,
+              actorName: req.user!.name,
             },
           ],
           { session },
@@ -895,7 +904,7 @@ payrollRouter.post(
       kind: Joi.string().valid("regular", "adjustment", "final").required(),
       employeeIds: Joi.array().items(id.required()).unique().min(1).required(),
       parentRunId: id.optional(),
-      reason: text.required(),
+      reason: Joi.when('kind', { is: 'adjustment', then: text.required(), otherwise: optionalNote }),
     }),
   ),
   handler(async (req, res) => {
@@ -938,6 +947,7 @@ payrollRouter.post(
       throw new Error("Approved parent run not found");
     const run = await PayrollRun.create({
       ...req.body,
+      reason: req.body.reason || `${req.body.kind} payroll for ${req.body.month}`,
       ...tenant(req),
       createdBy: req.user!.id,
       preparedBy: req.user!.id,
@@ -968,6 +978,7 @@ payrollRouter.get(
         req,
         run.items.map((i: any) => ({ ...i, runId: String(run._id) })),
       ),
+      audit: await PayrollAudit.find({ ...tenant(req), $or: [{ targetId: String(run._id) }, { 'after.runId': run._id }, { 'before.runId': run._id }] }).select('actorId actorName action reason reasonProvided createdAt').sort({ createdAt: -1, _id: -1 }).limit(100).lean(),
     });
   }),
 );
@@ -1071,6 +1082,7 @@ for (const action of ["calculate", "submit", "approve", "return"])
     ),
     validate(reasonSchema),
     handler(async (req, res) => {
+      if (action === 'return' && !req.body.reason.trim()) throw new Error('Reason is required when returning payroll');
       res.json(
         await transaction(async (session) => {
           const run = await getRun(req, session);
@@ -1182,8 +1194,9 @@ for (const action of ["calculate", "submit", "approve", "return"])
                         kind: "recovery",
                         amountMinor: line.amountMinor,
                         key: `run:${run._id}:loan:${l._id}`,
-                        reason: req.body.reason,
+                        reason: req.body.reason || `Payroll recovery for ${run.month}`,
                         actorId: req.user!.id,
+                        actorName: req.user!.name,
                       },
                     ],
                     { session },
@@ -1272,7 +1285,7 @@ payrollRouter.post(
   validate(
     Joi.object({
       payments: Joi.array().items(paymentInput).min(1).max(500).required(),
-      reason: text.required(),
+      reason: optionalNote,
     }),
   ),
   handler(async (req, res) => {
@@ -1574,7 +1587,9 @@ myPayrollRouter.post(
   "/requests/:id/cancel",
   financialAccess('self_leave', 'self_loan', 'self_overtime'),
   handler(async (req, res) => {
-    const e = await employeeFor(req);
+    res.json(await transaction(async session => {
+    const e = await employeeFor(req, undefined, session);
+    const before = await PayrollRequest.findOne({ ...tenant(req), _id: req.params.id, employeeId: e._id }).session(session).lean();
     const r = await PayrollRequest.findOneAndUpdate(
       {
         ...tenant(req),
@@ -1584,9 +1599,9 @@ myPayrollRouter.post(
         kind: { $in: ownRequestKinds(req) },
       },
       {
-        $set: { status: "cancelled", decisionReason: "Cancelled by employee" },
+        $set: { status: "cancelled", decisionReason: "Cancelled by employee", decidedBy: req.user!.id, decidedAt: new Date() },
       },
-      { new: true },
+      { new: true, session },
     );
     if (!r) throw new Error("Pending request not found");
     await auditFor(
@@ -1594,10 +1609,12 @@ myPayrollRouter.post(
       "request.cancel",
       String(r._id),
       "Cancelled by employee",
-      null,
+      before,
       r.toObject(),
+      session,
     );
-    res.json(r);
+    return r;
+    }));
   }),
 );
 export const salespersonRouter = Router();

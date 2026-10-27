@@ -1,6 +1,7 @@
 import mongoose, { type ClientSession } from "mongoose";
 import { createHash } from "crypto";
 import Employee from "../models/Employee";
+import User from '../models/User';
 import Attendance from "../models/Attendance";
 import EmployeeLeave from "../models/EmployeeLeave";
 import Transaction from "../models/Transaction";
@@ -35,15 +36,19 @@ export const audit = async (
   before: unknown,
   after: unknown,
   session?: ClientSession,
+  actorName?: string,
 ) => {
+  const actor = actorName || (await User.findById(actorId).select('name').session(session || null).lean())?.name || 'Recorded user';
   await PayrollAudit.create(
     [
       {
         ...payrollTenant(businessId),
         actorId,
+        actorName: actor,
         action,
         targetId,
-        reason,
+        reason: reason?.trim() || action.replaceAll('.', ' '),
+        reasonProvided: !!reason?.trim(),
         before,
         after,
       },
@@ -87,6 +92,10 @@ export async function saveSalary(
   session: ClientSession,
 ) {
   const tenant = payrollTenant(businessId);
+  const originalReason = data.reason;
+  const existingSalary = await SalaryStructure.exists({ ...tenant, employeeId }).session(session);
+  if (existingSalary && !data.reason?.trim()) throw new Error('Reason is required for a salary change');
+  data = { ...data, reason: data.reason?.trim() || 'Initial salary setup' };
   const e = await Employee.findOne({ ...tenant, _id: employeeId }).session(
     session,
   );
@@ -118,7 +127,7 @@ export async function saveSalary(
     actorId,
     "salary.create",
     String(s[0]._id),
-    data.reason,
+    originalReason,
     null,
     s[0].toObject(),
     session,
@@ -445,6 +454,8 @@ export async function leaveBalances(
     day: "2-digit",
   }).format(new Date());
   if (at > today) at = today;
+  if (e.joiningDate && e.joiningDate > at)
+    return Object.fromEntries(Object.keys(p.leaveRules).map(type => [type, 0]));
   const year = Number(at.slice(0, 4));
   const startYear = Number((e.joiningDate || at).slice(0, 4));
   const leaves = await EmployeeLeave.find({
@@ -475,13 +486,8 @@ export async function leaveBalances(
           Math.max(0, available),
           ruleOn(type, `${y}-01-01`).carryLimit || 0,
         );
-      const accruedMonths = y === year ? Number(at.slice(5, 7)) : 12;
-      const joinMonth =
-        y === startYear ? Number((e.joiningDate || at).slice(5, 7)) : 1;
-      for (let m = joinMonth; m <= accruedMonths; m++) {
-        const end = monthRange(`${y}-${String(m).padStart(2, "0")}`).to;
-        available += (ruleOn(type, end > at ? at : end).annualDays || 0) / 12;
-      }
+      // The full yearly entitlement is available immediately, including the joining year.
+      available += ruleOn(type, y === year ? at : `${y}-12-31`).annualDays || 0;
       for (const l of leaves.filter((l) => l.leaveType === type)) {
         const from = l.startDate > `${y}-01-01` ? l.startDate : `${y}-01-01`;
         const to =

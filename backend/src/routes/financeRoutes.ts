@@ -13,19 +13,31 @@ import { openingCandidates, linkOpening } from '../services/openingBalances';
 const router = Router(); router.use(protect);
 const id = Joi.string().hex().length(24);
 const text = Joi.string().trim().min(1).max(500);
+const optionalNote = Joi.string().trim().allow('').max(500).default('');
 const date = Joi.string().custom((v, h) => validDate(v) ? v : h.error('any.invalid'));
 const currencies = ['PKR', 'USD', 'EUR', 'GBP', 'CHF', 'CDF', 'XAF', 'INR', 'AED'];
 const tenant = (req: AuthRequest) => financeTenant(req.user!.businessId);
 const handler = (fn: (req: AuthRequest, res: any) => Promise<unknown>) => async (req: AuthRequest, res: any) => {
   try { await fn(req, res); } catch (e: any) { res.status(e.code === 11000 ? 409 : e.status || 400).json({ message: e.code === 11000 ? 'Duplicate finance record. Refresh and retry.' : e.message }); }
 };
-const history = (req: AuthRequest, action: string) => ({ action, actorId: req.user!.id, at: new Date(), reason: req.body.reason || '' });
-router.get('/opening-sources', financialAccess('finance_settings'), handler(async (req, res) => res.json({ ...await openingCandidates(req.user!.businessId), journals: await JournalEntry.find({ ...tenant(req), source: 'opening', status: 'posted', reversedBy: { $exists: false }, openingLinks: { $exists: false } }).select('dateKey currency description lines').lean() })));
+const history = (req: AuthRequest, action: string) => ({ action, actorId: req.user!.id, actorName: req.user!.name, at: new Date(), reason: req.body.reason || '', reasonProvided: !!req.body.reason?.trim() });
+router.get('/opening-sources', financialAccess('finance_settings'), handler(async (req, res) => {
+  const [candidates, journals, accounts, policy] = await Promise.all([
+    openingCandidates(req.user!.businessId),
+    JournalEntry.find({ ...tenant(req), source: 'opening', status: 'posted', reversedBy: { $exists: false }, openingLinks: { $exists: false } }).select('dateKey currency description lines').lean(),
+    FinanceAccount.find({ ...tenant(req), systemKey: { $in: ['expense_payable', 'salary_payable', 'employee_loans'] } }).select('systemKey').lean(),
+    policyFor(req.user!.businessId),
+  ]);
+  res.json({ ...candidates, loans: candidates.loans.map(l => ({ ...l, currency: policy.currency })), journals: journals.map(j => {
+    const balance = (key: string) => j.lines.filter(l => String(l.accountId) === String(accounts.find(a => a.systemKey === key)?._id)).reduce((n, l) => n + l.debitMinor - l.creditMinor, 0);
+    return { ...j, controlTotals: { expenses: -balance('expense_payable'), runs: -balance('salary_payable'), loans: balance('employee_loans') } };
+  }) });
+}));
 router.post('/opening-sources', financialAccess('finance_settings'), validate(Joi.object({ journalId: id.required(), expenseIds: Joi.array().items(id).unique().max(500).required(), runIds: Joi.array().items(id).unique().max(500).required(), loanIds: Joi.array().items(id).unique().max(500).required(), reason: text.required() })), handler(async (req, res) => res.json(await linkOpening(req.user!.businessId, req.user!.id, req.body))));
 router.get('/accounts', financialAccess('finance_accounts', 'finance_settings', 'finance_journal_prepare', 'finance_journal_approve', 'finance_journal_view', 'finance_reports'), handler(async (req, res) => {
   res.json({ accounts: await FinanceAccount.find(tenant(req)).sort({ code: 1 }).lean(), policy: await FinancePolicy.findOne(tenant(req)).select('-lock').lean(), currency: (await policyFor(req.user!.businessId)).currency });
 }));
-router.post('/initialize', financialAccess('finance_settings'), validate(Joi.object({ cutoverDate: date.required(), reason: text.required() })), handler(async (req, res) => {
+router.post('/initialize', financialAccess('finance_settings'), validate(Joi.object({ cutoverDate: date.required(), reason: optionalNote })), handler(async (req, res) => {
   if (req.body.cutoverDate > businessDate((await policyFor(req.user!.businessId)).timeZone)) throw new Error('Accounting starting date cannot be in the future');
   await mongoose.connection.transaction(async session => {
     if (await FinancePolicy.exists(tenant(req)).session(session)) throw new Error('Finance is already initialized; the starting date is fixed');
@@ -38,7 +50,7 @@ router.post('/initialize', financialAccess('finance_settings'), validate(Joi.obj
     }
   }); res.status(201).json({ message: 'Finance initialized. Enter reviewed opening balances through an opening journal.' });
 }));
-const accountBody = { code: Joi.string().trim().pattern(/^[A-Za-z0-9.-]{1,20}$/).required(), name: text.max(120).required(), type: Joi.string().valid('asset', 'liability', 'equity', 'income', 'expense').required(), parentId: id.allow('', null).default(null), posting: Joi.boolean().required(), active: Joi.boolean().required(), reason: text.required() };
+const accountBody = { code: Joi.string().trim().pattern(/^[A-Za-z0-9.-]{1,20}$/).required(), name: text.max(120).required(), type: Joi.string().valid('asset', 'liability', 'equity', 'income', 'expense').required(), parentId: id.allow('', null).default(null), posting: Joi.boolean().required(), active: Joi.boolean().required(), reason: optionalNote };
 async function saveAccount(req: AuthRequest, editing: boolean) {
   return mongoose.connection.transaction(async session => {
     const policy = await FinancePolicy.findOneAndUpdate(tenant(req), { $inc: { lock: 1 } }, { new: true, session });
@@ -59,19 +71,26 @@ async function saveAccount(req: AuthRequest, editing: boolean) {
       if (!p) throw new Error('Parent must be an active group account of the same type');
       parent = p.parentId;
     }
+    const before = editing ? { code: a.code, name: a.name, type: a.type, parentId: String(a.parentId || ''), posting: a.posting, active: a.active } : null;
     const { reason, version, ...body } = req.body;
     Object.assign(a, { ...body, parentId: req.body.parentId || undefined }); a.version++;
-    a.history.push(history(req, editing ? 'updated' : 'created')); await a.save({ session }); return a;
+    a.history.push({ ...history(req, editing ? 'updated' : 'created'), before, after: { code: a.code, name: a.name, type: a.type, parentId: String(a.parentId || ''), posting: a.posting, active: a.active } }); await a.save({ session }); return a;
   });
 }
 router.post('/accounts', financialAccess('finance_settings'), validate(Joi.object(accountBody)), handler(async (req, res) => res.status(201).json(await saveAccount(req, false))));
-router.put('/accounts/:id', financialAccess('finance_settings'), validate(Joi.object({ ...accountBody, version: Joi.number().integer().min(0).required() })), handler(async (req, res) => res.json(await saveAccount(req, true))));
+router.put('/accounts/:id', financialAccess('finance_settings'), validate(Joi.object({ ...accountBody, reason: text.required(), version: Joi.number().integer().min(0).required() })), handler(async (req, res) => res.json(await saveAccount(req, true))));
 router.get('/journals', financialAccess('finance_journal_view', 'finance_journal_prepare', 'finance_journal_approve'), handler(async (req, res) => {
   const parsed = Joi.object({ from: date, to: date, status: Joi.string().valid('draft', 'submitted', 'posted', 'rejected', 'cancelled'), page: Joi.number().integer().min(0).default(0), limit: Joi.number().integer().min(1).max(100).default(20) }).validate(req.query);
   if (parsed.error) throw new Error(parsed.error.message);
   const q = parsed.value; if (q.from && q.to && q.from > q.to) throw new Error('Invalid date range');
   const filter = { ...tenant(req), ...(q.status ? { status: q.status } : {}), ...(q.from || q.to ? { dateKey: { ...(q.from ? { $gte: q.from } : {}), ...(q.to ? { $lte: q.to } : {}) } } : {}) };
   res.json({ rows: await JournalEntry.find(filter).sort({ dateKey: -1, _id: -1 }).skip(q.page * q.limit).limit(q.limit).lean(), total: await JournalEntry.countDocuments(filter) });
+}));
+router.get('/journals/:id', financialAccess('finance_journal_view', 'finance_journal_prepare', 'finance_journal_approve'), handler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new Error('Journal not found');
+  const journal = await JournalEntry.findOne({ ...tenant(req), _id: req.params.id }).lean();
+  if (!journal) throw Object.assign(new Error('Journal not found'), { status: 404 });
+  res.json(journal);
 }));
 router.post('/journals', financialAccess('finance_journal_prepare'), validate(Joi.object({
   key: text.required(), dateKey: date.required(), currency: Joi.string().valid(...currencies).required(), description: text.required(), opening: Joi.boolean().default(false),
@@ -93,7 +112,7 @@ router.post('/journals', financialAccess('finance_journal_prepare'), validate(Jo
 router.put('/journals/:id', financialAccess('finance_journal_prepare'), validate(Joi.object({
   key: text.required(), dateKey: date.required(), currency: Joi.string().valid(...currencies).required(), description: text.required(), opening: Joi.boolean().default(false),
   lines: Joi.array().items(Joi.object({ accountId: id.required(), debitMinor: Joi.number().integer().min(0).max(100_000_000_000).required(), creditMinor: Joi.number().integer().min(0).max(100_000_000_000).required() })).min(2).max(100).required(),
-  version: Joi.number().integer().min(0).required(), reason: text.required(),
+  version: Joi.number().integer().min(0).required(), reason: optionalNote,
 })), handler(async (req, res) => {
   res.json(await mongoose.connection.transaction(async session => {
     const j = await JournalEntry.findOne({ ...tenant(req), _id: req.params.id, createdBy: req.user!.id, status: { $in: ['draft', 'rejected'] } }).session(session);
@@ -104,7 +123,7 @@ router.put('/journals/:id', financialAccess('finance_journal_prepare'), validate
     j.dateKey = req.body.dateKey; j.currency = req.body.currency; j.description = req.body.description; j.source = req.body.opening ? 'opening' : 'manual'; j.status = 'draft'; j.version++; j.history.push(history(req, 'edited')); await j.save({ session }); return j;
   }));
 }));
-router.post('/journals/:id/decision', financialAccess('finance_journal_prepare', 'finance_journal_approve'), validate(Joi.object({ version: Joi.number().integer().min(0).required(), action: Joi.string().valid('submit', 'post', 'reject', 'reverse', 'cancel').required(), reason: text.required(), dateKey: date.optional() })), handler(async (req, res) => {
+router.post('/journals/:id/decision', financialAccess('finance_journal_prepare', 'finance_journal_approve'), validate(Joi.object({ version: Joi.number().integer().min(0).required(), action: Joi.string().valid('submit', 'post', 'reject', 'reverse', 'cancel').required(), reason: Joi.when('action', { is: Joi.valid('reject', 'reverse', 'cancel'), then: text.required(), otherwise: optionalNote }), dateKey: date.optional() })), handler(async (req, res) => {
   res.json(await mongoose.connection.transaction(async session => {
     const j = await JournalEntry.findOne({ ...tenant(req), _id: req.params.id }).session(session);
     if (!j || j.version !== req.body.version) throw new Error('Journal changed or not found');
@@ -147,7 +166,7 @@ router.get('/reports', financialAccess('finance_reports'), handler(async (req, r
   res.json({ rows, ledger: ledger.slice(0, 1000), ledgerTruncated: ledger.length > 1000, currency: q.currency, policy: await FinancePolicy.findOne(tenant(req)).select('-lock').lean() });
 }));
 router.get('/periods', financialAccess('finance_period_close', 'finance_period_reopen'), handler(async (req, res) => res.json(await FinancePeriod.find(tenant(req)).sort({ month: -1 }).lean())));
-router.post('/periods', financialAccess('finance_period_close', 'finance_period_reopen'), validate(Joi.object({ month: Joi.string().pattern(/^\d{4}-(0[1-9]|1[0-2])$/).required(), closed: Joi.boolean().required(), reason: text.required() })), handler(async (req, res) => {
+router.post('/periods', financialAccess('finance_period_close', 'finance_period_reopen'), validate(Joi.object({ month: Joi.string().pattern(/^\d{4}-(0[1-9]|1[0-2])$/).required(), closed: Joi.boolean().required(), reason: Joi.when('closed', { is: false, then: text.required(), otherwise: optionalNote }) })), handler(async (req, res) => {
   if (!canFinancial(req, req.body.closed ? 'finance_period_close' : 'finance_period_reopen')) throw Object.assign(new Error('This period action has not been shared with your account'), { status: 403 });
   res.json(await mongoose.connection.transaction(async session => {
     const policy = await FinancePolicy.findOneAndUpdate(tenant(req), { $inc: { lock: 1 } }, { new: true, session }); if (!policy) throw new Error('Initialize finance first');

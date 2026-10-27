@@ -139,6 +139,7 @@ export const PayrollLoanMovement = model(
     reference: String,
     reason: { type: String, required: true },
     actorId: { type: Schema.Types.ObjectId, required: true },
+    actorName: String,
   },
   [[{ businessId: 1, key: 1 }, { unique: true }]],
 );
@@ -226,6 +227,8 @@ export const PayrollPayment = model(
 );
 export const PayrollAudit = model("PayrollAudit", {
   actorId: { type: Schema.Types.ObjectId, required: true },
+  actorName: String,
+  reasonProvided: Boolean,
   action: { type: String, required: true },
   targetId: String,
   reason: { type: String, required: true },
