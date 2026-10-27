@@ -4,7 +4,7 @@ import { money } from './PayrollShared';
 
 export const workflowFiltersSx = {
   display: 'grid',
-  gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' },
+  gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(auto-fit, minmax(180px, 1fr))' },
   gap: 1.5,
   alignItems: 'center',
   '& .MuiTextField-root': { minWidth: 0, width: '100%' },
@@ -12,7 +12,9 @@ export const workflowFiltersSx = {
 };
 
 export const compactPayrollSx = {
-  '& .MuiTextField-root': { minWidth: 150 },
+  minWidth: 0,
+  '& .MuiTypography-h4': { fontSize: { xs: '1.4rem', sm: '1.75rem' }, lineHeight: 1.3 },
+  '& .MuiTablePagination-toolbar': { flexWrap: 'wrap', justifyContent: 'flex-end', px: 1 },
   '& .MuiInputBase-input': { py: 1.1, fontSize: 14 },
   '& .MuiButton-root': { minHeight: 32, fontSize: 13 },
   '& .MuiTab-root': { minHeight: 44, py: 1, textTransform: 'none' },
@@ -22,10 +24,10 @@ export const compactPayrollSx = {
 };
 
 export function PayrollStats({ items }: { items: Array<{ label: string; value: React.ReactNode }> }) {
-  return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: `repeat(${items.length}, minmax(0, 1fr))` }, gap: 1.5 }}>
+  return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: `repeat(${Math.min(items.length, 4)}, minmax(0, 1fr))` }, gap: 1 }}>
     {items.map(item => <Card key={item.label} variant="outlined"><CardContent>
       <Typography variant="caption" color="text.secondary">{item.label}</Typography>
-      <Typography variant="h6" fontWeight={800}>{item.value}</Typography>
+      <Typography variant="h6" fontWeight={800} sx={{ fontSize: { xs: '1rem', sm: '1.15rem' }, overflowWrap: 'anywhere' }}>{item.value}</Typography>
     </CardContent></Card>)}
   </Box>;
 }

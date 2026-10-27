@@ -101,7 +101,7 @@ export const updateCustomer = async (req: AuthRequest, res: Response) => {
         const customer = await Customer.findOneAndUpdate(
             { _id: id, ...buildTenantFilter(req.user!) },
             { $set: payload },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!customer) {

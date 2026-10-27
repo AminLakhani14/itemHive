@@ -27,7 +27,7 @@ export const createBusinessType = async (req: AuthRequest, res: Response) => {
         const updated = await BusinessTypeCatalog.findOneAndUpdate(
             { key: 'global', 'types.name': { $not: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
             { $push: { types: type } },
-            { new: true, runValidators: true },
+            { returnDocument: 'after', runValidators: true },
         );
         if (!updated) return res.status(409).json({ message: 'A business type with this name already exists.' });
         return res.status(201).json({ ...type, businessCount: 0 });
@@ -41,7 +41,7 @@ export const updateBusinessType = async (req: AuthRequest, res: Response) => {
         const catalog = await BusinessTypeCatalog.findOneAndUpdate(
             { key: 'global', 'types.id': req.params.id },
             { $set: { 'types.$.productFields': req.body.productFields } },
-            { new: true, runValidators: true },
+            { returnDocument: 'after', runValidators: true },
         );
         if (!catalog) return res.status(404).json({ message: 'Business type not found.' });
         return res.json({ message: 'Product fields updated.' });

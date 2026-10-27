@@ -18,6 +18,8 @@ export interface InstallmentNotificationPlan {
 }
 
 export interface NotificationItem {
+    recordId?: string;
+    recordKind?: 'expense' | 'request' | 'journal' | 'account' | 'period';
     id: string;
     title: string;
     detail: string;
@@ -27,6 +29,12 @@ export interface NotificationItem {
     severity: 'warning' | 'success' | 'info';
     sortTime: number;
     requiresAction?: boolean;
+}
+
+export function notificationTarget(item: NotificationItem) {
+    const params = { expense: 'expenseId', request: 'requestId', journal: 'journalId', account: 'accountId', period: 'periodId' };
+    if (!item.path || !item.recordKind || !Object.hasOwn(params, item.recordKind) || !item.recordId || !/^[a-f\d]{24}$/i.test(item.recordId)) return item.path;
+    return item.path + (item.path.includes('?') ? '&' : '?') + params[item.recordKind] + '=' + encodeURIComponent(item.recordId);
 }
 
 interface BuildNotificationsOptions {

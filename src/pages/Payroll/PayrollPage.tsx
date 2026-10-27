@@ -1,3 +1,4 @@
+import WorkflowHistory from '../../components/Payroll/WorkflowHistory';
 import React from "react";
 import { ChevronDown, Plus, RefreshCw } from "lucide-react";
 import { compactPayrollSx, PayrollStats, requestDetails, StatusChip } from "../../components/Payroll/PayrollLayout";
@@ -56,6 +57,7 @@ import type {
 
 import { payrollScreens } from "../../lib/workflowScreens";
 import WorkflowNav from "../../components/Payroll/WorkflowNav";
+import { eligibleRunEmployees, runOutstanding, validMoneyAmount } from '../../lib/workflowUx';
 
 export type TabKey =
   | "overview"
@@ -105,6 +107,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
     reason: "",
   });
   const [search, setSearch] = React.useState("");
+  const [employeeSearch, setEmployeeSearch] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [ready, setReady] = React.useState(false);
@@ -147,47 +150,59 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
     loanId: "",
   });
   const generation = React.useRef(0);
+  const context = React.useRef(0);
+  const runRequest = React.useRef(0);
   const load = React.useCallback(async () => {
     const current = ++generation.current;
-    const base = await Promise.all([
-      api.get<PayrollEmployee[]>("/payroll/employees"),
-      readRuns ? api.get<PayrollRun[]>("/payroll/runs") : Promise.resolve({ data: [] as PayrollRun[] }),
-      api.get<PayrollPolicy>("/payroll/settings"),
-    ]);
-    if (current !== generation.current) return;
-    setReady(true);
-    setError("");
-    setEmployees(base[0].data);
-    setRuns(base[1].data);
-    setPolicy(base[2].data);
-    setEnabled(base[2].data.enabled);
-    if (tab === "requests") {
-      const r = (await api.get<PayrollRequest[]>("/payroll/requests")).data;
-      if (current === generation.current) setRequests(r);
-    }
-    if (tab === "loans") {
-      const l = (
-        await api.get<{ loans: PayrollLoan[]; movements: PayrollMovement[] }>(
-          "/payroll/loans",
-        )
-      ).data;
-      if (current === generation.current) {
-        setLoans(l.loans);
-        setMovements(l.movements);
+    setLoading(true);
+    try {
+      const base = await Promise.all([
+        api.get<PayrollEmployee[]>("/payroll/employees"),
+        readRuns ? api.get<PayrollRun[]>("/payroll/runs") : Promise.resolve({ data: [] as PayrollRun[] }),
+        api.get<PayrollPolicy>("/payroll/settings"),
+      ]);
+      if (current !== generation.current) return;
+      setReady(true);
+      setError("");
+      setEmployees(base[0].data);
+      setRuns(base[1].data);
+      setPolicy(base[2].data);
+      setEnabled(base[2].data.enabled);
+      if (tab === "requests") {
+        const r = (await api.get<PayrollRequest[]>("/payroll/requests")).data;
+        if (current === generation.current) setRequests(r);
       }
-    }
-    if (tab === "payments") {
-      const p = (await api.get<PayrollPayment[]>("/payroll/payments")).data;
-      if (current === generation.current) setPayments(p);
-    }
+      if (tab === "loans") {
+        const l = (
+          await api.get<{ loans: PayrollLoan[]; movements: PayrollMovement[] }>(
+            "/payroll/loans",
+          )
+        ).data;
+        if (current === generation.current) {
+          setLoans(l.loans);
+          setMovements(l.movements);
+        }
+      }
+      if (tab === "payments") {
+        const p = (await api.get<PayrollPayment[]>("/payroll/payments")).data;
+        if (current === generation.current) setPayments(p);
+      }
+    } catch (e) { if (current === generation.current) setError(requestError(e)); }
+    finally { if (current === generation.current) setLoading(false); }
   }, [tab, readRuns]);
   React.useEffect(() => {
-    let active = true;
-    setLoading(true);
-    load().catch((e) => {
-      if (active) setError(requestError(e));
-    }).finally(() => { if (active) setLoading(false); });
+    void load();
     const changed = () => {
+      context.current++;
+      runRequest.current++;
+      setBusy(false);
+      setError('');
+      setNotice('');
+      setDraft({ month: dateToday().slice(0, 7), kind: 'regular', parentRunId: '', employeeIds: [], reason: '' });
+      setEmployeeSearch('');
+      setSearch('');
+      setStatusFilter('');
+      setReason('');
       setRun(undefined);
       setProfileId("");
       setSlip(undefined);
@@ -205,37 +220,43 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
       setPayments([]);
       setAction(undefined);
       setCreateOpen(false);
-      void load().catch((e) => setError(requestError(e))).finally(() => setLoading(false));
+      void load();
     };
     window.addEventListener("itemhive-workspace-changed", changed);
-    const profileUpdated = () => { setLoading(true); void load().catch(e => setError(requestError(e))).finally(() => setLoading(false)); };
+    const profileUpdated = () => { setLoading(true); void load(); };
     window.addEventListener('itemhive-payroll-profile-updated', profileUpdated);
     return () => {
-      active = false;
+      context.current++;
       generation.current++;
       window.removeEventListener("itemhive-workspace-changed", changed);
       window.removeEventListener('itemhive-payroll-profile-updated', profileUpdated);
     };
   }, [load]);
-  const operate = async (fn: () => Promise<unknown>) => {
+  const operate = async (fn: (isCurrent: () => boolean) => Promise<unknown>) => {
+    const current = context.current;
+    const isCurrent = () => current === context.current;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const message = await fn();
+      const message = await fn(isCurrent);
+      if (!isCurrent()) return;
       await load();
-      setNotice(typeof message === "string" ? message : "Saved successfully.");
+      if (isCurrent()) setNotice(typeof message === "string" ? message : "Saved successfully.");
     } catch (e) {
-      setError(requestError(e));
+      if (isCurrent()) setError(requestError(e));
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   };
-  const showRun = async (id: string) => {
+  const showRun = async (id: string, isCurrent = () => true) => {
+    if (!isCurrent()) return;
+    const current = context.current, request = ++runRequest.current;
     try {
-      setRun((await api.get<PayrollRun>(`/payroll/runs/${id}`)).data);
+      const { data } = await api.get<PayrollRun>(`/payroll/runs/${id}`);
+      if (current === context.current && request === runRequest.current && isCurrent()) setRun(data);
     } catch (e) {
-      setError(requestError(e));
+      if (current === context.current && request === runRequest.current && isCurrent()) setError(requestError(e));
     }
   };
   const employeeName = (id: string) =>
@@ -243,8 +264,8 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
   const openAction = (a: NonNullable<typeof action>) => {
     setAction(a);
     setActionData({
-      reason: "",
-      amount: a.item ? (a.item.outstandingMinor ?? a.item.netMinor) / 100 : 0,
+      reason: a.run && a.path.endsWith('/submit') ? 'Submit payroll for ' + a.run.month : '',
+      amount: a.item ? (a.item.outstandingMinor ?? a.item.netMinor) / 100 : a.movementKind === 'repayment' ? (a.loan?.balanceMinor || 0) / 100 : 0,
       reference: "",
       dateKey: a.payment && a.payment.dateKey > dateToday() ? a.payment.dateKey : dateToday(),
       method: "cash",
@@ -252,7 +273,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
     });
   };
   const commitAction = () =>
-    operate(async () => {
+    operate(async isCurrent => {
       if (!action) return;
       if (action.kind === "payment")
         await api.post("/payroll/payments", {
@@ -283,13 +304,14 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
           version: action.run?.version,
           ...(action.payment ? { dateKey: actionData.dateKey } : {}),
         });
-      if (action.run) await showRun(action.run._id);
-      setAction(undefined);
+      if (!isCurrent()) return;
+      if (action.run) await showRun(action.run._id, isCurrent);
+      if (isCurrent()) setAction(undefined);
     });
-  const loadReport = () => operate(async () => {
+  const loadReport = () => operate(async isCurrent => {
     const current = generation.current;
     const data = (await api.get<PayrollReport>("/payroll/reports", { params: filters })).data;
-    if (current !== generation.current) return;
+    if (current !== generation.current || !isCurrent()) return;
     setReport(data); setReportFilters(JSON.stringify(filters));
     return "Report loaded.";
   });
@@ -430,6 +452,15 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
   };
   const availableReportRows = reportRows();
   const approved = runs.filter((r) => r.status === "approved");
+  const payableRuns = approved.filter(r => runOutstanding(r, payments) > 0 && [r.month, r.kind, r.reason].join(' ').toLowerCase().includes(search.trim().toLowerCase()));
+  const eligibleEmployees = eligibleRunEmployees(employees, draft.month, draft.kind, approved.find(r => r._id === draft.parentRunId));
+  const visibleEmployees = eligibleEmployees.filter(e => `${e.employeeCode} ${e.fullName} ${e.department}`.toLowerCase().includes(employeeSearch.trim().toLowerCase()));
+  const amountMaximum = action?.kind === 'payment' ? (action.item?.outstandingMinor ?? action.item?.netMinor ?? 0) / 100 : (action?.loan?.balanceMinor || 0) / 100;
+  const actionReasonRequired = !!action?.payment || !!action?.path.endsWith('/return') || action?.movementKind === 'cancellation' || (!!action?.path.includes('/decision') && !action.path.includes('status=approved'));
+  const actionError = action?.kind === 'payment' && !actionData.dateKey ? 'Choose a payment date.' :
+    ((action?.kind === 'payment' && action.path !== 'bulk') || action?.movementKind === 'repayment') && !validMoneyAmount(actionData.amount, amountMaximum) ? `Enter an amount above zero, with up to 2 decimals, no higher than ${money(Math.round(amountMaximum * 100), action?.run?.policy?.currency || policy.currency)}.` : '';
+  const runIssues = selectedRun?.items.reduce((n, item) => n + item.exceptions.length, 0) || 0;
+  const runRemaining = selectedRun?.items.reduce((n, item) => n + Math.max(0, item.outstandingMinor ?? item.netMinor), 0) || 0;
   const matches = (values: unknown[], status?: string) => (!statusFilter || status === statusFilter) && values.join(" ").toLowerCase().includes(search.toLowerCase());
   const statusOptions = tab === "overview" ? ["enrolled", "not_enrolled"] : tab === "runs" ? ["draft", "calculated", "submitted", "approved"] : tab === "requests" ? ["pending", "approved", "rejected", "cancelled"] : tab === "loans" ? ["approved", "disbursed", "settled", "cancelled"] : ["recorded", "reversed"];
   return (
@@ -438,7 +469,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
       <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1}>
         <Stack direction="row" alignItems="center" gap={1.5}><Typography variant="h4" fontWeight={800}>{payrollScreens.find(screen => screen.path === "/payroll/" + (tab === "overview" ? "employees" : tab))?.title || labels[tab]}</Typography>{ready && <StatusChip status={enabled ? "enabled" : "disabled"} />}</Stack>
         <Stack direction="row" gap={1}>
-          <IconButton aria-label="Refresh payroll" disabled={busy || loading} onClick={() => { setLoading(true); void load().catch(e => setError(requestError(e))).finally(() => setLoading(false)); }}><RefreshCw size={18} /></IconButton>
+          <IconButton aria-label="Refresh payroll" disabled={busy || loading} onClick={() => { setLoading(true); void load(); }}><RefreshCw size={18} /></IconButton>
           {tab === "runs" && can("payroll_prepare") && <Button variant="contained" startIcon={<Plus size={16} />} disabled={busy || loading || !enabled} onClick={() => setCreateOpen(true)}>New run</Button>}
         </Stack>
       </Stack>
@@ -481,6 +512,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
               <Typography variant="h6">Employee enrollment</Typography>
               <PayrollTable
                 emptyMessage="No employees match. Clear the filters or ask your admin to add employees."
+                key={search + statusFilter}
                 rows={employees.filter(e => matches([e.employeeCode, e.fullName, e.department, e.designation], e.payrollEnrolled ? "enrolled" : "not_enrolled"))}
                 columns={[
                   {
@@ -511,6 +543,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
             <Stack gap={2}>
               <PayrollTable
                 emptyMessage={can("payroll_prepare") ? "No salary runs match. Enroll employees, then choose New run." : "No salary runs match these filters."}
+                key={search + statusFilter}
                 rows={runs.filter(r => matches([r.month, r.kind, r.reason], r.status))}
                 columns={[
                   { label: "Month", value: (r) => r.month },
@@ -601,6 +634,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
           {tab === "loans" && (
             <Stack gap={2}>
               <PayrollTable
+                key={search + statusFilter}
                 rows={loans.filter(l => matches([employeeName(l.employeeId), l.kind, l.startMonth], l.status))}
                 columns={[
                   {
@@ -659,8 +693,10 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                     label: "Employee",
                     value: (m) => employeeName(m.employeeId),
                   },
-                  { label: "Date", value: (m) => m.createdAt.slice(0, 10) },
+                  { label: "Time", value: (m) => new Date(m.createdAt).toLocaleString() },
                   { label: "Type", value: (m) => m.kind },
+                  { label: "User", value: (m) => m.actorName || m.actorId || "Recorded user" },
+                  { label: "Reference", value: (m) => m.reference || "-" },
                   {
                     label: "Amount",
                     value: (m) => money(m.amountMinor, policy.currency),
@@ -675,15 +711,16 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
               <Alert severity="info">{can("payroll_pay") ? "Choose approved salaries, then record a cash or bank payment already made. This does not transfer money." : "View salary payments. Use Reverse to undo a wrong entry."}</Alert>
               {can("payroll_pay") && <>
               <Typography variant="h6">Approved runs ready for payment</Typography>
-              <PayrollTable rows={approved} columns={[
+              <PayrollTable emptyMessage="No outstanding salary runs match. Recorded payments are listed below." rows={payableRuns} columns={[
                 { label: 'Month', value: r => r.month },
                 { label: 'Type', value: r => r.kind },
                 { label: 'Net salary', value: r => money(r.totals?.netMinor || 0, r.policy?.currency || policy.currency) },
-                { label: 'Recorded outstanding', value: r => money((r.totals?.netMinor || 0) - payments.filter(p => p.runId === r._id && !p.reversedAt).reduce((n, p) => n + p.amountMinor, 0), r.policy?.currency || policy.currency) },
+                { label: 'Outstanding', value: r => money(runOutstanding(r, payments), r.policy?.currency || policy.currency) },
               ]} actions={r => <Button disabled={busy} onClick={() => showRun(r._id)}>Open for payment</Button>} />
               </>}
               <Typography variant="h6">Payment history</Typography>
               <PayrollTable
+                key={search + statusFilter}
                 rows={payments.filter(p => matches([employeeName(p.employeeId), p.dateKey, p.reference, p.method], p.reversedAt ? "reversed" : "recorded"))}
                 columns={[
                   {
@@ -1025,14 +1062,14 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 </Stack></AccordionDetails>
               </Accordion>
               <TextField
-                label="Reason for settings change"
+                label="Settings note (optional)"
                 required
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
               />
               <Button
                 variant="contained"
-                disabled={busy || loading || !ready || !reason.trim() || (policy.enabled && !policy.confirmed)}
+                disabled={busy || loading || !ready || (policy.enabled && !policy.confirmed)}
                 onClick={() =>
                   operate(() =>
                     api.put("/payroll/settings", {
@@ -1085,14 +1122,14 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
               type="month"
               label="Payroll month"
               value={draft.month}
-              onChange={(e) => setDraft({ ...draft, month: e.target.value })}
+              onChange={(e) => setDraft({ ...draft, month: e.target.value, employeeIds: [] })}
               slotProps={{ inputLabel: { shrink: true } }}
             />
             <TextField
               select
               label="Run type"
               value={draft.kind}
-              onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
+              onChange={(e) => setDraft({ ...draft, kind: e.target.value, parentRunId: '', employeeIds: [], reason: '' })}
             >
               {["regular", "adjustment", "final"].map((k) => (
                 <MenuItem key={k} value={k}>
@@ -1106,7 +1143,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 label="Approved parent run"
                 value={draft.parentRunId}
                 onChange={(e) =>
-                  setDraft({ ...draft, parentRunId: e.target.value })
+                  setDraft({ ...draft, parentRunId: e.target.value, employeeIds: [] })
                 }
               >
                 {approved.map((r) => (
@@ -1116,58 +1153,32 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 ))}
               </TextField>
             )}
-            <Button
-              onClick={() =>
-                setDraft({
-                  ...draft,
-                  employeeIds: employees
-                    .filter((e) => e.payrollEnrolled)
-                    .map((e) => e._id),
-                })
-              }
-            >
-              Select all enrolled employees
-            </Button>
-            {employees
-              .filter((e) => e.payrollEnrolled)
-              .map((e) => (
-                <FormControlLabel
-                  key={e._id}
-                  label={e.fullName}
-                  control={
-                    <Checkbox
-                      checked={draft.employeeIds.includes(e._id)}
-                      onChange={(_, v) =>
-                        setDraft({
-                          ...draft,
-                          employeeIds: v
-                            ? [...draft.employeeIds, e._id]
-                            : draft.employeeIds.filter((i) => i !== e._id),
-                        })
-                      }
-                    />
-                  }
-                />
-              ))}
-            <TextField
-              label="Reason"
-              value={draft.reason}
-              onChange={(e) => setDraft({ ...draft, reason: e.target.value })}
-            />
+            <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
+              <Typography variant="body2">{draft.employeeIds.length} selected / {eligibleEmployees.length} eligible</Typography>
+              <Button disabled={!visibleEmployees.length || busy} onClick={() => setDraft({ ...draft, employeeIds: [...new Set([...draft.employeeIds, ...visibleEmployees.map(e => e._id)])] })}>Select shown</Button>
+              <Button disabled={!draft.employeeIds.length || busy} onClick={() => setDraft({ ...draft, employeeIds: [] })}>Clear selection</Button>
+            </Stack>
+            <TextField size="small" label="Find employee by name, code or department" value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} />
+            <Box sx={{ maxHeight: 240, overflowY: 'auto', border: 1, borderColor: 'divider', borderRadius: 1, px: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+              {visibleEmployees.map(e => <FormControlLabel key={e._id} sx={{ minWidth: 0, '& .MuiFormControlLabel-label': { fontSize: 14 } }} label={e.fullName + ' - ' + e.employeeCode} control={<Checkbox disabled={busy} checked={draft.employeeIds.includes(e._id)} onChange={(_, checked) => setDraft({ ...draft, employeeIds: checked ? [...draft.employeeIds, e._id] : draft.employeeIds.filter(id => id !== e._id) })} />} />)}
+              {!visibleEmployees.length && <Typography variant="body2" color="text.secondary" sx={{ p: 1 }}>No eligible employees match. Check enrollment, employment dates and the parent run.</Typography>}
+            </Box>
+            {draft.kind === 'adjustment' && <TextField required label="Reason for adjustment run" value={draft.reason} onChange={e => setDraft({ ...draft, reason: e.target.value })} />}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
           <Button
-            disabled={busy || !draft.reason.trim() || !draft.employeeIds.length}
+            disabled={busy || (draft.kind === 'adjustment' && !draft.reason.trim()) || !draft.month || !draft.employeeIds.length || (draft.kind === "adjustment" && !draft.parentRunId)}
             onClick={() =>
-              operate(async () => {
+              operate(async isCurrent => {
                 const r = (
                   await api.post<PayrollRun>("/payroll/runs", {
                     ...draft,
                     parentRunId: draft.parentRunId || undefined,
                   })
                 ).data;
+                if (!isCurrent()) return;
                 setCreateOpen(false);
                 setRun(r);
               })
@@ -1179,7 +1190,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
       </Dialog>
       <Dialog
         open={!!selectedRun}
-        onClose={() => setRun(undefined)}
+        onClose={() => { if (!busy) { runRequest.current++; setRun(undefined); } }}
         fullWidth
         maxWidth="xl"
       >
@@ -1190,19 +1201,19 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
         <DialogContent>
           {selectedRun && (
             <Stack gap={2} sx={{ pt: 1 }}>
+              <Alert severity={runIssues && selectedRun.status === 'calculated' ? 'warning' : 'info'}>
+                {selectedRun.status === 'draft' ? 'Next: calculate salaries, then review each employee breakdown.' : selectedRun.status === 'calculated' ? runIssues ? 'Resolve ' + runIssues + ' payroll exception(s), then calculate again before submitting.' : 'Review the salary totals and breakdowns, then submit this run for approval.' : selectedRun.status === 'submitted' ? 'This run is waiting for an authorized payroll approver. Return it if corrections are needed.' : runRemaining > 0 ? 'Approved. Record payments already made from Salary Payments, or use the payment actions below if available.' : 'All salary balances in this run are settled. Payment history remains available in Salary Payments.'}
+              </Alert>
               <Stack direction="row" gap={1} flexWrap="wrap">
                 {can("payroll_prepare") &&
                   ["draft", "calculated"].includes(selectedRun.status) && (
                     <Button
                       disabled={busy}
-                      onClick={() =>
-                        openAction({
-                          title: "Calculate payroll",
-                          kind: "reason",
-                          path: `/payroll/runs/${selectedRun._id}/calculate`,
-                          run: selectedRun,
-                        })
-                      }
+                      variant="contained"
+                      onClick={() => void operate(async isCurrent => {
+                        await api.post('/payroll/runs/' + selectedRun._id + '/calculate', { version: selectedRun.version, reason: 'Calculate payroll for ' + selectedRun.month });
+                        await showRun(selectedRun._id, isCurrent);
+                      })}
                     >
                       Calculate
                     </Button>
@@ -1210,7 +1221,8 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 {can("payroll_prepare") &&
                   selectedRun.status === "calculated" && (
                     <Button
-                      disabled={busy}
+                      variant="contained"
+                      disabled={busy || runIssues > 0}
                       onClick={() =>
                         openAction({
                           title: "Send for approval",
@@ -1253,7 +1265,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                       </Button>
                     </>
                   )}
-                {can("payroll_pay") && selectedRun.status === "approved" && (
+                {can("payroll_pay") && selectedRun.status === "approved" && selectedRun.items.some(i => (i.outstandingMinor ?? i.netMinor) > 0) && (
                   <Button
                     disabled={busy}
                     onClick={() => {
@@ -1297,20 +1309,20 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                   { label: "Employee", value: (i) => i.employeeName },
                   {
                     label: "Gross",
-                    value: (i) => money(i.grossMinor, policy.currency),
+                    value: (i) => money(i.grossMinor, selectedRun.policy?.currency || policy.currency),
                   },
                   {
                     label: "Deductions",
-                    value: (i) => money(i.deductionsMinor, policy.currency),
+                    value: (i) => money(i.deductionsMinor, selectedRun.policy?.currency || policy.currency),
                   },
                   {
                     label: "Net",
-                    value: (i) => money(i.netMinor, policy.currency),
+                    value: (i) => money(i.netMinor, selectedRun.policy?.currency || policy.currency),
                   },
                   {
                     label: "Outstanding",
                     value: (i) =>
-                      money(i.outstandingMinor ?? i.netMinor, policy.currency),
+                      money(i.outstandingMinor ?? i.netMinor, selectedRun.policy?.currency || policy.currency),
                   },
                   {
                     label: "Exceptions",
@@ -1354,6 +1366,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                   </>
                 )}
               />
+              <Accordion disableGutters variant="outlined"><AccordionSummary expandIcon={<ChevronDown size={18} />}><Typography fontWeight={600}>Activity history ({selectedRun.audit?.length || 0})</Typography></AccordionSummary><AccordionDetails><WorkflowHistory rows={selectedRun.audit || []} /></AccordionDetails></Accordion>
               {can("payroll_prepare") &&
                 ["draft", "calculated"].includes(selectedRun.status) && (
                   <>
@@ -1437,10 +1450,10 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                         disabled={
                           busy ||
                           !adjustment.employeeId ||
-                          !adjustment.reason.trim()
+                          !adjustment.reason.trim() || !validMoneyAmount(adjustment.amount) || (adjustment.kind === "recovery" && !adjustment.loanId.trim())
                         }
                         onClick={() =>
-                          operate(async () => {
+                          operate(async isCurrent => {
                             await api.put(
                               `/payroll/runs/${selectedRun._id}/adjustments`,
                               {
@@ -1459,7 +1472,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                                 ],
                               },
                             );
-                            await showRun(selectedRun._id);
+                            await showRun(selectedRun._id, isCurrent);
                           })
                         }
                       >
@@ -1484,7 +1497,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                         <Button
                           disabled={busy}
                           onClick={() =>
-                            operate(async () => {
+                            operate(async isCurrent => {
                               await api.put(
                                 `/payroll/runs/${selectedRun._id}/adjustments`,
                                 {
@@ -1499,7 +1512,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                                     })),
                                 },
                               );
-                              await showRun(selectedRun._id);
+                              await showRun(selectedRun._id, isCurrent);
                             })
                           }
                         >
@@ -1513,7 +1526,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRun(undefined)}>Close</Button>
+          <Button disabled={busy} onClick={() => { runRequest.current++; setRun(undefined); }}>Close</Button>
         </DialogActions>
       </Dialog>
       <Dialog
@@ -1544,7 +1557,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 ) : (
                   <Typography>
                     {action.path === "bulk"
-                      ? "Records each selected employee's full outstanding balance with the date, method and reference below."
+                      ? `Records full outstanding salary for ${action.run!.items.filter(i => (i.outstandingMinor ?? i.netMinor) > 0).length} employees: ${money(action.run!.items.reduce((sum, i) => sum + Math.max(0, i.outstandingMinor ?? i.netMinor), 0), action.run!.policy?.currency || policy.currency)}. This records payments already made.`
                       : action.movementKind === "disbursement"
                         ? money(
                             action.loan?.principalMinor || 0,
@@ -1589,14 +1602,15 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                 />
               </>
             )}
-            <TextField
+            {actionReasonRequired && <TextField
               label="Reason"
               required
               value={actionData.reason}
               onChange={(e) =>
                 setActionData({ ...actionData, reason: e.target.value })
               }
-            />
+            />}
+            {actionError && <Alert severity="warning">{actionError}</Alert>}
             {error && <Alert severity="error">{error}</Alert>}
           </Stack>
         </DialogContent>
@@ -1607,21 +1621,22 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
           <Button
             disabled={
               busy ||
-              !actionData.reason.trim() ||
+              !!actionError ||
+              (actionReasonRequired && !actionData.reason.trim()) ||
               (action?.kind !== "reason" && !actionData.reference.trim())
             }
             onClick={() => {
               if (action?.path.includes("/decision"))
-                void operate(async () => {
+                void operate(async isCurrent => {
                   const status = action.path.split("status=")[1];
                   await api.post(action.path.split("?")[0], {
                     status,
                     reason: actionData.reason,
                   });
-                  setAction(undefined);
+                  if (isCurrent()) setAction(undefined);
                 });
               else if (action?.path === "bulk")
-                void operate(async () => {
+                void operate(async isCurrent => {
                   await api.post("/payroll/payments", {
                     reason: actionData.reason,
                     payments: action
@@ -1638,8 +1653,8 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
                         key: `${actionData.key}:${i.employeeId}`,
                       })),
                   });
-                  await showRun(action.run!._id);
-                  setAction(undefined);
+                  await showRun(action.run!._id, isCurrent);
+                  if (isCurrent()) setAction(undefined);
                 });
               else void commitAction();
             }}
@@ -1660,9 +1675,9 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
             employees={employees}
             busy={busy}
             submit={(data) =>
-              void operate(async () => {
+              void operate(async isCurrent => {
                 await api.post("/payroll/requests", data);
-                setRequestOpen(false);
+                if (isCurrent()) setRequestOpen(false);
               })
             }
           />
@@ -1682,7 +1697,7 @@ export default function PayrollPage({ section = "overview" }: { section?: TabKey
           <Button
             onClick={() => {
               setProfileId("");
-              void load().catch((e) => setError(requestError(e)));
+              void load();
             }}
           >
             Close

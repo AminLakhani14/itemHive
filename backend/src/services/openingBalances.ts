@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Expense from '../models/Expense';
 import Employee from '../models/Employee';
+import User from '../models/User';
 import { PayrollRun, PayrollPayment, PayrollLoan } from '../models/Payroll';
 import { FinanceAccount, FinancePolicy, JournalEntry } from '../models/Finance';
 import { financeTenant } from './financeService';
@@ -20,6 +21,7 @@ export async function openingCandidates(businessId: string, session?: mongoose.C
 }
 export async function linkOpening(businessId: string, actorId: string, input: { journalId: string; expenseIds: string[]; runIds: string[]; loanIds: string[]; reason: string }) {
   return mongoose.connection.transaction(async session => {
+    const actorName = (await User.findById(actorId).select('name').session(session).lean())?.name || 'Recorded user';
     const tenant = financeTenant(businessId);
     const policy = await FinancePolicy.findOneAndUpdate(tenant, { $inc: { lock: 1 } }, { returnDocument: 'after', session });
     if (!policy) throw new Error('Initialize finance first');
@@ -42,7 +44,7 @@ export async function linkOpening(businessId: string, actorId: string, input: { 
     if (balance('expense_payable') !== -total(expenses) || balance('salary_payable') !== -total(runs) || balance('employee_loans') !== total(loans)) throw new Error('Opening journal control balances must exactly match the selected outstanding expenses, salaries and loans');
     if (!expenses.length && !runs.length && !loans.length) throw new Error('Select at least one historical source');
     for (const e of expenses) {
-      const updated = await Expense.updateOne({ ...tenant, _id: e._id, journalEntryId: null, version: candidates.expenses.find(x => x._id === e._id)!.version }, { $set: { journalEntryId: j._id, accountingOrigin: 'opening' }, $inc: { version: 1 }, $push: { history: { action: 'opening balance linked', actorId, actorName: 'Finance setup', reason: input.reason, at: new Date() } } }, { session });
+      const updated = await Expense.updateOne({ ...tenant, _id: e._id, journalEntryId: null, version: candidates.expenses.find(x => x._id === e._id)!.version }, { $set: { journalEntryId: j._id, accountingOrigin: 'opening' }, $inc: { version: 1 }, $push: { history: { action: 'opening balance linked', actorId, actorName, reason: input.reason, at: new Date() } } }, { session });
       if (updated.modifiedCount !== 1) throw new Error('Expense changed during allocation');
     }
     for (const r of runs) {
@@ -53,6 +55,6 @@ export async function linkOpening(businessId: string, actorId: string, input: { 
       const updated = await PayrollLoan.updateOne({ ...tenant, _id: l._id, journalEntryId: null, balanceMinor: l.outstandingMinor }, { $set: { journalEntryId: j._id } }, { session });
       if (updated.modifiedCount !== 1) throw new Error('Loan changed during allocation');
     }
-    j.openingLinks = { ...input, at: new Date(), actorId }; j.history.push({ action: 'opening sources linked', actorId, reason: input.reason, at: new Date() }); j.version++; await j.save({ session }); return j;
+    j.openingLinks = { ...input, at: new Date(), actorId, actorName }; j.history.push({ action: 'opening sources linked', actorId, actorName, reason: input.reason, at: new Date() }); j.version++; await j.save({ session }); return j;
   });
 }

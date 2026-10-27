@@ -148,7 +148,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response) => {
         const employee = await Employee.findOneAndUpdate(
             { _id: id, ...buildTenantFilter(req.user!) },
             { $set: req.body },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         ).lean<LeanEmployee>();
 
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
@@ -240,7 +240,7 @@ export const setEmployeeFace = async (req: AuthRequest, res: Response) => {
         const updated = await Employee.findOneAndUpdate(
             { _id: employee._id },
             { $set: { faceDescriptors: descriptors, faceRegisteredAt: new Date() } },
-            { new: true }
+            { returnDocument: 'after' }
         ).lean<LeanEmployee>();
 
         return res.json(serializeEmployee(updated!));
@@ -257,7 +257,7 @@ export const clearEmployeeFace = async (req: AuthRequest, res: Response) => {
         const employee = await Employee.findOneAndUpdate(
             { _id: id, ...buildTenantFilter(req.user!) },
             { $set: { faceDescriptors: [], faceRegisteredAt: null } },
-            { new: true }
+            { returnDocument: 'after' }
         ).lean<LeanEmployee>();
 
         if (!employee) return res.status(404).json({ message: 'Employee not found' });

@@ -41,7 +41,7 @@ export function validateJournalLines(lines: Array<{ debitMinor: number; creditMi
 export async function lockFinance(businessId: string, dateKey: string, session: mongoose.ClientSession) {
   if (!validDate(dateKey)) throw new Error('Invalid accounting date');
   // One tenant lock serializes posting, account edits and period closure.
-  const policy = await FinancePolicy.findOneAndUpdate(financeTenant(businessId), { $inc: { lock: 1 } }, { new: true, session });
+  const policy = await FinancePolicy.findOneAndUpdate(financeTenant(businessId), { $inc: { lock: 1 } }, { returnDocument: 'after', session });
   if (!policy) throw new Error('Initialize finance in Chart of Accounts first');
   if (dateKey < policy.cutoverDate) throw new Error('Accounting date precedes the finance starting date');
   if (await FinancePeriod.exists({ ...financeTenant(businessId), month: dateKey.slice(0, 7), closed: true }).session(session)) throw new Error('Accounting period is closed');

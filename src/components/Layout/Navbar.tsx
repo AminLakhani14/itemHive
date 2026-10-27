@@ -1,3 +1,4 @@
+import { notificationTarget } from '../../lib/notifications';
 import React from 'react';
 import {
     AppBar,
@@ -612,7 +613,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                                         handleNotifClose();
                                         workflow.markRead([n.id]);
                                         if (n.path) {
-                                            navigate(n.path);
+                                            navigate(notificationTarget(n)!);
                                         }
                                     }}
                                     sx={{ alignItems: 'flex-start', gap: 1, whiteSpace: 'normal' }}

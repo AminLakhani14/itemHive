@@ -30,14 +30,15 @@ const can = (req: AuthRequest, permission: string) => req.user!.role === 'super_
 const permissions = (req: AuthRequest) => ({ viewAll: can(req, 'finance_view') || can(req, 'finance_expense_approve') || can(req, 'finance_pay') || can(req, 'finance_expense_reverse') || can(req, 'finance_expense_void'), approve: can(req, 'finance_expense_approve'), pay: can(req, 'finance_pay'), reverse: can(req, 'finance_expense_reverse'), void: can(req, 'finance_expense_void') });
 const tenant = (req: AuthRequest) => ({ businessId: new mongoose.Types.ObjectId(req.user!.businessId) });
 const scope = (req: AuthRequest) => {
-  if (can(req, 'finance_view')) return tenant(req);
+  const draftVisibility = { $or: [{ status: { $ne: 'draft' } }, { createdBy: new mongoose.Types.ObjectId(req.user!.id) }] };
+  if (can(req, 'finance_view')) return { ...tenant(req), $and: [draftVisibility] };
   const p = permissions(req);
   const statuses = p.approve ? ['submitted', 'approved', 'rejected', 'cancelled'] : p.pay || p.reverse || p.void ? ['approved', 'cancelled'] : [];
   const visibility = [
     ...(canFinancial(req, 'finance_expense_create') ? [{ createdBy: new mongoose.Types.ObjectId(req.user!.id) }] : []),
     ...(statuses.length ? [{ status: { $in: statuses } }] : []),
   ];
-  return { ...tenant(req), $and: [{ $or: visibility }] };
+  return { ...tenant(req), $and: [draftVisibility, { $or: visibility }] };
 };
 const history = (req: AuthRequest, action: string, reason = '') => ({ action, reason, actorId: new mongoose.Types.ObjectId(req.user!.id), actorName: req.user!.name, at: new Date() });
 const fail = (message: string, status = 400): never => { throw Object.assign(new Error(message), { status }); };
@@ -72,9 +73,10 @@ router.get('/', handler(async (req, res) => {
   if (parsed.error) fail(parsed.error.message);
   const q = parsed.value;
   const filter: any = scope(req);
+  if (q.view === 'register') filter.$and.push({ status: { $ne: 'draft' } });
   if (q.from && q.to && q.from > q.to) fail('Invalid date range');
   if (q.view === 'mine') { if (!canFinancial(req, 'finance_expense_create')) fail('Personal expense access required', 403); filter.createdBy = new mongoose.Types.ObjectId(req.user!.id); }
-  if (q.view === 'approvals') { if (!permissions(req).approve) fail('Expense approval permission required', 403); filter.status = 'submitted'; }
+  if (q.view === 'approvals') { if (!permissions(req).approve) fail('Expense approval permission required', 403); filter.status = 'submitted'; filter.createdBy = { $ne: new mongoose.Types.ObjectId(req.user!.id) }; }
   if (q.view === 'payments') { if (!permissions(req).pay && !permissions(req).reverse && !permissions(req).void) fail('Expense settlement access required', 403); filter.status = 'approved'; }
   if (q.view === 'payments' && q.paymentStatus) {
     const paid = { $sum: { $map: { input: { $filter: { input: '$payments', as: 'p', cond: { $not: ['$$p.reversedAt'] } } }, as: 'p', in: '$$p.amountMinor' } } };
@@ -113,7 +115,7 @@ router.post('/', financialAccess('finance_expense_create'), validate(Joi.object(
 router.put('/:id', financialAccess('finance_expense_create'), validate(Joi.object({ ...body, version })), handler(async (req, res) => {
   await expenseAccount(req);
   const invoice = invoiceKey(req.body);
-  const e = await Expense.findOneAndUpdate({ ...tenant(req), _id: req.params.id, createdBy: req.user!.id, status: { $in: ['draft', 'rejected'] }, version: req.body.version }, { $set: { ...payload(req.body), status: 'draft', ...(invoice ? { invoiceKey: invoice } : {}) }, ...(!invoice ? { $unset: { invoiceKey: 1 } } : {}), $inc: { version: 1 }, $push: { history: history(req, 'edited') } }, { new: true });
+  const e = await Expense.findOneAndUpdate({ ...tenant(req), _id: req.params.id, createdBy: req.user!.id, status: { $in: ['draft', 'rejected'] }, version: req.body.version }, { $set: { ...payload(req.body), status: 'draft', ...(invoice ? { invoiceKey: invoice } : {}) }, ...(!invoice ? { $unset: { invoiceKey: 1 } } : {}), $inc: { version: 1 }, $push: { history: history(req, 'edited') } }, { returnDocument: 'after' });
   if (!e) fail('Expense changed or is no longer editable', 409);
   res.json(summary(e!.toObject()));
 }));
@@ -122,7 +124,7 @@ router.post('/:id/decision', validate(Joi.object({ version, action: Joi.string()
   const review = ['approve', 'reject', 'return', 'void'].includes(action);
   if (review && (action === 'void' ? !permissions(req).void : !permissions(req).approve)) fail(action === 'void' ? 'Expense void permission required' : 'Expense approval permission required', 403);
   if (!review && !canFinancial(req, 'finance_expense_create')) fail('Expense create permission required', 403);
-  if (review && !reason.trim()) fail('Decision reason is required');
+  if (['reject', 'return', 'void'].includes(action) && !reason.trim()) fail('Decision reason is required');
   res.json(await mongoose.connection.transaction(async session => {
     const e = await Expense.findOne({ ...tenant(req), _id: req.params.id }).session(session);
     if (!e || e.version !== req.body.version) fail('Expense changed. Refresh first', 409);
@@ -154,7 +156,7 @@ router.post('/:id/decision', validate(Joi.object({ version, action: Joi.string()
 }));
 
 async function drawer(req: AuthRequest, session: mongoose.ClientSession, currency: string) {
-  const shift = await POSShift.findOneAndUpdate({ ...tenant(req), status: 'open', currency }, { $inc: { activityVersion: 1 } }, { new: true, session });
+  const shift = await POSShift.findOneAndUpdate({ ...tenant(req), status: 'open', currency }, { $inc: { activityVersion: 1 } }, { returnDocument: 'after', session });
   if (!shift) fail('Open a POS shift with the same business currency first', 409);
   return shift!;
 }

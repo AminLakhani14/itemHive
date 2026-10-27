@@ -59,6 +59,7 @@ export interface PayrollProfile {
     | "bankAccount"
   > & { joiningDate: string; salary: number; salaryType: 'monthly' | 'daily' | 'hourly'; payrollRevision: number };
   structures: SalaryStructure[];
+  audit?: PayrollAudit[];
   balances: Record<string, number>;
 }
 export interface PayrollPolicy {
@@ -124,6 +125,7 @@ export interface PayrollItem {
   kind?: string;
 }
 export interface PayrollRun {
+  audit?: PayrollAudit[];
   _id: string;
   month: string;
   kind: "regular" | "adjustment" | "final";
@@ -151,6 +153,7 @@ export interface PayrollRun {
   };
 }
 export interface PayrollRequest {
+  canApprove?: boolean;
   createdBy: string;
   _id: string;
   employeeId: string;
@@ -201,6 +204,9 @@ export interface PayrollMovement {
   kind: string;
   amountMinor: number;
   reason: string;
+  reference?: string;
+  actorId?: string;
+  actorName?: string;
   createdAt: string;
 }
 export interface PayrollCommission {
@@ -215,6 +221,8 @@ export interface PayrollCommission {
   reversed: boolean;
 }
 export interface PayrollAudit {
+  actorName?: string;
+  reasonProvided?: boolean;
   _id: string;
   actorId: string;
   action: string;

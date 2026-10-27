@@ -43,9 +43,10 @@ dotenv.config({ path: path.resolve(__dirname, '../.env.local'), override: true }
 // Some networks have a broken IPv6 route to Google APIs, where TLS handshakes reset after ~10s.
 dns.setDefaultResultOrder('ipv4first');
 
-const app = express();
+export const app = express();
 const PORT = process.env.PORT || 5000;
 const deploymentCommit = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'local';
+let databaseInitialized = false;
 
 const configuredOrigins = process.env.CLIENT_URL
     ? process.env.CLIENT_URL.split(',').map((origin) => origin.trim()).filter(Boolean)
@@ -113,8 +114,9 @@ app.get('/', (_req: Request, res: Response) => {
 
 app.get('/health', (_req: Request, res: Response) => {
     const dbStatus = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
-    res.status(200).json({
-        status: 'healthy',
+    const ready = databaseInitialized && dbStatus === 'Connected';
+    res.status(ready ? 200 : 503).json({
+        status: ready ? 'healthy' : 'unhealthy',
         database: dbStatus,
         commit: deploymentCommit,
         timestamp: new Date().toISOString()
@@ -122,6 +124,12 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 // ── API Routes ────────────────────────────────────────────────
+app.use('/api', (_req, res, next) => {
+    if (!databaseInitialized || mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ message: 'Database is unavailable. Please retry shortly.', code: 'DATABASE_UNAVAILABLE' });
+    }
+    next();
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -154,7 +162,8 @@ app.use(notFound);
 app.use(errorHandler);
 
 // ── Database + Server Boot ────────────────────────────────────
-const startServer = async () => {
+export const startServer = async (port: number | string = PORT) => {
+    databaseInitialized = false;
     try {
         await connectDB();
         await ensureTenantIndexes();
@@ -163,15 +172,16 @@ const startServer = async () => {
         for (const model of financeModels) await model.createIndexes();
         // Every staff login in Team has an employee profile, including ones created before they were linked.
         await syncStaffEmployees();
+        databaseInitialized = true;
     } catch (error) {
         console.error('❌ Server database init failed:', error);
     }
 
-    // Always start the server so Render health checks pass
-    app.listen(PORT as number, '0.0.0.0', () => {
-        console.log(`🚀 ItemHive Server running on port ${PORT}`);
+    // Keep health diagnostics reachable even when initialization fails.
+    return app.listen(Number(port), '0.0.0.0', () => {
+        console.log(`🚀 ItemHive Server running on port ${port}`);
         console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 };
 
-startServer();
+if (require.main === module) void startServer();

@@ -1,5 +1,6 @@
+import WorkflowHistory from './WorkflowHistory';
 import React from "react";
-import { ChevronDown } from 'lucide-react';
+import { Wallet, CalendarDays, Clock3, CircleDollarSign, CreditCard, History, Pencil, Check, Save } from 'lucide-react';
 import {
   Alert,
   Button,
@@ -11,9 +12,10 @@ import {
   Typography,
   Box,
   Chip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  Tabs,
+  Tab,
+  Avatar,
+  alpha,
 } from "@mui/material";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../store";
@@ -48,12 +50,17 @@ const profileValues = (p: PayrollProfile['profile']) => ({
   department: p.department || '', employmentEndDate: p.employmentEndDate || '',
   paymentMethod: p.paymentMethod || 'cash', bankName: p.bankName || '', bankAccount: p.bankAccount || '',
 });
+export type EmployeePayrollSection = 'salary' | 'leaves' | 'schedule' | 'allowances' | 'payment' | 'history';
 export default function EmployeePayrollPanel({
   employeeId,
   view = "profile",
+  section,
+  onSectionChange,
 }: {
   employeeId: string;
   view?: "profile" | "loans" | "history";
+  section?: EmployeePayrollSection;
+  onSectionChange?: (section: EmployeePayrollSection) => void;
 }) {
   const user = useSelector((s: RootState) => s.auth.user);
   const canEdit = hasScreenAccess(user, "payroll_settings");
@@ -66,6 +73,12 @@ export default function EmployeePayrollPanel({
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [editingSalary, setEditingSalary] = React.useState(false);
+  const [localSection, setLocalSection] = React.useState<EmployeePayrollSection>('salary');
+  const activeTab = section ?? localSection;
+  const setActiveTab = (next: EmployeePayrollSection) => {
+    setLocalSection(next);
+    onSectionChange?.(next);
+  };
   const [profileReason, setProfileReason] = React.useState('');
   const [notice, setNotice] = React.useState('');
   const [savedEnrollment, setSavedEnrollment] = React.useState<boolean>();
@@ -139,8 +152,8 @@ export default function EmployeePayrollPanel({
     }
   }, [employeeId, view, canView, canEdit]);
   React.useEffect(() => {
-    context.current++; setBusy(false); setProfile(undefined); setSavedEnrollment(undefined); setLoans([]); setRuns([]); setSlip(undefined); setNotice(''); setEditingSalary(false); setProfileReason(''); void load();
-    const changed = () => { context.current++; generation.current++; salaryInitialized.current = ''; setBusy(false); setProfile(undefined); setSavedEnrollment(undefined); setLoans([]); setRuns([]); setSlip(undefined); setNotice(''); setEditingSalary(false); setProfileReason(''); void load(); };
+    context.current++; setLocalSection('salary'); setBusy(false); setProfile(undefined); setSavedEnrollment(undefined); setLoans([]); setRuns([]); setSlip(undefined); setNotice(''); setEditingSalary(false); setProfileReason(''); void load();
+    const changed = () => { setLocalSection('salary'); context.current++; generation.current++; salaryInitialized.current = ''; setBusy(false); setProfile(undefined); setSavedEnrollment(undefined); setLoans([]); setRuns([]); setSlip(undefined); setNotice(''); setEditingSalary(false); setProfileReason(''); void load(); };
     window.addEventListener('itemhive-workspace-changed', changed);
     return () => { context.current++; generation.current++; window.removeEventListener('itemhive-workspace-changed', changed); };
   }, [load]);
@@ -174,7 +187,7 @@ export default function EmployeePayrollPanel({
       if (structure) setEditingSalary(false);
       const refreshed = await load(structure);
       if (epoch !== context.current) return;
-      setNotice(!refreshed ? 'Saved. Refresh to check the status.' : structure ? 'Salary updated.' : profile!.profile.payrollEnrolled ? 'Employee enrolled in payroll.' : 'Payroll details saved.');
+      setNotice(!refreshed ? 'Saved. Refresh to check the status.' : structure ? 'Employee payroll settings updated.' : profile!.profile.payrollEnrolled ? 'Employee enrolled in payroll.' : 'Payroll details saved.');
       window.dispatchEvent(
         new CustomEvent("itemhive-payroll-profile-updated", {
           detail: employeeId,
@@ -267,45 +280,72 @@ export default function EmployeePayrollPanel({
   const currentSalary = profile && salaryAt(profile.structures, dateToday());
   const nextSalary = profile?.structures.filter(s => s.effectiveDate > dateToday()).sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0];
   const salaryError = needsSalary && profile ? salaryDraftError(salary, allowZeroPay, profile.structures, editingSalary ? undefined : profile.profile.joiningDate) : '';
+  const originalProfile = savedProfile.current ? JSON.parse(savedProfile.current) : undefined;
+  const reasonRequired = editingSalary || (needsSalary && !!profile?.structures.length) || (!!savedEnrollment && !!profile && (!profile.profile.payrollEnrolled || ['employmentEndDate', 'paymentMethod', 'bankName', 'bankAccount'].some(key => (originalProfile?.[key] || '') !== (profile.profile[key as keyof typeof profile.profile] || ''))));
   const blocked = !profile || !ready ? 'Employee data is not ready. Wait or retry loading.' :
     profile.profile.payrollEnrolled && !profile.profile.joiningDate ? 'Add the joining date in the employee profile first.' :
     salaryError ? salaryError :
     !editingSalary && profile.profile.employmentEndDate && profile.profile.employmentEndDate < profile.profile.joiningDate ? 'Last working day cannot be before the joining date.' :
     !editingSalary && (profile.profile.department || '').length > 80 ? 'Keep the department within 80 characters.' :
     !editingSalary && profile.profile.paymentMethod === 'bank' && (!profile.profile.bankName?.trim() || !profile.profile.bankAccount?.trim()) ? 'Enter the bank name and account number.' :
-    !profileReason.trim() ? 'Enter a reason to save.' : profileReason.trim().length > 500 ? 'Keep the reason within 500 characters.' : '';
+    reasonRequired && !profileReason.trim() ? 'Enter a reason for the payroll changes.' : profileReason.trim().length > 500 ? 'Keep the reason within 500 characters.' : '';
+  const structureTab = ['salary', 'leaves', 'schedule', 'allowances'].includes(activeTab);
+  const editLabel = activeTab === 'leaves' ? 'Edit leave rules' : activeTab === 'schedule' ? 'Edit work hours' : activeTab === 'allowances' ? 'Edit allowances' : 'Change salary';
+  const beginEdit = () => {
+    setEditingSalary(true);
+    setProfileReason('');
+    setSalary(s => ({ ...s, effectiveDate: dateToday() }));
+  };
   return (
-    <Stack gap={2.5} sx={{ minWidth: 0, '& .MuiTextField-root': { minWidth: 0, width: '100%' }, '& .MuiAccordion-root': { m: 0 }, '& .MuiAccordionDetails-root': { minWidth: 0 } }}>
+    <Stack gap={2} sx={theme => ({
+      minWidth: 0, color: 'text.primary', colorScheme: theme.palette.mode,
+      '& .MuiTextField-root': { minWidth: 0, width: '100%' },
+      '& .payroll-fields': { m: 0, p: 0, border: 0, minWidth: 0 },
+      '& .MuiOutlinedInput-root': { bgcolor: 'background.paper', borderRadius: 1.5 },
+      '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: theme.palette.text.secondary },
+      '& .MuiFormControlLabel-label': { fontSize: '0.875rem' },
+      '& .MuiButton-root': { flexShrink: 0 },
+    })}>
       {error && <Alert severity="error" action={!ready ? <Button color="inherit" onClick={() => void load(true)}>Retry</Button> : undefined}>{error}</Alert>}
       {notice && <Alert severity="success">{notice}</Alert>}
       {profile && <>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} flexWrap="wrap">
-          <Box><Typography variant="h6">{profile.profile.fullName}</Typography><Typography variant="body2" color="text.secondary">Joined: {profile.profile.joiningDate || 'Not set'} | {currency}</Typography></Box>
-          <Chip size="small" color={profileDirty ? 'warning' : savedEnrollment ? 'success' : 'default'} label={profileDirty ? 'Unsaved changes' : savedEnrollment ? 'Enrolled' : 'Not enrolled'} />
-        </Stack>
-        {!editingSalary && <Box sx={{ bgcolor: 'action.hover', borderRadius: 1, p: 1.5 }}>
-          <Typography variant="body2">Current basic salary: {currentSalary ? `${money(currentSalary.baseMinor, currency)} / ${currentSalary.salaryType} (from ${currentSalary.effectiveDate})` : 'No salary is active yet.'}</Typography>
-          {nextSalary && <Typography variant="caption" color="text.secondary">Next scheduled salary: {money(nextSalary.baseMinor, currency)} / {nextSalary.salaryType} from {nextSalary.effectiveDate}</Typography>}
-        </Box>}
-        {editingSalary ? <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography fontWeight={700}>Change salary</Typography><Button disabled={busy} onClick={() => setEditingSalary(false)}>Back to enrollment</Button></Stack> : <>
+        <Box sx={theme => ({ p: { xs: 1.5, sm: 2 }, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.1 : 0.04) })}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1.5} flexWrap="wrap">
+            <Stack direction="row" gap={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+              <Avatar sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', width: 44, height: 44, fontSize: 16, fontWeight: 800 }}>{profile.profile.fullName.split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('')}</Avatar>
+              <Box sx={{ minWidth: 0 }}><Typography variant="h6" sx={{ overflowWrap: 'anywhere' }}>{profile.profile.fullName}</Typography><Typography variant="caption" color="text.secondary">Joined {profile.profile.joiningDate || 'Not set'} | {currency}</Typography></Box>
+            </Stack>
+            <Chip size="small" variant="outlined" icon={savedEnrollment && !profileDirty ? <Check size={14} /> : undefined} color={profileDirty ? 'warning' : savedEnrollment ? 'success' : 'default'} label={profileDirty ? 'Unsaved changes' : savedEnrollment ? 'Enrolled' : 'Not enrolled'} />
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems={{ sm: 'center' }} justifyContent="space-between" sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+            <Typography variant="body2" color="text.secondary">Current basic salary</Typography>
+            <Typography fontWeight={800}>{currentSalary ? money(currentSalary.baseMinor, currency) : 'No active salary'}{currentSalary && <Typography component="span" variant="body2" color="text.secondary"> / {currentSalary.salaryType}</Typography>}</Typography>
+          </Stack>
+          {nextSalary && <Typography variant="caption" color="text.secondary">Next salary: {money(nextSalary.baseMinor, currency)} / {nextSalary.salaryType} from {nextSalary.effectiveDate}</Typography>}
+        </Box>
+        <Tabs value={activeTab} onChange={(_, tab: EmployeePayrollSection) => setActiveTab(tab)} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile aria-label="Employee payroll sections" sx={theme => ({ minHeight: 44, p: 0.5, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', '& .MuiTabs-indicator': { display: 'none' }, '& .MuiTab-root': { minHeight: 40, minWidth: 'auto', px: 1.5, py: 1, mr: 0.5, borderRadius: 1.5, color: 'text.secondary', textTransform: 'none', fontSize: 13, '&.Mui-selected': { bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.1), color: 'primary.main' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } } })}>
+          <Tab value="salary" label="Salary" icon={<Wallet size={16} />} iconPosition="start" />
+          <Tab value="leaves" label="Leaves" icon={<CalendarDays size={16} />} iconPosition="start" />
+          <Tab value="schedule" label="Work hours" icon={<Clock3 size={16} />} iconPosition="start" />
+          <Tab value="allowances" label="Allowances" icon={<CircleDollarSign size={16} />} iconPosition="start" />
+          <Tab value="payment" label="Payment details" icon={<CreditCard size={16} />} iconPosition="start" />
+          <Tab value="history" label="History" icon={<History size={16} />} iconPosition="start" />
+        </Tabs>
+        {structureTab && canEdit && !needsSalary && <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
+          <Typography variant="body2" color="text.secondary">{profileDirty ? 'Save or reset payment details before editing payroll rules.' : 'Changes apply from the effective date you choose.'}</Typography>
+          <Button variant="outlined" size="small" startIcon={<Pencil size={15} />} disabled={busy || profileDirty || !ready} onClick={beginEdit}>{editLabel}</Button>
+        </Stack>}
+        {activeTab === 'salary' && !editingSalary && <>
           <FormControlLabel label="Include in payroll" control={<Checkbox disabled={!canEdit || busy} checked={profile.profile.payrollEnrolled} onChange={(_, checked) => setProfile({ ...profile, profile: { ...profile.profile, payrollEnrolled: checked } })} />}/>
-          {profile.profile.payrollEnrolled && !hasOpeningSalary && <Typography color="text.secondary" variant="body2">Enter the opening salary below. Salary and enrollment will be saved together.</Typography>}
+          {profile.profile.payrollEnrolled && !hasOpeningSalary && <Typography color="text.secondary" variant="body2">Enter the opening salary. Check Leaves, Work hours and Allowances before saving.</Typography>}
           {!needsSalary && hasOpeningSalary && !savedEnrollment && canEdit && <Typography variant="body2">Opening salary is already saved. You can enroll this employee now.</Typography>}
         </>}
-        {needsSalary && canEdit && <Stack gap={2}>
-          <Typography fontWeight={700}>{editingSalary ? 'New salary' : 'Opening salary'}</Typography>
+        {structureTab && needsSalary && canEdit && <TextField size="small" type="date" label="Effective from" value={salary.effectiveDate} disabled={busy} slotProps={{ inputLabel: { shrink: true } }} onChange={e => setSalary({ ...salary, effectiveDate: e.target.value })} helperText="Salary, leave rules, work hours and allowances are saved together for this date." />}
+        {activeTab === 'salary' && <Box component="fieldset" className="payroll-fields" disabled={!canEdit || !needsSalary || busy}><Stack gap={2}>
+          <Typography fontWeight={700}>{needsSalary ? editingSalary ? 'New salary' : 'Opening salary' : 'Salary details'}</Typography>
           <Stack sx={fieldGrid} gap={2}>
             <TextField
-              size="small"
-              type="date"
-              label="Salary start date"
-              value={salary.effectiveDate}
-              slotProps={{ inputLabel: { shrink: true } }}
-              onChange={(e) =>
-                setSalary({ ...salary, effectiveDate: e.target.value })
-              }
-            />
-            <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
               type="number"
               label={`Basic salary (${currency})`}
@@ -315,6 +355,7 @@ export default function EmployeePayrollPanel({
               }
             />
             <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
               select
               label="Salary type"
@@ -335,17 +376,18 @@ export default function EmployeePayrollPanel({
 
           </Stack>
 
-        </Stack>}
-        {!editingSalary && <Stack gap={2}>
+        </Stack></Box>}
+        {activeTab === 'payment' && <Box component="fieldset" className="payroll-fields" disabled={editingSalary || busy}><Stack gap={2}>
           <Typography fontWeight={700}>Payment details</Typography>
           <Box sx={{ ...fieldGrid, gap: 2 }}>
-            <TextField size="small" label="Department" disabled={!canEdit || busy} value={profile.profile.department || ''} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, department: e.target.value } })}/>
-            <TextField size="small" select label="Payment method" disabled={!canEdit || busy} value={profile.profile.paymentMethod || 'cash'} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, paymentMethod: e.target.value as 'cash' | 'bank' } })}><MenuItem value="cash">Cash</MenuItem><MenuItem value="bank">Bank</MenuItem></TextField>
-            {profile.profile.paymentMethod === 'bank' && <><TextField size="small" required label="Bank name" disabled={!canEdit || busy} value={profile.profile.bankName || ''} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, bankName: e.target.value } })}/><TextField size="small" required label="Account number" disabled={!canEdit || busy} value={profile.profile.bankAccount || ''} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, bankAccount: e.target.value } })}/></>}
+            <TextField size="small" label="Department" disabled={!canEdit || editingSalary || busy} value={profile.profile.department || ''} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, department: e.target.value } })}/>
+            <TextField size="small" select label="Payment method" disabled={!canEdit || editingSalary || busy} value={profile.profile.paymentMethod || 'cash'} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, paymentMethod: e.target.value as 'cash' | 'bank' } })}><MenuItem value="cash">Cash</MenuItem><MenuItem value="bank">Bank</MenuItem></TextField>
+            {profile.profile.paymentMethod === 'bank' && <><TextField size="small" required label="Bank name" disabled={!canEdit || editingSalary || busy} value={profile.profile.bankName || ''} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, bankName: e.target.value } })}/><TextField size="small" required label="Account number" disabled={!canEdit || editingSalary || busy} value={profile.profile.bankAccount || ''} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, bankAccount: e.target.value } })}/></>}
           </Box>
-        </Stack>}
-        {needsSalary && canEdit && <>
-          <Accordion disableGutters variant="outlined"><AccordionSummary expandIcon={<ChevronDown size={18} />}><Typography fontWeight={600}>Work hours & leave rules</Typography></AccordionSummary><AccordionDetails><Stack gap={2}>
+        <TextField size="small" type="date" label="Last working day (optional)" helperText="Leave blank for current employees." slotProps={{ inputLabel: { shrink: true } }} disabled={!canEdit || editingSalary || busy} value={profile.profile.employmentEndDate || ''} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, employmentEndDate: e.target.value } })}/>
+        </Stack></Box>}
+        {activeTab === 'payment' && editingSalary && <Alert severity="info">Save or reset the payroll rule changes before editing payment details.</Alert>}
+        {activeTab === 'schedule' && <Box component="fieldset" className="payroll-fields" disabled={!canEdit || !needsSalary || busy}><Stack gap={2}>
           <Typography fontWeight={700}>Work schedule</Typography>
           <Box>
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => (
@@ -378,6 +420,7 @@ export default function EmployeePayrollPanel({
               ["startTime", "endTime", "breakMinutes", "graceMinutes"] as const
             ).map((k) => (
               <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
                 key={k}
                 label={
@@ -404,17 +447,20 @@ export default function EmployeePayrollPanel({
               />
             ))}
           </Stack>
-          <TextField
-              size="small"
-            label="Leave policy"
-            value={salary.leavePolicyName}
-            onChange={(e) =>
-              setSalary({ ...salary, leavePolicyName: e.target.value })
-            }
-          />
-          <Typography variant="body2">
-            Business leave rules apply. Change them below only for this employee.
-          </Typography>
+          </Stack></Box>}
+        {activeTab === 'leaves' && <Stack gap={1.5}>
+          <Typography fontWeight={700}>Current leave balances</Typography>
+          <Typography variant="body2" color="text.secondary">Full yearly allowance plus opening and carried leave, minus leave taken.</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(5, minmax(0, 1fr))' }, gap: 1 }}>
+            {Object.entries(profile.balances).map(([name, days]) => <Box key={name} sx={theme => ({ px: 1.5, py: 1.25, border: 1, borderColor: 'divider', borderRadius: 1.5, bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.035) })}>
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>{name}</Typography>
+              <Typography variant="h6" sx={{ lineHeight: 1.5 }}>{days}<Typography component="span" variant="caption" color="text.secondary"> days</Typography></Typography>
+            </Box>)}
+          </Box>
+          {!Object.keys(profile.balances).length && <Typography variant="body2" color="text.secondary">No leave balances available yet.</Typography>}
+          <Box component="fieldset" className="payroll-fields" disabled={!canEdit || !needsSalary || busy}><Stack gap={2}>
+          <Typography variant="body2" color="text.secondary">Use business defaults or set a custom allowance below.</Typography>
+          <Box sx={{ ...fieldGrid, gap: 1.5, alignItems: 'start' }}>
           {["casual", "sick", "annual", "unpaid", "other"].map((type) => {
             const rule = salary.leaveRules[type];
             const update = (
@@ -430,11 +476,13 @@ export default function EmployeePayrollPanel({
                 },
               });
             return (
-              <Box key={type}>
+              <Box key={type} sx={theme => ({ p: 1.5, border: 1, borderColor: rule ? 'primary.main' : 'divider', borderRadius: 1.5, bgcolor: rule ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.1 : 0.035) : 'background.paper' })}>
                 <FormControlLabel
-                  label={`Override ${type} policy`}
+                  sx={{ m: 0, alignItems: 'center', '& .MuiCheckbox-root': { p: 0.5, mr: 0.75 }, '& .MuiFormControlLabel-label': { fontWeight: 700 } }}
+                  label={type.charAt(0).toUpperCase() + type.slice(1) + ' leave'}
                   control={
                     <Checkbox
+                      slotProps={{ input: { 'aria-label': 'Set custom ' + type + ' allowance' } }}
                       checked={!!rule}
                       onChange={(_, checked) => {
                         const rules = { ...salary.leaveRules };
@@ -451,8 +499,9 @@ export default function EmployeePayrollPanel({
                     />
                   }
                 />
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 4.25, mb: rule ? 1.5 : 0 }}>{rule ? 'Custom allowance' : 'Using business defaults'}</Typography>
                 {rule && (
-                  <Stack sx={fieldGrid} gap={2}>
+                  <Stack sx={fieldGrid} gap={1.5}>
                     <FormControlLabel
                       label="Paid leave"
                       control={
@@ -465,6 +514,7 @@ export default function EmployeePayrollPanel({
                     {(["annualDays", "openingDays", "carryLimit"] as const).map(
                       (k) => (
                         <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
                           key={k}
                           type="number"
@@ -487,10 +537,13 @@ export default function EmployeePayrollPanel({
               </Box>
             );
           })}
-
-          </Stack></AccordionDetails></Accordion>
-          <Accordion disableGutters variant="outlined"><AccordionSummary expandIcon={<ChevronDown size={18} />}><Typography fontWeight={600}>Allowances & deductions ({salary.components.length})</Typography></AccordionSummary><AccordionDetails><Stack gap={2}>
+          </Box>
+          </Stack></Box>
+        </Stack>}
+        {activeTab === 'allowances' && <Box component="fieldset" className="payroll-fields" disabled={!canEdit || !needsSalary || busy}><Stack gap={2}>
+          <Typography fontWeight={700}>Allowances & deductions ({salary.components.length})</Typography>
 <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
               type="number"
               label="Sales commission %"
@@ -516,12 +569,14 @@ export default function EmployeePayrollPanel({
             return (
               <Stack key={i} sx={fieldGrid} gap={2}>
                 <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
                   label="Name"
                   value={c.name}
                   onChange={(e) => update({ name: e.target.value })}
                 />
                 <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
                   select
                   label="Kind"
@@ -537,6 +592,7 @@ export default function EmployeePayrollPanel({
                   ))}
                 </TextField>
                 <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
                   select
                   label="Mode"
@@ -549,6 +605,7 @@ export default function EmployeePayrollPanel({
                   <MenuItem value="percent">% of earned base</MenuItem>
                 </TextField>
                 <TextField
+              disabled={!canEdit || !needsSalary || busy}
               size="small"
                   label="Value"
                   type="number"
@@ -597,20 +654,20 @@ export default function EmployeePayrollPanel({
             Add allowance or deduction
           </Button>
 
-          </Stack></AccordionDetails></Accordion>
-        </>}
-        {!editingSalary && <Accordion disableGutters variant="outlined"><AccordionSummary expandIcon={<ChevronDown size={18} />}><Typography fontWeight={600}>Employment details & leave balance</Typography></AccordionSummary><AccordionDetails><Stack gap={2}><TextField size="small" type="date" label="Last working day (optional)" helperText="Leave blank for current employees." slotProps={{ inputLabel: { shrink: true } }} disabled={!canEdit || busy} value={profile.profile.employmentEndDate || ''} onChange={e => setProfile({ ...profile, profile: { ...profile.profile, employmentEndDate: e.target.value } })}/><Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>{Object.entries(profile.balances).map(([name, days]) => <Chip size="small" key={name} label={name + ': ' + days + ' days'}/>)}</Box></Stack></AccordionDetails></Accordion>}
-        {canEdit && <Box sx={{ position: 'sticky', bottom: 0, zIndex: 2, bgcolor: 'background.paper', py: 2, borderTop: 1, borderColor: 'divider' }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'minmax(0, 1fr) auto' }, gap: 2, alignItems: 'start' }}>
-            <TextField size="small" required label="Reason for change" placeholder="e.g. Initial enrollment" disabled={busy} value={profileReason} onChange={e => setProfileReason(e.target.value)}/>
-            <Button variant="contained" size="large" disabled={busy || !!blocked} onClick={() => void save(editingSalary)}>{busy ? 'Saving...' : editingSalary ? 'Save salary change' : profile.profile.payrollEnrolled && !savedEnrollment ? 'Save & enroll' : 'Save changes'}</Button>
+          </Stack></Box>}
+        {canEdit && activeTab !== 'history' && (needsSalary || activeTab === 'salary' || activeTab === 'payment') && <Box sx={{ position: 'sticky', bottom: 0, zIndex: 2, bgcolor: 'background.paper', py: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: reasonRequired ? 'minmax(0, 1fr) auto' : '1fr' }, gap: 2, alignItems: 'start' }}>
+            {reasonRequired && <TextField size="small" required label="Reason for change" disabled={busy} value={profileReason} onChange={e => setProfileReason(e.target.value)}/>}
+            <Button variant="contained" startIcon={<Save size={16} />} disabled={busy || !!blocked} onClick={() => void save(editingSalary)}>{busy ? 'Saving...' : editingSalary ? 'Save payroll changes' : profile.profile.payrollEnrolled && !savedEnrollment ? 'Save & enroll' : 'Save changes'}</Button>
           </Box>
           {blocked && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{blocked}</Typography>}
           {(profileDirty || editingSalary || profileReason) && <Button size="small" disabled={busy} onClick={() => { salaryInitialized.current = ''; setEditingSalary(false); setProfileReason(''); setNotice(''); void load(); }}>Reset changes</Button>}
         </Box>}
-        <Accordion disableGutters variant="outlined"><AccordionSummary expandIcon={<ChevronDown size={18} />}><Typography fontWeight={600}>Salary history ({profile.structures.length})</Typography></AccordionSummary><AccordionDetails sx={{ overflowX: 'auto' }}>
-          {profileDirty && <Typography variant="caption">Save or reset profile changes before changing salary.</Typography>}
-          {canEdit && !editingSalary && <Button sx={{ mb: 2 }} disabled={busy || profileDirty || !ready} onClick={() => { setEditingSalary(true); setProfileReason(''); setSalary(s => ({ ...s, effectiveDate: dateToday() })); }}>Change salary</Button>}
+        {activeTab === 'history' && <Stack gap={3}>
+          <Typography fontWeight={700}>Activity history ({profile.audit?.length || 0})</Typography>
+          <WorkflowHistory rows={profile.audit || []} />
+          <Typography fontWeight={700}>Salary history ({profile.structures.length})</Typography>
+          <Box sx={{ overflowX: 'auto' }}>
           <PayrollTable
             rows={profile.structures}
             columns={[
@@ -637,7 +694,7 @@ export default function EmployeePayrollPanel({
               canEdit && (
                 <Button
                   disabled={busy || profileDirty || !ready}
-                  onClick={() => { setEditingSalary(true);
+                  onClick={() => { setActiveTab('salary'); setEditingSalary(true);
                     setProfileReason('');
                     setSalary({
                       effectiveDate: dateToday(),
@@ -656,7 +713,8 @@ export default function EmployeePayrollPanel({
               )
             }
           />
-        </AccordionDetails></Accordion>
+          </Box>
+        </Stack>}
       </>}
     </Stack>
   );

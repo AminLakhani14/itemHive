@@ -144,7 +144,7 @@ export const updateOrderDraft = async (req: AuthRequest, res: Response) => {
         const draft = await OrderDraft.findOneAndUpdate(
             { _id: req.params.id, ...buildTenantFilter(req.user!) },
             payload,
-            { new: true, runValidators: true },
+            { returnDocument: 'after', runValidators: true },
         );
         if (!draft) return res.status(404).json({ message: 'Order draft not found' });
         return res.json(draft);
