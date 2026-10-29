@@ -56,6 +56,8 @@ const defaultAllowedOrigins = [
     'https://itemhiveinventorysystem.netlify.app',
     'http://localhost:5173',
     'https://itemhive-staging.netlify.app',
+    'https://ozorco.com',
+    'https://www.ozorco.com',
 ];
 
 const allowedOrigins = Array.from(new Set([...configuredOrigins, ...defaultAllowedOrigins]));
