@@ -237,7 +237,7 @@ const POSShiftReportsPage: React.FC = () => {
         try {
             await downloadShiftReportPdf({
                 report,
-                shopName: appSettings.shopName || 'ItemHive',
+                shopName: appSettings.shopName || 'Ozor',
                 shopAddress: appSettings.shopAddress,
                 shopPhone: appSettings.shopPhone,
                 formatCurrency,
@@ -404,7 +404,7 @@ const POSShiftReportsPage: React.FC = () => {
                 <DialogTitle fontWeight={900}>{displayReport?.status === 'closed' ? 'Shift Closing Report' : 'Live Shift Summary'} Preview</DialogTitle>
                 <DialogContent>
                     {displayReport && <Box id="shift-report-receipt" sx={{ bgcolor: '#fff', color: '#000', px: 2, py: 2.5, fontFamily: 'monospace', border: '1px dashed #999' }}>
-                        <Typography className="shift-report-brand" align="center" fontWeight={900} fontSize={18}>{appSettings.shopName || 'ItemHive'}</Typography>
+                        <Typography className="shift-report-brand" align="center" fontWeight={900} fontSize={18}>{appSettings.shopName || 'Ozor'}</Typography>
                         {appSettings.shopAddress && <Typography className="shift-report-contact" align="center" fontSize={10}>{appSettings.shopAddress}</Typography>}
                         {appSettings.shopPhone && <Typography className="shift-report-contact" align="center" fontSize={10}>{appSettings.shopPhone}</Typography>}
                         <Typography className="shift-report-title" align="center" fontWeight={900} fontSize={13} sx={{ mt: 1.2 }}>{displayReport.status === 'closed' ? 'SHIFT CLOSING REPORT' : 'LIVE SHIFT SUMMARY'}</Typography>

@@ -216,7 +216,7 @@ function ThemeEditor({ saved, userId }: { saved: Appearance; userId: string }) {
             <Stack spacing={3}>
                 <Typography variant="h6">Personal logo</Typography>
                 <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-                    <Box component="img" src={draft.logo || '/favicon.png'} alt="Logo preview" sx={{ width: draft.logo ? 180 : 64, height: 80, maxWidth: '100%', objectFit: 'contain' }} />
+                    <Box component="img" src={draft.logo || '/OZOR-transparent.webp'} alt="Logo preview" sx={{ width: draft.logo ? 180 : 64, height: 80, maxWidth: '100%', objectFit: 'contain' }} />
                     <Button component="label" variant="outlined" startIcon={<Upload size={18} />} disabled={busy}>Upload logo
                         <input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { void upload(e.target.files?.[0]); e.target.value = ''; }} />
                     </Button>

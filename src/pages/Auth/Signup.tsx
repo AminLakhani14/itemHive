@@ -226,8 +226,9 @@ const Signup: React.FC = () => {
                         }}
                     >
                         <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 2.5 }, pb: 1, textAlign: 'center', flexShrink: 0 }}>
+                            <Box component="img" src="/OZOR-transparent.webp" alt="Ozor" sx={{ width: 180, height: 72, objectFit: 'contain' }} />
                             <Typography variant="h4" fontWeight={800} color="primary.main" sx={{ fontSize: { xs: '1.7rem', md: '2.05rem' } }}>
-                                Join ItemHive
+                                Join Ozor
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                                 {user ? 'Create a new workspace account.' : 'Create your business workspace instantly.'}

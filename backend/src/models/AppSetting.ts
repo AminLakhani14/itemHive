@@ -30,7 +30,7 @@ const AppSettingSchema: Schema<IAppSetting> = new Schema({
     key: { type: String, required: true, unique: true },
     businessId: { type: Schema.Types.ObjectId, ref: 'Business', default: null, index: true },
     salesTaxRate: { type: Number, default: 0, min: 0, max: 100 },
-    shopName: { type: String, default: 'ItemHive POS', trim: true },
+    shopName: { type: String, default: 'Ozor POS', trim: true },
     shopPhone: { type: String, default: '', trim: true },
     shopAddress: { type: String, default: '', trim: true },
     receiptBannerUrl: { type: String, default: '' },

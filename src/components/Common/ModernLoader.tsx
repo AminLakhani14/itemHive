@@ -51,7 +51,7 @@ const ModernLoader: React.FC<{ fullPage?: boolean; message?: string }> = ({ full
             </Box>
             <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ letterSpacing: 4, mb: 0.5 }}>
-                    ITEMHIVE
+                    OZOR
                 </Typography>
                 <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ letterSpacing: 1.5, opacity: 0.7 }}>
                     {message}

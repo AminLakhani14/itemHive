@@ -1,4 +1,4 @@
-﻿# ItemHive User Manual: Payroll, Expenses, Finance and My Payroll
+# Ozor User Manual: Payroll, Expenses, Finance and My Payroll
 
 Edition: 20 October 2026. This guide describes the current project screens and workflow rules. Examples use fictional people and PKR amounts. Use your business currency and approved policies for real records.
 
@@ -30,7 +30,7 @@ Viewing and taking action require different permissions. Access to a record does
 - Finance: set up accounts > review opening balances > prepare/post journals > reports > month close.
 - My Payroll: submit personal requests > track decisions > view released payslips > check salary payments.
 
-A payment entry records money paid outside ItemHive. It does not transfer money. Approval does not mean payment.
+A payment entry records money paid outside Ozor. It does not transfer money. Approval does not mean payment.
 
 ## 2. Roles, permissions and approval responsibilities
 
@@ -239,7 +239,7 @@ A loan/advance moves through request, approval, disbursement and recovery. Appro
 4. Record the actual disbursement and check the new status/balance.
 5. Check Loan movements for the entry.
 
-Current loan movements use cash. ItemHive records the movement; it does not transfer funds. Bank loan disbursement is not implemented in this workflow.
+Current loan movements use cash. Ozor records the movement; it does not transfer funds. Bank loan disbursement is not implemented in this workflow.
 
 ### Recovery, repayment and cancellation
 
@@ -652,7 +652,7 @@ Use this when Finance begins after the business already has unpaid expenses, unp
 
 ### Opening journal
 
-1. Reconcile cash/bank, unpaid costs/salaries, employee loans and other opening balances outside ItemHive.
+1. Reconcile cash/bank, unpaid costs/salaries, employee loans and other opening balances outside Ozor.
 2. In Journals & Opening Balances choose New journal.
 3. Tick Opening balances (finance start date). Finance setup plus journal preparation permissions are required.
 4. Use exactly the Finance starting date and matching currency.

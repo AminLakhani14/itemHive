@@ -10,26 +10,33 @@ import {
     Toolbar,
     Typography,
     Divider,
-    Collapse,
     Tooltip,
     alpha,
     IconButton,
     useMediaQuery,
     useTheme
 } from '@mui/material';
-import { ChevronLeft, ChevronDown, ChevronRight } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../store';
 import { toggleSidebar } from '../../features/theme/themeSlice';
 import { getDigitalMenuAccess, hasInstallmentAccess, hasScreenAccess } from '../../lib/screenPermissions';
-import { workflowGroups } from '../../lib/workflowScreens';
 import { useLogoPlate } from '../../lib/logoVisibility';
 
-import { NAV_MODULES } from '../../lib/navigation';
+import { NAV_MODULES, NAV_SECTIONS } from '../../lib/navigation';
 
 const drawerWidth = 260;
 const collapsedWidth = 80;
+
+function readFavorites(key: string): string[] {
+    try {
+        const saved: unknown = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(saved) ? [...new Set(saved.filter((path): path is string => typeof path === 'string'))] : [];
+    } catch {
+        return [];
+    }
+}
 
 interface SidebarProps {
     mobileOpen: boolean;
@@ -41,8 +48,18 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
     const location = useLocation();
-    const navigate = useNavigate();
     const { user } = useSelector((state: RootState) => state.auth);
+    const favoritesKey = `itemhive-nav-favorites:${user?.id || 'guest'}`;
+    const [savedFavorites, setSavedFavorites] = React.useState(() => ({ key: favoritesKey, paths: readFavorites(favoritesKey) }));
+    const favorites = savedFavorites.key === favoritesKey ? savedFavorites.paths : readFavorites(favoritesKey);
+    const toggleFavorite = (path: string) => {
+        setSavedFavorites(previous => {
+            const paths = previous.key === favoritesKey ? previous.paths : readFavorites(favoritesKey);
+            const next = paths.includes(path) ? paths.filter(saved => saved !== path) : [...paths, path];
+            try { localStorage.setItem(favoritesKey, JSON.stringify(next)); } catch { /* Favorites still work when browser storage is unavailable. */ }
+            return { key: favoritesKey, paths: next };
+        });
+    };
     const sidebarFontColor = useSelector((state: RootState) => {
         const preview = state.themePreview.value;
         return (preview && preview.userId === state.auth.user?.id
@@ -59,23 +76,43 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
         const preview = state.themePreview.value;
         return (preview && preview.userId === state.auth.user?.id
             ? preview.appearance.logo
-            : state.auth.user?.appearance?.logo) || '/favicon.png';
+            : state.auth.user?.appearance?.logo) || '/OZOR-transparent.webp';
     });
     const { isSidebarCollapsed } = useSelector((state: RootState) => state.theme);
     const compact = isSidebarCollapsed && !isMobile;
-    const activeGroup = workflowGroups.find(g => g.screens.some(s => s.path === location.pathname))?.path;
-    const [expanded, setExpanded] = React.useState<Record<string, boolean>>(() => activeGroup ? { [activeGroup]: true } : {});
-    React.useEffect(() => {
-        if (activeGroup) setExpanded(previous => ({ ...previous, [activeGroup]: true }));
-    }, [activeGroup, location.pathname]);
     const { app } = useSelector((state: RootState) => state.settings);
-    const hasCustomLogo = logo !== '/favicon.png';
     const logoPlate = useLogoPlate(logo, sidebarColor || theme.palette.background.paper, [theme.palette.background.default]);
     const currentWidth = isSidebarCollapsed ? collapsedWidth : drawerWidth;
     const currentRole = user?.role || 'user';
     const canAccessInstallments = hasInstallmentAccess(user, app?.installmentsEnabled);
 
-    const menuItems = NAV_MODULES;
+    const visibleItems = NAV_MODULES.filter(item => item.roles.includes(currentRole)
+        && (!item.permission || hasScreenAccess(user, item.permission))
+        && (!item.permissions || item.permissions.some(p => hasScreenAccess(user, p)))
+        && (!item.requiresInstallmentAccess || canAccessInstallments)
+        && (!item.requiresDigitalMenuAccess || getDigitalMenuAccess(user) !== 'none')
+        && (!item.requiresSignupApproval || !app?.autoRegistrationEnabled));
+    const sections = NAV_SECTIONS.map(section => ({
+        title: section.title,
+        items: section.paths.flatMap(path => {
+            const item = visibleItems.find(item => item.path === path);
+            if (!item) return [];
+            if (!item.children) return [item];
+            return item.children
+                .filter(screen => screen.permissions.some(permission => hasScreenAccess(user, permission)))
+                .map(screen => ({ ...item, text: screen.title, path: screen.path, children: undefined }));
+        }),
+    })).filter(section => section.items.length > 0);
+
+    const favoriteItems = favorites.flatMap(path => {
+        const item = sections.flatMap(section => section.items).find(item => item.path === path);
+        return item ? [item] : [];
+    });
+    const displaySections = [
+        ...sections.filter(section => !section.title),
+        { title: 'Favorites', items: favoriteItems },
+        ...sections.filter(section => section.title),
+    ];
 
     const drawer = (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -90,26 +127,10 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                 {!compact && <Box
                     component="img"
                     src={logo}
-                    alt="Logo"
-                    sx={{ width: hasCustomLogo ? '100%' : 32, height: hasCustomLogo ? 64 : 32, maxWidth: '100%', objectFit: 'contain', flexShrink: 0, ...(logoPlate && { bgcolor: logoPlate, borderRadius: 1.5, p: 0.75 }) }}
+                    alt="Ozor"
+                    sx={{ width: '100%', height: 64, maxWidth: '100%', objectFit: 'contain', flexShrink: 0, ...(logoPlate && { bgcolor: logoPlate, borderRadius: 1.5, p: 0.75 }) }}
                 />}
-                {!compact && !hasCustomLogo && (
-                    <Typography
-                        variant="h6"
-                        fontWeight={900}
-                        color="primary.main"
-                        noWrap
-                        sx={{
-                            fontSize: '1.4rem',
-                            letterSpacing: -0.5,
-                            background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: sidebarFontColor || 'transparent',
-                        }}
-                    >
-                        ItemHive
-                    </Typography>
-                )}
+
             </Toolbar>
 
             <Box sx={{
@@ -160,94 +181,47 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onDrawerToggle }) => {
                     },
                 }}
             >
-                <List sx={{ px: 0 }}>
-                    {menuItems
-                        .filter(item => item.roles.includes(currentRole)
-                            && (!item.permission || hasScreenAccess(user, item.permission))
-                            && (!item.permissions || item.permissions.some(p => hasScreenAccess(user, p)))
-                            && (!item.requiresInstallmentAccess || canAccessInstallments)
-                            && (!item.requiresDigitalMenuAccess || getDigitalMenuAccess(user) !== 'none')
-                            && (!item.requiresSignupApproval || !app?.autoRegistrationEnabled))
-                        .map((item) => {
-                            const children = item.children?.filter(screen => screen.permissions.some(permission => hasScreenAccess(user, permission)));
-                            const isActive = children ? children.some(screen => screen.path === location.pathname) : location.pathname === item.path || (['/employees', '/digital-menus'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
-                            const isExpanded = !!expanded[item.path] && !compact;
-                            return (
-                                <ListItem key={item.text} disablePadding sx={{ mb: 0.5, display: 'block' }}>
-                                    <Tooltip title={compact ? item.text : ''} placement="right">
-                                    <ListItemButton
-                                        aria-label={item.text}
-                                        aria-expanded={children ? isExpanded : undefined}
-                                        aria-controls={children ? 'nav-' + item.path.slice(1) : undefined}
-                                        aria-current={!children && isActive ? 'page' : undefined}
-                                        onClick={() => {
-                                            if (children) {
-                                                if (compact) dispatch(toggleSidebar());
-                                                setExpanded(previous => ({ ...previous, [item.path]: compact || !previous[item.path] }));
-                                                return;
-                                            }
-                                            navigate(item.path);
-                                            if (mobileOpen) onDrawerToggle();
-                                        }}
+                {displaySections.map((section, index) => <Box key={section.title || 'home'} component="section" aria-label={section.title || 'Home'}>
+                    {section.title && (compact
+                        ? <Divider sx={{ my: 1.5 }} />
+                        : <Typography component="h2" sx={{ px: 1.5, pt: index ? 2 : 1, pb: 0.75, m: 0, fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: sidebarFontColor || 'text.secondary', opacity: 0.75 }}>{section.title}</Typography>)}
+                    {section.title === 'Favorites' && !section.items.length && !compact && <Typography sx={{ px: 1.5, pb: 1, fontSize: '0.75rem', color: sidebarFontColor || 'text.secondary' }}>Star a screen to add it here.</Typography>}
+                    <List aria-label={section.title || 'Home'} disablePadding>
+                        {section.items.map(item => {
+                            const isActive = location.pathname === item.path || (['/employees', '/digital-menus'].includes(item.path) && location.pathname.startsWith(`${item.path}/`));
+                            const isFavorite = favorites.includes(item.path);
+                            const favoriteLabel = `${isFavorite ? 'Remove' : 'Add'} ${item.text} ${isFavorite ? 'from' : 'to'} favorites`;
+                            return <ListItem key={item.path} disablePadding sx={{ mb: 0.5, position: 'relative' }}>
+                                <Tooltip title={compact ? item.text : ''} placement="right">
+                                    <ListItemButton component={Link} to={item.path} aria-label={item.text} aria-current={isActive ? 'page' : undefined}
+                                        onClick={() => { if (mobileOpen) onDrawerToggle(); }}
                                         sx={{
-                                            p: compact ? 1.5 : 1.25,
-                                            justifyContent: compact ? 'center' : 'initial',
-                                            borderRadius: 2,
-                                            backgroundColor: isActive ? 'primary.main' : 'transparent',
+                                            pl: compact ? 1.5 : 1.25, pr: compact ? 1.5 : 4.5, py: 1,
+                                            justifyContent: compact ? 'center' : 'initial', borderRadius: 2,
+                                            bgcolor: isActive ? 'primary.main' : 'transparent',
                                             color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'text.primary'),
-                                            '&:hover': {
-                                                backgroundColor: isActive ? 'primary.dark' : (theme) => alpha(theme.palette.primary.main, 0.1),
-                                                color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'primary.main'),
-                                                '& .MuiListItemIcon-root': {
-                                                    color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'primary.main'),
-                                                }
-                                            },
-                                        }}
-                                    >
-                                        <ListItemIcon
-                                            sx={{
-                                                minWidth: compact ? 0 : 40,
-                                                mr: compact ? 0 : 0,
-                                                justifyContent: 'center',
-                                                color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'text.secondary')
-                                            }}
-                                        >
-                                            {item.icon}
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary={item.text}
-                                            sx={{ opacity: compact ? 0 : 1, width: compact ? 0 : 'auto', m: 0 }}
-                                            primaryTypographyProps={{
-                                                fontSize: '0.9rem',
-                                                fontWeight: isActive ? 700 : 600
-                                            }}
-                                        />
-                                        {children && !compact && <ChevronDown size={17} style={{ flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : undefined }} />}
+                                            '&:hover': { bgcolor: isActive ? 'primary.dark' : alpha(theme.palette.primary.main, 0.1) },
+                                        }}>
+                                        <ListItemIcon sx={{ minWidth: compact ? 0 : 34, justifyContent: 'center', color: isActive ? 'primary.contrastText' : (sidebarFontColor || 'text.secondary') }}>{item.icon}</ListItemIcon>
+                                        {!compact && <ListItemText primary={item.text} sx={{ m: 0 }} primaryTypographyProps={{ fontSize: '0.84rem', lineHeight: 1.4, fontWeight: isActive ? 700 : 500 }} />}
                                     </ListItemButton>
-                                    </Tooltip>
-                                    {children && <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                                        <List id={'nav-' + item.path.slice(1)} aria-label={item.text + ' screens'} disablePadding sx={{ ml: 2.25, mt: 0.5, pl: 1, borderLeft: '1px solid', borderColor: 'divider' }}>
-                                            {children.map(screen => {
-                                                const selected = location.pathname === screen.path;
-                                                return <ListItem key={screen.path} disablePadding>
-                                                    <ListItemButton component={Link} to={screen.path} selected={selected} aria-current={selected ? 'page' : undefined}
-                                                        onClick={() => { if (mobileOpen) onDrawerToggle(); }}
-                                                        sx={{ px: 1.25, py: 0.85, mb: 0.25, borderRadius: 1.5, color: sidebarFontColor || (selected ? 'primary.main' : 'text.secondary'), '&.Mui-selected': { bgcolor: alpha(theme.palette.primary.main, 0.12) }, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) } }}>
-                                                        <ListItemText primary={screen.title} sx={{ m: 0 }} primaryTypographyProps={{ fontSize: '0.82rem', lineHeight: 1.4, fontWeight: selected ? 700 : 500 }} />
-                                                    </ListItemButton>
-                                                </ListItem>;
-                                            })}
-                                        </List>
-                                    </Collapse>}
-                                </ListItem>
-                            );
+                                </Tooltip>
+                                <Tooltip title={favoriteLabel} placement="right">
+                                    <IconButton size="small" aria-label={favoriteLabel} aria-pressed={isFavorite}
+                                        onClick={() => toggleFavorite(item.path)}
+                                        sx={{ position: 'absolute', right: compact ? -5 : 4, top: compact ? -3 : '50%', transform: compact ? undefined : 'translateY(-50%)', p: compact ? 0.25 : 0.6, color: isActive ? 'primary.contrastText' : (isFavorite ? 'warning.main' : (sidebarFontColor || 'text.secondary')), bgcolor: compact ? (sidebarColor || 'background.paper') : 'transparent', '&:hover': { bgcolor: isActive ? alpha(theme.palette.primary.contrastText, 0.15) : 'action.hover' } }}>
+                                        <Star size={compact ? 12 : 16} fill={isFavorite ? 'currentColor' : 'none'} />
+                                    </IconButton>
+                                </Tooltip>
+                            </ListItem>;
                         })}
-                </List>
+                    </List>
+                </Box>)}
             </Box>
             {!compact && <Box sx={{ mt: 'auto', p: 2 }}>
                 <Divider sx={{ mb: compact ? 2 : 1.5 }} />
                 <Typography variant="caption" component="p" noWrap sx={{ textAlign: 'center', color: sidebarFontColor || 'text.secondary', opacity: 0.8 }}>
-                    Powered by <Box component="span" sx={{ fontWeight: 800 }}>ItemHive</Box>
+                    Powered by <Box component="span" sx={{ fontWeight: 800 }}>Ozor</Box>
                 </Typography>
             </Box>}
         </Box>

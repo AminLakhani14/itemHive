@@ -20,7 +20,7 @@ export function getMenuBrand(settings: { shopName: string; invoiceLogoUrl: strin
     const saved = fields.filter(([key]) => /^#[0-9a-f]{6}$/i.test(appearance?.[key] ?? ''));
     const palette = saved.length === 1 && saved[0][0] === 'themeColor' && appearance?.themeColor?.toLowerCase() === '#0ea5a5' ? [] : saved;
     return {
-        name: (settings.shopName === 'ItemHive POS' ? user?.businessName || '' : settings.shopName).trim().slice(0, 100),
+        name: (settings.shopName === 'Ozor POS' ? user?.businessName || '' : settings.shopName).trim().slice(0, 100),
         theme: palette.length ? `Saved restaurant theme: ${palette.map(([key, label]) => `${label} ${appearance![key]}`).join(', ')}.` : '',
         logo: [settings.invoiceLogoUrl, appearance?.logo].find(logo => logo && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logo) && logo.length <= 1398126) || '',
         colors: [...new Set(palette.map(([key]) => appearance![key]!))],

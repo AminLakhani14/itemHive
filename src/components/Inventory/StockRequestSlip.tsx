@@ -6,7 +6,7 @@ export default function StockRequestSlip({ request, shopName }: { request: Stock
 
     return <Box id={`stock-request-slip-${request._id}`} sx={{ display: 'none', color: '#000', bgcolor: '#fff' }}>
         <Typography align="center" fontWeight={900}>INVENTORY REQUEST</Typography>
-        <Typography align="center" variant="caption" display="block">{shopName || 'ItemHive'}</Typography>
+        <Typography align="center" variant="caption" display="block">{shopName || 'Ozor'}</Typography>
         {divider}
         <Stack spacing={0.4}>
             <Typography variant="caption">Request: {request._id}</Typography>

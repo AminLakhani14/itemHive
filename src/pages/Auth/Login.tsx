@@ -86,14 +86,14 @@ const Login: React.FC = () => {
             name: 'Basic',
             price: 'PKR 2,000 / month',
             tag: '1 user',
-            features: ['1 user account', 'All existing ItemHive features'],
+            features: ['1 user account', 'All existing Ozor features'],
         },
         {
             id: 'pro',
             name: 'Pro',
             price: 'PKR 3,000 / month',
             tag: '4 users',
-            features: ['1 admin + 3 user accounts', 'All existing ItemHive features'],
+            features: ['1 admin + 3 user accounts', 'All existing Ozor features'],
         },
         {
             id: 'premium',
@@ -107,7 +107,7 @@ const Login: React.FC = () => {
             name: 'Customization',
             price: 'Custom price',
             tag: 'Flexible team',
-            features: ['Admin and user accounts as needed', 'All existing ItemHive features', 'Product updates where feasible for your requirements'],
+            features: ['Admin and user accounts as needed', 'All existing Ozor features', 'Product updates where feasible for your requirements'],
         },
     ];
 
@@ -246,9 +246,7 @@ const Login: React.FC = () => {
                         >
                             <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'stretch', justifyContent: 'space-between', gap: 2, textAlign: { xs: 'center', md: 'left' } }}>
                                 <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                    <Typography variant="h4" fontWeight={800} color="primary.main" gutterBottom>
-                                        ItemHive
-                                    </Typography>
+                                    <Box component="img" src="/OZOR-transparent.webp" alt="Ozor" sx={{ width: 180, height: 72, objectFit: 'contain', mb: 1 }} />
                                     <Typography variant="body2" color="text.secondary">
                                         {activeTab === 'signin' ? 'Welcome back. Sign in to continue.' : 'Simple plans for growing retail teams.'}
                                     </Typography>

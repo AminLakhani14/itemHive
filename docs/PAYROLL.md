@@ -1,4 +1,4 @@
-# ItemHive payroll
+# Ozor payroll
 
 Payroll is available as separate task screens under `/payroll`; linked employees use `/my` for requests and `/my-payroll` for payslips. See [the current user manual](PAYROLL_FINANCE_USER_MANUAL.md) for screen-by-screen instructions and [the implementation audit](PAYROLL_FINANCE_IMPLEMENTATION_AUDIT.md) for tested scope and remaining work. Financial changes require a MongoDB replica set (Atlas or a local replica set) because approval, payments, loan movements and sales commissions use transactions.
 

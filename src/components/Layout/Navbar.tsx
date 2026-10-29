@@ -81,7 +81,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
         const preview = state.themePreview.value;
         return (preview && preview.userId === state.auth.user?.id
             ? preview.appearance.logo
-            : state.auth.user?.appearance?.logo) || '/favicon.png';
+            : state.auth.user?.appearance?.logo) || '/OZOR-transparent.webp';
     });
     const logoPlate = useLogoPlate(logo, navbarColor || theme.palette.background.paper, [theme.palette.background.default]);
     const { isSidebarCollapsed } = useSelector((state: RootState) => state.theme);
@@ -340,23 +340,10 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                         <Box
                             component="img"
                             src={logo}
-                            alt="Logo"
-                            sx={{ width: logo !== '/favicon.png' ? { xs: 140, sm: 116 } : 28, height: logo !== '/favicon.png' ? { xs: 48, sm: 38 } : 28, maxWidth: '100%', objectFit: 'contain', ...(logoPlate && { bgcolor: logoPlate, borderRadius: 1.5, p: 0.5 }) }}
+                            alt="Ozor"
+                            sx={{ width: { xs: 140, sm: 116 }, height: { xs: 48, sm: 38 }, maxWidth: '100%', objectFit: 'contain', ...(logoPlate && { bgcolor: logoPlate, borderRadius: 1.5, p: 0.5 }) }}
                         />
-                        {logo === '/favicon.png' && (
-                        <Typography
-                            variant="h6"
-                            className={navbarFontColor ? undefined : 'gradient-text'}
-                            sx={{
-                                color: navbarFontColor || undefined,
-                                fontWeight: 800,
-                                letterSpacing: -1,
-                                fontSize: '1.2rem'
-                            }}
-                        >
-                            ItemHive
-                        </Typography>
-                        )}
+
                     </Box>
                 </Box>
 

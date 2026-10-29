@@ -36,7 +36,7 @@ export default function WorkflowManualPage() {
   return <Stack gap={2}>
     <Stack direction="row" gap={1} flexWrap="wrap">
       {workflowGroups.filter(g => g.screens.some(s => s.permissions.some(p => hasScreenAccess(user, p)))).map(g => <Button key={g.id} component={Link} to={g.path}>{g.title}</Button>)}
-      <Button component="a" href={manualUrl} download="ItemHive-Payroll-Expenses-Finance-My-Payroll-Manual.md">Download manual</Button>
+      <Button component="a" href={manualUrl} download="Ozor-Payroll-Expenses-Finance-My-Payroll-Manual.md">Download manual</Button>
       <Button variant="outlined" component="a" href={printableUrl} target="_blank" rel="noreferrer">Print / Save PDF</Button>
     </Stack>
     <TextField label="Search the manual" placeholder="Enrollment, expense approval, payslips, opening balances..." value={search} onChange={e => setSearch(e.target.value)} />

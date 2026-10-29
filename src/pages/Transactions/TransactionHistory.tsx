@@ -721,7 +721,7 @@ const TransactionHistory: React.FC = () => {
 
                             <Box sx={{ mt: 6, textAlign: 'center' }}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Thank you for using ItemHive Inventory System.
+                                    Thank you for using Ozor Inventory System.
                                 </Typography>
                             </Box>
                         </Box>

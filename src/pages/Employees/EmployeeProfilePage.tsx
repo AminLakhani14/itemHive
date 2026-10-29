@@ -696,7 +696,7 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
                         <SectionCard title="Login & Access" icon={<KeyRound size={20} />}>
                             {isNew ? (
                                 <Typography variant="body2" color="text.secondary">
-                                    Create the employee first. You can then give them a login to sign in to ItemHive.
+                                    Create the employee first. You can then give them a login to sign in to Ozor.
                                 </Typography>
                             ) : employee?.account ? (
                                 <Stack spacing={1.5}>
