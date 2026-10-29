@@ -1,0 +1,9 @@
+backend/
+artifacts/
+.cache/
+node_modules/
+dist/
+.env*.local
+*.log
+tableau_stock.xlsx
+.merge_file_*
