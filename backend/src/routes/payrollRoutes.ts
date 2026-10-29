@@ -1514,6 +1514,13 @@ payrollRouter.get(
 
 export const myPayrollRouter = Router();
 myPayrollRouter.use(protect);
+myPayrollRouter.use(async (req: AuthRequest, res, next) => {
+  if (!await Employee.exists({ ...tenant(req), userId: req.user!.id })) {
+    res.status(403).json({ message: 'Employee self service is unavailable for this account in the selected workspace.' });
+    return;
+  }
+  next();
+});
 const ownRequestKinds = (req: AuthRequest) => [
   ...(canFinancial(req, 'self_leave') ? ['leave'] : []),
   ...(canFinancial(req, 'self_loan') ? ['loan', 'advance'] : []),

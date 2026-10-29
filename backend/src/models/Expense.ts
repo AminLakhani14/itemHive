@@ -1,4 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 const PaymentSchema = new Schema({
   key: { type: String, required: true },
@@ -51,4 +52,5 @@ ExpenseSchema.index({ businessId: 1, key: 1 }, { unique: true });
 ExpenseSchema.index({ businessId: 1, invoiceKey: 1 }, { unique: true, partialFilterExpression: { invoiceKey: { $type: 'string' } } });
 ExpenseSchema.index({ businessId: 1, dateKey: -1, _id: -1 });
 ExpenseSchema.index({ businessId: 1, createdBy: 1, status: 1 });
+ExpenseSchema.plugin(branchScopedPlugin);
 export default mongoose.model('Expense', ExpenseSchema);

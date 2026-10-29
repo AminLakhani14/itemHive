@@ -5,7 +5,10 @@ import type { MenuDesign } from '../utils/menuDesign';
 import type { MenuPrices } from '../utils/menuPrices';
 
 type MenuDefinition = { _id: unknown; name: string; productIds: string[]; design?: MenuDesign; content?: MenuBlock[]; pageCount?: number; productPrices?: MenuPrices };
-export const publicationKey = (businessId: unknown) => businessId ? String(businessId) : 'legacy';
+// Each branch publishes its own menu. The main branch keeps the business key, so menus published before
+// branches existed stay live. `branchId` is set only for other branches.
+export const publicationKey = (businessId: unknown, branchId?: string | null) =>
+    `${businessId ? String(businessId) : 'legacy'}${branchId ? `:${branchId}` : ''}`;
 export const menuSnapshot = (menu: MenuDefinition, deals: PublishedMenu['deals'] = []): PublishedMenu => ({
     _id: String(menu._id), name: menu.name, productIds: [...menu.productIds], design: menu.design,
     content: menu.content, pageCount: menu.pageCount, deals: [...deals].sort((a, b) => a._id.localeCompare(b._id)),
@@ -14,10 +17,11 @@ export const menuSnapshot = (menu: MenuDefinition, deals: PublishedMenu['deals']
 export const hasMenuChanges = (menu: MenuDefinition, published: PublishedMenu, deals = published.deals) =>
     JSON.stringify(menuSnapshot(menu, deals)) !== JSON.stringify(published);
 
-export const getPublication = async (businessId: unknown) => {
-    const key = publicationKey(businessId);
+export const getPublication = async (businessId: unknown, branchId?: string | null) => {
+    const key = publicationKey(businessId, branchId);
     let publication = await MenuPublication.findById(key).lean();
-    if (publication) return publication;
+    // Only the main branch can have a menu that was live before publications existed.
+    if (publication || branchId) return publication;
     // Preserve one existing live menu when upgrading older workspaces. New
     // draft records have an explicit status and cannot enter this fallback.
     const legacy = await DigitalMenu.findOne({ businessId: businessId || { $exists: false }, status: { $exists: false }, sourceMenuId: null, tableName: { $in: ['', null] }, menuType: { $ne: 'deal' }, isActive: true }).sort({ createdAt: -1, _id: -1 }).lean();
@@ -33,8 +37,8 @@ export const getPublication = async (businessId: unknown) => {
     return publication;
 };
 
-export const publishSnapshot = async (businessId: unknown, menu: PublishedMenu) => {
-    const key = publicationKey(businessId);
+export const publishSnapshot = async (businessId: unknown, menu: PublishedMenu, branchId?: string | null) => {
+    const key = publicationKey(businessId, branchId);
     const update = { $set: { menu, publishedAt: new Date() } };
     try {
         await MenuPublication.findOneAndUpdate({ _id: key }, update, { upsert: true, returnDocument: 'after' });

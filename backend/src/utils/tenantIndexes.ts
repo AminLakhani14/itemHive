@@ -13,7 +13,11 @@ import Category from '../models/Category';
 import POSShift from '../models/POSShift';
 import OrderDraft from '../models/OrderDraft';
 import Employee from '../models/Employee';
+import InventoryMaterial from '../models/InventoryMaterial';
+import InventoryVendors from '../models/InventoryVendors';
+import { PayrollRun } from '../models/Payroll';
 import { ensureLegacyBusiness } from './tenancy';
+import { adoptUnbranchedRecords } from './branchData';
 
 const dropLegacyIndex = async (model: Model<unknown>, indexName: string) => {
     const indexes = await model.collection.indexes().catch((error: { codeName?: string }) => {
@@ -63,8 +67,27 @@ export const ensureTenantIndexes = async () => {
     // Replaced by a partial index so employees added from Team can have a blank CNIC.
     await dropLegacyIndex(Employee as unknown as Model<unknown>, 'businessId_1_cnic_1');
 
-    await Product.collection.createIndex({ businessId: 1, id: 1 }, { unique: true });
-    await Product.collection.createIndex({ businessId: 1, sku: 1 }, { unique: true });
+    // Branches of one business keep separate records, so these unique values repeat across branches.
+    // Records saved before a business had branches are given its main branch first.
+    const branchedBusinesses = await Business.find({ 'branches.0': { $exists: true } }).select('branches._id')
+        .lean<Array<{ _id: mongoose.Types.ObjectId; branches: Array<{ _id: mongoose.Types.ObjectId }> }>>();
+    for (const business of branchedBusinesses) await adoptUnbranchedRecords(business._id, business.branches[0]._id);
+    await Promise.all([
+        Product.collection.createIndex({ businessId: 1, branchId: 1, id: 1 }, { unique: true }),
+        Product.collection.createIndex({ businessId: 1, branchId: 1, sku: 1 }, { unique: true }),
+        Category.collection.createIndex({ businessId: 1, branchId: 1, normalizedName: 1 }, { unique: true }),
+        InventoryMaterial.collection.createIndex({ businessId: 1, branchId: 1, nameKey: 1, unitKey: 1 }, { unique: true }),
+        Customer.collection.createIndex({ businessId: 1, branchId: 1, cnic: 1 }, { unique: true }),
+        InventoryVendors.collection.createIndex({ businessId: 1, branchId: 1 }, { unique: true }),
+        POSShift.collection.createIndex({ businessId: 1, branchId: 1, status: 1 }, { unique: true, partialFilterExpression: { status: 'open' } }),
+        PayrollRun.collection.createIndex({ businessId: 1, branchId: 1, month: 1, kind: 1 }, { unique: true, partialFilterExpression: { kind: 'regular' } }),
+    ]);
+    for (const [model, indexName] of [
+        [Product, 'businessId_1_id_1'], [Product, 'businessId_1_sku_1'], [Category, 'businessId_1_normalizedName_1'],
+        [InventoryMaterial, 'businessId_1_nameKey_1_unitKey_1'], [Customer, 'businessId_1_cnic_1'], [InventoryVendors, 'businessId_1'],
+        [POSShift, 'businessId_1_status_1'], [PayrollRun, 'businessId_1_month_1_kind_1'],
+    ] as const) await dropLegacyIndex(model as unknown as Model<unknown>, indexName);
+
     await Transaction.collection.createIndex({ businessId: 1, id: 1 }, { unique: true });
     await InstallmentPlan.collection.createIndex({ businessId: 1, planCode: 1 }, { unique: true });
 
@@ -89,9 +112,7 @@ export const ensureTenantIndexes = async () => {
         InventoryRequest.collection.createIndex({ businessId: 1, requestedBy: 1, createdAt: -1 }),
         InventoryRequest.collection.createIndex({ businessId: 1, requestedBy: 1, status: 1, 'productData.sku': 1 }),
         StickyNote.collection.createIndex({ businessId: 1, user: 1, pinned: -1, updatedAt: -1 }),
-        Category.collection.createIndex({ businessId: 1, normalizedName: 1 }, { unique: true }),
         POSShift.collection.createIndex({ businessId: 1, closedAt: -1 }),
-        POSShift.collection.createIndex({ businessId: 1, status: 1 }, { unique: true, partialFilterExpression: { status: 'open' } }),
         OrderDraft.collection.createIndex({ businessId: 1, updatedAt: -1 }),
     ]);
 };

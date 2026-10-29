@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box, Typography, type SxProps, type Theme } from '@mui/material';
 import { useSelector } from 'react-redux';
-import type { RootState } from '../../store';
 import { DEFAULT_APP_SETTINGS } from '../../features/settings/settingsSlice';
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 
 interface DocumentBannerProps {
     /** `inverted` keeps the text white for headers painted on a coloured background. */
@@ -27,7 +27,7 @@ const DocumentBanner: React.FC<DocumentBannerProps> = ({
     maxHeight = 96,
     sx,
 }) => {
-    const { app } = useSelector((state: RootState) => state.settings);
+    const app = useSelector(selectPrintSettings);
     const appSettings = app || DEFAULT_APP_SETTINGS;
     const bannerUrl = appSettings.receiptBannerUrl;
     const shopName = appSettings.shopName || DEFAULT_APP_SETTINGS.shopName;

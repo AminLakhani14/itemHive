@@ -18,6 +18,7 @@ const MainLayout: React.FC = () => {
     const { loading: productsLoading } = useSelector((state: RootState) => state.inventory);
     const { loading: transactionsLoading } = useSelector((state: RootState) => state.transactions);
     const { loading: settingsLoading } = useSelector((state: RootState) => state.settings);
+    const branchSwitchCount = useSelector((state: RootState) => state.branch.switchCount);
 
     const drawerWidth = 260;
     const collapsedWidth = 80;
@@ -67,7 +68,8 @@ const MainLayout: React.FC = () => {
                     position: 'relative',
                 }}
             >
-                <Outlet />
+                {/* Remount the page after a branch switch, so it loads the new branch's data. */}
+                <Outlet key={branchSwitchCount} />
                 {!initiallyLoading && apiLoading && <ModernLoader fullPage={false} />}
             </Box>
             <ScrollToTopFab />

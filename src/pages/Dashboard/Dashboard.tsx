@@ -13,7 +13,9 @@ import {
     TableHead,
     TableRow,
     Grid,
-    Chip
+    Chip,
+    Alert,
+    LinearProgress
 } from '@mui/material';
 import {
     Package,
@@ -30,8 +32,10 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../../store';
 import type { AppDispatch } from '../../store';
-import { fetchProducts } from '../../features/inventory/inventorySlice';
-import { fetchTransactions } from '../../features/transactions/transactionSlice';
+import { fetchProducts, normalizeProduct, type Product } from '../../features/inventory/inventorySlice';
+import { fetchTransactions, type Transaction } from '../../features/transactions/transactionSlice';
+import api from '../../api/axios';
+import BranchScopeToggle, { type BranchViewScope } from '../../components/Common/BranchScopeToggle';
 import {
     AreaChart,
     Area,
@@ -66,8 +70,25 @@ const Dashboard: React.FC = () => {
         dispatch(fetchTransactions());
     }, [dispatch]);
 
-    const { products } = useSelector((state: RootState) => state.inventory);
-    const { transactions = [] } = useSelector((state: RootState) => state.transactions || { transactions: [] });
+    const { products: branchProducts } = useSelector((state: RootState) => state.inventory);
+    const { transactions: branchTransactions = [] } = useSelector((state: RootState) => state.transactions || { transactions: [] });
+
+    // The combined view of every branch is loaded separately, so POS and Inventory keep the active branch's data.
+    const [scope, setScope] = React.useState<BranchViewScope>('branch');
+    const [combined, setCombined] = React.useState<{ products: Product[]; transactions: Transaction[] } | null>(null);
+    const [combinedError, setCombinedError] = React.useState('');
+    React.useEffect(() => {
+        setCombined(null); setCombinedError('');
+        if (scope !== 'all') return;
+        let active = true;
+        const params = { branchScope: 'all' };
+        Promise.all([api.get('/products', { params }), api.get<Transaction[]>('/transactions', { params })])
+            .then(([productResponse, transactionResponse]) => { if (active) setCombined({ products: productResponse.data.map(normalizeProduct), transactions: transactionResponse.data }); })
+            .catch(() => { if (active) setCombinedError('All branches could not be loaded. Please retry.'); });
+        return () => { active = false; };
+    }, [scope]);
+    const products = scope === 'all' ? combined?.products ?? [] : branchProducts;
+    const transactions = scope === 'all' ? combined?.transactions ?? [] : branchTransactions;
     const { user } = useSelector((state: RootState) => state.auth);
     const { currency, formatCurrency } = useAppCurrency();
 
@@ -216,6 +237,11 @@ const Dashboard: React.FC = () => {
                             <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                                 Here's what's happening with your POS system today.
                             </Typography>
+                            <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-start' }}>
+                                <BranchScopeToggle value={scope} onChange={setScope} />
+                                {scope === 'all' && !combined && !combinedError && <LinearProgress sx={{ width: 240, borderRadius: 1 }} />}
+                                {combinedError && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => setScope('branch')}>Back</Button>}>{combinedError}</Alert>}
+                            </Box>
                             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                                 <Button
                                     variant="contained"

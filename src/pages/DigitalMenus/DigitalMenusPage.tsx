@@ -6,6 +6,7 @@ import type { AppDispatch, RootState } from '../../store'; import { fetchProduct
 import MenuDesignPicker from './MenuDesignPicker';
 import MenuStatus from './MenuStatus';
 import TableQrSection from './TableQrSection';
+import { getDigitalMenuAccess } from '../../lib/screenPermissions';
 import { DEFAULT_MENU_DESIGN, MENU_TEMPLATES, getMenuDesign, type MenuDesign } from './menuTemplates';
 
 type DigitalMenu = { _id: string; name: string; tableName?: string; token: string; productIds: string[]; menuType?: 'menu' | 'deal'; sourceMenuId?: string | null; dealPrice?: number; design?: MenuDesign; status?: 'draft' | 'published'; hasUnpublishedChanges?: boolean }; type CreateMode = 'reuse' | 'deal';
@@ -17,7 +18,7 @@ const DigitalMenusPage: React.FC = () => {
  const [publishingId,setPublishingId]=React.useState('');
  const publish=async(menu:DigitalMenu)=>{setPublishingId(menu._id);setError('');try{await api.post(`/digital-menus/${menu._id}/publish`);await load()}catch(e){setError(errorMessage(e,'Unable to publish this menu.'))}finally{setPublishingId('')}};
  const [design,setDesign]=React.useState<MenuDesign>({...DEFAULT_MENU_DESIGN}); const [productSearch,setProductSearch]=React.useState('');
- const canSendToPos=user?.role==='super_admin'||user?.digitalMenuAccess==='pos';
+ const canSendToPos=getDigitalMenuAccess(user)==='pos';
  const load=React.useCallback(async()=>{try{const [m,d]=await Promise.all([api.get<DigitalMenu[]>('/digital-menus'),api.get<OrderDraft[]>('/digital-menus/table-drafts')]);setMenus(m.data);setDrafts(d.data)}catch(e){setError(errorMessage(e,'Unable to load Digital Menus.'))}},[]);
  React.useEffect(()=>{void dispatch(fetchProducts(undefined));void load()},[dispatch,load]);
  const masters=menus.filter(m=>(m.menuType||'menu')==='menu'&&!m.sourceMenuId); const deals=(id:string)=>menus.filter(m=>m.menuType==='deal'&&m.sourceMenuId===id); const qrs=(id:string)=>menus.filter(m=>(m.menuType||'menu')==='menu'&&m.sourceMenuId===id);

@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import Joi from 'joi';
 import mongoose from 'mongoose';
-import { protect, AuthRequest } from '../middleware/auth';
+import { protect, requireScreenAccess, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import Expense from '../models/Expense';
 import POSShift from '../models/POSShift';

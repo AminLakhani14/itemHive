@@ -3,11 +3,23 @@ import Business from '../models/Business';
 import BusinessTypeCatalog, { DEFAULT_BUSINESS_TYPES } from '../models/BusinessTypeCatalog';
 
 // Initialize only once. Deleted defaults must not reappear on the next request.
-export const getBusinessTypeCatalog = () => BusinessTypeCatalog.findOneAndUpdate(
-    { key: 'global' },
-    { $setOnInsert: { key: 'global', types: DEFAULT_BUSINESS_TYPES } },
-    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
-).orFail();
+export const getBusinessTypeCatalog = async () => {
+    const catalog = await BusinessTypeCatalog.findOneAndUpdate(
+        { key: 'global' },
+        { $setOnInsert: { key: 'global', types: DEFAULT_BUSINESS_TYPES } },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).orFail();
+    // Add the new client categories once, while respecting later catalog deletions.
+    if (!catalog.clientTypesInitialized) {
+        const additions = DEFAULT_BUSINESS_TYPES.filter((type) => ['pharmacy', 'other'].includes(type.id)
+            && !catalog.types.some((existing) => existing.id === type.id || existing.name.toLowerCase() === type.name.toLowerCase()));
+        await BusinessTypeCatalog.updateOne({ _id: catalog._id, clientTypesInitialized: { $ne: true } }, {
+            $set: { clientTypesInitialized: true }, ...(additions.length ? { $push: { types: { $each: additions } } } : {}),
+        });
+        return BusinessTypeCatalog.findById(catalog._id).orFail();
+    }
+    return catalog;
+};
 
 export const effectiveBusinessTypeId = (settings?: { businessTypeId?: string; restaurantEnabled?: boolean } | null) =>
     settings?.businessTypeId || (settings?.restaurantEnabled ? 'restaurant' : '');

@@ -27,7 +27,7 @@ import type {
   PayrollRequest,
 } from "../../types/payroll";
 import { useSelector } from "react-redux";
-import type { RootState } from "../../store";
+import { selectPrintSettings } from '../../features/branch/branchSlice';
 import { validMoneyAmount } from '../../lib/workflowUx';
 
 export const money = (value: number, currency = "PKR") =>
@@ -131,7 +131,7 @@ export function Payslip({
   item: PayrollItem;
   currency: string;
 }) {
-  const app = useSelector((s: RootState) => s.settings.app);
+  const app = useSelector(selectPrintSettings);
   const [error, setError] = React.useState("");
   const pdf = async () => {
     try {

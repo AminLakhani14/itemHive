@@ -57,9 +57,18 @@ const ExpensesPage = React.lazy(() => import('./pages/Finance/ExpensesPage'));
 const NotificationsPage = React.lazy(() => import('./pages/Notifications/NotificationsPage'));
 const StickyNotes = React.lazy(() => import('./pages/Notes/StickyNotes'));
 const TeamManagementPage = React.lazy(() => import('./pages/Admin/TeamManagementPage'));
+const CreateClientPage = React.lazy(() => import('./pages/Admin/CreateClientPage'));
+const EditClientPage = React.lazy(() => import('./pages/Admin/EditClientPage'));
+const ManageAccountPage = React.lazy(() => import('./pages/Admin/ManageAccountPage'));
 const SignupRequestsPage = React.lazy(() => import('./pages/Admin/SignupRequestsPage'));
 const InventoryRequestsPage = React.lazy(() => import('./pages/Inventory/InventoryRequestsPage'));
+const VendorsPage = React.lazy(() => import('./pages/Inventory/VendorsPage'));
+const VendorHistoryPage = React.lazy(() => import('./pages/Inventory/VendorHistoryPage'));
 const PermissionManagementPage = React.lazy(() => import('./pages/Admin/PermissionManagementPage'));
+const OrganizationOverviewPage = React.lazy(() => import('./pages/Organization/OrganizationOverviewPage'));
+const DepartmentsPage = React.lazy(() => import('./pages/Organization/DepartmentsPage'));
+const BranchesPage = React.lazy(() => import('./pages/Organization/BranchesPage'));
+const FiscalYearsPage = React.lazy(() => import('./pages/Organization/FiscalYearsPage'));
 const AccessDeniedPage = React.lazy(() => import('./pages/Auth/AccessDeniedPage'));
 const DigitalMenusPage = React.lazy(() => import('./pages/DigitalMenus/DigitalMenusPage'));
 const CreateDigitalMenuPage = React.lazy(() => import('./pages/DigitalMenus/CreateDigitalMenuPage'));
@@ -101,6 +110,16 @@ const AppContent: React.FC = () => {
   }, [dispatch, isAuthenticated]);
 
   useEffect(() => {
+    const refreshAccess = () => { if (isAuthenticated) dispatch(refreshCurrentUser()); };
+    window.addEventListener('itemhive-workspace-changed', refreshAccess);
+    window.addEventListener('itemhive-branch-changed', refreshAccess);
+    return () => {
+      window.removeEventListener('itemhive-workspace-changed', refreshAccess);
+      window.removeEventListener('itemhive-branch-changed', refreshAccess);
+    };
+  }, [dispatch, isAuthenticated]);
+
+  useEffect(() => {
     const handleAuthExpired = () => dispatch(logout());
     window.addEventListener('itemhive-auth-expired', handleAuthExpired);
     return () => window.removeEventListener('itemhive-auth-expired', handleAuthExpired);
@@ -128,6 +147,8 @@ const AppContent: React.FC = () => {
               <Route path="inventory/import" element={<ProtectedRoute requiredScreen="inventory_import"><ImportProducts /></ProtectedRoute>} />
               <Route path="inventory/units" element={<ProtectedRoute requiredScreen="inventory_units"><ProductUnitsPage /></ProtectedRoute>} />
               <Route path="inventory/requests" element={<ProtectedRoute requiredScreen="inventory_requests"><InventoryRequestsPage /></ProtectedRoute>} />
+              <Route path="vendors" element={<ProtectedRoute requiredScreen="inventory_requests"><VendorsPage /></ProtectedRoute>} />
+              <Route path="vendor-history" element={<ProtectedRoute requiredScreen="inventory_requests"><VendorHistoryPage /></ProtectedRoute>} />
               <Route path="inventory/reduce" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="inventory_reduce">
                   <ReduceStock />
@@ -229,6 +250,13 @@ const AppContent: React.FC = () => {
                   <TeamManagementPage />
                 </ProtectedRoute>
               } />
+              <Route path="team/create-client" element={<ProtectedRoute allowedRoles={['super_admin']}><CreateClientPage /></ProtectedRoute>} />
+              <Route path="team/clients/:id" element={<ProtectedRoute allowedRoles={['super_admin']}><EditClientPage /></ProtectedRoute>} />
+              <Route path="team/accounts/:id" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="team"><ManageAccountPage /></ProtectedRoute>} />
+              <Route path="organization" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><OrganizationOverviewPage /></ProtectedRoute>} />
+              <Route path="organization/departments" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><DepartmentsPage /></ProtectedRoute>} />
+              <Route path="organization/branches" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><BranchesPage /></ProtectedRoute>} />
+              <Route path="organization/fiscal-years" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']} requiredScreen="organization"><FiscalYearsPage /></ProtectedRoute>} />
               <Route path="order-drafts" element={
                 <ProtectedRoute allowedRoles={['super_admin', 'admin', 'user']} requiredScreen="pos">
                   <OrderDraftsPage />

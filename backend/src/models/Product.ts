@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { validateSellingProduct, type SizeData } from '../utils/productSelling';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface IProduct extends Document {
     unitSizeEnabled?: boolean;
@@ -64,8 +65,8 @@ const ProductSchema: Schema<IProduct> = new Schema({
     businessName: { type: String, default: '', index: true }
 }, { timestamps: true });
 
-ProductSchema.index({ businessId: 1, id: 1 }, { unique: true });
-ProductSchema.index({ businessId: 1, sku: 1 }, { unique: true });
+ProductSchema.index({ businessId: 1, branchId: 1, id: 1 }, { unique: true });
+ProductSchema.index({ businessId: 1, branchId: 1, sku: 1 }, { unique: true });
 
 // Automatically update lastUpdated before saving
 ProductSchema.pre('validate', function () { validateSellingProduct(this); });
@@ -74,4 +75,5 @@ ProductSchema.pre('save', function () {
     this.lastUpdated = new Date();
 });
 
+ProductSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IProduct>('Product', ProductSchema);

@@ -1,4 +1,5 @@
 import User, { type IUser } from '../models/User';
+import Employee from '../models/Employee';
 import { normalizeRole, serializeUser } from './accessControl';
 
 /**
@@ -18,10 +19,12 @@ export const resolveThemeOwner = async (user: IUser) => {
 };
 
 /** serializeUser, with the theme the account actually sees. */
-export const serializeUserWithTheme = async (user: IUser) => {
+export const serializeUserWithTheme = async (user: IUser, businessId = String(user.businessId || '')) => {
     const owner = await resolveThemeOwner(user);
+    const employee = businessId ? await Employee.findOne({ businessId, userId: user._id }).select('_id').lean() : null;
     return {
         ...serializeUser(user),
+        employeeId: employee ? String(employee._id) : null,
         appearance: owner ? owner.appearance : user.appearance,
         themeManaged: Boolean(owner),
     };

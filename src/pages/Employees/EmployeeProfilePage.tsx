@@ -712,7 +712,7 @@ const EmployeeProfilePage: React.FC<EmployeeProfilePageProps> = ({ employeeId, e
                                         Active status and rights such as installments and discounts are managed in Team.
                                     </Typography>
                                     {canManageTeam && (
-                                        <Button variant="outlined" onClick={() => embedded ? onManageTeam?.() : navigate('/team')} sx={{ alignSelf: 'flex-start' }}>{embedded ? 'Account Settings' : 'Manage in Team'}</Button>
+                                        <Button variant="outlined" onClick={() => embedded ? onManageTeam?.() : navigate(`/team/accounts/${employee.account!.id}`)} sx={{ alignSelf: 'flex-start' }}>{embedded ? 'Account Settings' : 'Manage in Team'}</Button>
                                     )}
                                 </Stack>
                             ) : (

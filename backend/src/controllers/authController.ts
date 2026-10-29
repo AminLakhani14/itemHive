@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import User from '../models/User';
 import type { AuthRequest } from '../middleware/auth';
-import { isSuperAdminEmail, normalizeRole, serializeUser } from '../utils/accessControl';
+import { isSuperAdminEmail, normalizeRole } from '../utils/accessControl';
 import Business from '../models/Business';
 import { ensureLegacyBusiness, getGlobalAppSettings } from '../utils/tenancy';
 import SignupRequest from '../models/SignupRequest';
@@ -171,12 +171,12 @@ export const register = async (req: AuthRequest, res: Response) => {
         }
 
         // Creating a login for an existing employee profile (from Employees or Team).
-        let employeeToLink: { _id: mongoose.Types.ObjectId } | null = null;
+        let employeeToLink: { _id: mongoose.Types.ObjectId; branchId?: mongoose.Types.ObjectId | null } | null = null;
         if (employeeId) {
             if (!req.user || !businessId) {
                 return res.status(400).json({ message: 'A login can only be linked to an employee by a signed-in admin' });
             }
-            const employee = await Employee.findOne({ _id: employeeId, businessId }).select('_id userId').lean();
+            const employee = await Employee.findOne({ _id: employeeId, businessId }).select('_id userId branchId').lean();
             if (!employee) {
                 return res.status(400).json({ message: 'That employee was not found in this business' });
             }
@@ -186,6 +186,10 @@ export const register = async (req: AuthRequest, res: Response) => {
             employeeToLink = employee;
         }
 
+        // Staff work in one branch: their employee profile's, or the branch the account is created in.
+        const branchId = !isStaffRole(assignedRole) ? null
+            : employeeToLink ? employeeToLink.branchId || null
+                : req.user && String(businessId) === req.user.businessId && req.user.branchId ? new mongoose.Types.ObjectId(req.user.branchId) : null;
         const user = new User({
             name,
             email: normalizedEmail,
@@ -194,6 +198,7 @@ export const register = async (req: AuthRequest, res: Response) => {
             role: assignedRole,
             createdBy,
             businessId,
+            branchId,
             preferences: country || currency ? {
                 country: country || 'PK',
                 currency: currency || 'PKR',
@@ -221,7 +226,7 @@ export const register = async (req: AuthRequest, res: Response) => {
 
         res.status(201).json({
             token,
-            user: serializeUser(user),
+            user: await serializeUserWithTheme(user),
         });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -278,7 +283,7 @@ export const getCurrentUser = async (req: AuthRequest, res: Response) => {
 
         return res.json({
             user: {
-                ...(await serializeUserWithTheme(user)),
+                ...(await serializeUserWithTheme(user, req.user?.businessId)),
                 businessName: req.user?.businessName || '',
             },
         });

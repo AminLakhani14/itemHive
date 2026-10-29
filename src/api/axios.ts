@@ -22,6 +22,11 @@ api.interceptors.request.use(
         if (selectedWorkspaceId) {
             config.headers['x-itemhive-workspace-id'] = selectedWorkspaceId;
         }
+        // The branch chosen in the top bar (BRANCH_STORAGE_KEY in features/branch/branchSlice).
+        const selectedBranchId = localStorage.getItem('itemhive-branch-id');
+        if (selectedBranchId) {
+            config.headers['x-itemhive-branch-id'] = selectedBranchId;
+        }
         return config;
     },
     (error) => {

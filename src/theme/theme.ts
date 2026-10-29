@@ -2,10 +2,15 @@ import { createTheme, type PaletteMode, alpha, lighten, darken, emphasize, getCo
 
 import type { Appearance } from '../features/auth/authSlice';
 
-export const getAppTheme = (mode: PaletteMode, appearance?: Partial<Appearance>) => {
+export const getAppTheme = (requestedMode: PaletteMode, appearance?: Partial<Appearance>) => {
 const primary = appearance?.themeColor || '#0ea5a5';
 const fontColor = appearance?.fontColor;
 const backgroundColor = appearance?.backgroundColor;
+// Custom backgrounds determine surface contrast, even if the saved toggle is light.
+// MUI also uses this mode for labels, disabled controls, and selected states.
+const mode: PaletteMode = backgroundColor
+    ? (getContrastRatio(backgroundColor, '#ffffff') >= getContrastRatio(backgroundColor, '#000000') ? 'dark' : 'light')
+    : requestedMode;
 const borderColor = appearance?.borderColor;
 const divider = borderColor || (mode === 'light' ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.14)');
 return createTheme({
@@ -130,7 +135,7 @@ return createTheme({
                 notchedOutline: borderColor ? { borderColor } : {},
                 root: {
                     borderRadius: 6,
-                    backgroundColor: mode === 'light' ? '#f8fafc' : alpha('#1e293b', 0.4),
+                    backgroundColor: backgroundColor ? emphasize(backgroundColor, 0.05) : (mode === 'light' ? '#f8fafc' : alpha('#1e293b', 0.4)),
                 },
             },
         },

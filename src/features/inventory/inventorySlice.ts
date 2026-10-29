@@ -70,7 +70,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
     return apiError.response?.data?.message || (error instanceof Error ? error.message : fallback);
 };
 
-const normalizeProduct = (product: ProductResponse): Product => {
+export const normalizeProduct = (product: ProductResponse): Product => {
     const salePrice = Number(product.salePrice ?? product.price ?? 0);
     const purchasePrice = Number(product.purchasePrice ?? product.price ?? 0);
 

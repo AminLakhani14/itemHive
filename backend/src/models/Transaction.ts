@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface ITransaction extends Document {
     salespersonEmployeeId?: mongoose.Types.ObjectId;
@@ -78,4 +79,5 @@ const TransactionSchema: Schema = new Schema({
 
 TransactionSchema.index({ businessId: 1, id: 1 }, { unique: true });
 
+TransactionSchema.plugin(branchScopedPlugin);
 export default mongoose.model<ITransaction>('Transaction', TransactionSchema);

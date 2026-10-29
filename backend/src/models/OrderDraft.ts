@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { branchScopedPlugin } from '../utils/branchScope';
 
 export interface IOrderDraftItem {
     sizeId?: string;
@@ -22,6 +23,7 @@ export interface IOrderDraft extends Document {
     createdBy: mongoose.Types.ObjectId;
     createdByName: string;
     businessId?: mongoose.Types.ObjectId;
+    branchId?: mongoose.Types.ObjectId | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -52,4 +54,5 @@ const OrderDraftSchema = new Schema<IOrderDraft>({
 OrderDraftSchema.index({ businessId: 1, draftCode: 1 }, { unique: true });
 OrderDraftSchema.index({ businessId: 1, updatedAt: -1 });
 
+OrderDraftSchema.plugin(branchScopedPlugin);
 export default mongoose.model<IOrderDraft>('OrderDraft', OrderDraftSchema);

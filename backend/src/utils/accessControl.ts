@@ -24,22 +24,43 @@ export const normalizeRole = (role?: string | null): UserRole => {
 export const isSuperAdminEmail = (email?: string | null) =>
     Boolean(email && SUPER_ADMIN_EMAILS.includes(String(email).trim().toLowerCase()));
 
+export const hasExplicitScreenPermission = (user: {
+    role?: string;
+    screenPermissions?: readonly string[] | null;
+} | null | undefined, permission: string) =>
+    normalizeRole(user?.role) === 'admin' && Boolean(user?.screenPermissions?.includes(permission));
+
+export const getDigitalMenuAccess = (user: {
+    role?: string;
+    digitalMenuAccess?: 'none' | 'menu' | 'pos';
+    screenPermissions?: readonly string[] | null;
+}): 'none' | 'menu' | 'pos' => {
+    const role = normalizeRole(user.role);
+    if (role === 'super_admin') return 'pos';
+    // A Super Admin's explicit grant takes priority over secondary access flags.
+    if (role === 'admin' && user.screenPermissions != null) {
+        if (!user.screenPermissions.includes('digital_menus')) return 'none';
+        return 'pos';
+    }
+    return user.digitalMenuAccess || 'none';
+};
+
 export const serializeUser = (user: IUser) => ({
     id: String(user._id),
     name: user.name,
     email: user.email,
     role: normalizeRole(user.role),
     preferences: user.preferences,
+    location: user.location,
     photoUrl: user.avatar,
     appearance: user.appearance,
     isActive: user.isActive,
     isVisible: user.isVisible,
-    installmentAccess: normalizeRole(user.role) === 'super_admin' || Boolean(user.installmentAccess),
-    discountAccess: normalizeRole(user.role) === 'super_admin' || Boolean(user.discountAccess),
-    // Super admin keeps complete access. Every other account starts at no
-    // access and must be explicitly configured from Team Management.
-    digitalMenuAccess: normalizeRole(user.role) === 'super_admin' ? 'pos' : user.digitalMenuAccess || 'none',
+    installmentAccess: normalizeRole(user.role) === 'super_admin' || hasExplicitScreenPermission(user, 'installments') || Boolean(user.installmentAccess),
+    discountAccess: normalizeRole(user.role) === 'super_admin' || hasExplicitScreenPermission(user, 'settings') || Boolean(user.discountAccess),
+    digitalMenuAccess: getDigitalMenuAccess(user),
     screenPermissions: user.screenPermissions == null ? null : [...user.screenPermissions],
+    screenPermissionsVersion: user.screenPermissionsVersion ?? 1,
     userCreationLimit: user.userCreationLimit ?? 0,
     businessId: user.businessId ? String(user.businessId) : '',
     createdBy: user.createdBy ? String(user.createdBy) : '',

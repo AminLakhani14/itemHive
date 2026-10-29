@@ -293,7 +293,9 @@ const SettingsPage: React.FC = () => {
                                         <Button component={RouterLink} to="/payroll?tab=settings" variant="contained">Open Payroll Settings</Button>
                                     </>
                                 )}
-                                <Button component={RouterLink} to="/my-payroll" variant="outlined">My Payroll & Requests</Button>
+                                {(['self_payroll', 'self_leave', 'self_loan', 'self_overtime'] as const).some(permission => hasScreenAccess(user, permission)) && (
+                                    <Button component={RouterLink} to="/my" variant="outlined">My Payroll & Requests</Button>
+                                )}
                                 <Button component={RouterLink} to="/expenses" variant="outlined">Finance & Expenses</Button>
                             </Stack>
                         </AccordionDetails>

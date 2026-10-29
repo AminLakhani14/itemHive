@@ -33,11 +33,13 @@ import type { RootState } from '../../store';
 import { logout } from '../../features/auth/authSlice';
 import { fetchProducts, resetInventory } from '../../features/inventory/inventorySlice';
 import { resetTransactions } from '../../features/transactions/transactionSlice';
+import { BRANCH_STORAGE_KEY, resetBranches } from '../../features/branch/branchSlice';
+import BranchSwitcher from './BranchSwitcher';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { buildNotifications, type InstallmentNotificationPlan, type NotificationItem } from '../../lib/notifications';
 import type { AppDispatch } from '../../store';
-import { hasScreenAccess } from '../../lib/screenPermissions';
+import { hasInstallmentAccess, hasScreenAccess } from '../../lib/screenPermissions';
 import { useLogoPlate } from '../../lib/logoVisibility';
 import { notificationScreenPermissions, useWorkflowNotifications } from '../../lib/workflowNotifications';
 
@@ -87,7 +89,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     const { orders } = useSelector((state: RootState) => state.orders);
     const { products } = useSelector((state: RootState) => state.inventory);
     const { notifications, app } = useSelector((state: RootState) => state.settings);
-    const canAccessInstallments = (user?.role === 'super_admin' || Boolean(app?.installmentsEnabled && user?.installmentAccess))
+    const canAccessInstallments = hasInstallmentAccess(user, app?.installmentsEnabled)
         && hasScreenAccess(user, 'notifications') && hasScreenAccess(user, 'installments');
     const canAccessNotes = hasScreenAccess(user, 'notes');
     const canAccessNotifications = notificationScreenPermissions.some(p => hasScreenAccess(user, p));
@@ -189,6 +191,8 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     const handleWorkspaceChange = (userId: string) => {
         const option = workspaceOptions.find((entry) => entry.id === userId);
         const businessId = option?.businessId || '';
+        // Another workspace has its own branches; it opens in its main branch.
+        localStorage.removeItem(BRANCH_STORAGE_KEY);
         setSelectedWorkspaceUserId(option?.id || '');
         setSelectedWorkspaceId(businessId);
         if (businessId) {
@@ -237,6 +241,8 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     const notificationCount = allNotifications.filter(n => !workflow.read.includes(n.id)).length;
 
     const handleLogout = () => {
+        localStorage.removeItem(BRANCH_STORAGE_KEY);
+        dispatch(resetBranches());
         dispatch(logout());
         navigate('/login');
         handleClose();
@@ -355,6 +361,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                 </Box>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <BranchSwitcher fontColor={navbarFontColor} />
                     {user?.role === 'super_admin' && (
                         <Box
                             sx={{

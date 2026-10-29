@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
 import type { UserRole } from '../../features/auth/authSlice';
-import { hasScreenAccess, type ScreenPermission } from '../../lib/screenPermissions';
+import { getDigitalMenuAccess, hasInstallmentAccess, hasScreenAccess, type ScreenPermission } from '../../lib/screenPermissions';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -27,11 +27,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
         return <Navigate to="/" replace />;
     }
 
-    if (requireInstallmentAccess && user?.role !== 'super_admin' && (!app?.installmentsEnabled || !user?.installmentAccess)) {
+    if (requireInstallmentAccess && !hasInstallmentAccess(user, app?.installmentsEnabled)) {
         return <Navigate to="/" replace />;
     }
 
-    if (requireDigitalMenuAccess && user?.role !== 'super_admin' && user?.digitalMenuAccess === 'none') {
+    if (requireDigitalMenuAccess && getDigitalMenuAccess(user) === 'none') {
         return <Navigate to="/access-denied" state={{ from: location.pathname }} replace />;
     }
 

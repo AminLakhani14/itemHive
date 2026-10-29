@@ -27,6 +27,7 @@ import attendanceRoutes from './routes/attendanceRoutes';
 import { payrollRouter, myPayrollRouter, salespersonRouter } from './routes/payrollRoutes';
 import { payrollModels } from './models/Payroll';
 import expenseRoutes from './routes/expenseRoutes';
+import organizationRoutes from './routes/organizationRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import Expense from './models/Expense';
 import financeRoutes from './routes/financeRoutes';
@@ -81,7 +82,7 @@ const corsOptions: cors.CorsOptions = {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-itemhive-workspace-id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-itemhive-workspace-id', 'x-itemhive-branch-id'],
     // Authorization makes POS requests non-simple CORS requests. Cache the
     // preflight so consecutive payments do not pay an extra network round trip.
     maxAge: 86400,
@@ -152,6 +153,7 @@ app.use('/api/payroll', payrollRouter);
 app.use('/api/me/payroll', myPayrollRouter);
 app.use('/api/salespeople', salespersonRouter);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/organization', organizationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/finance', financeRoutes);
 

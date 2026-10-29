@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardContent, Dialog, DialogTitle, DialogConte
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import api from '../../api/axios';
 import useProductCategories from '../../hooks/useProductCategories';
+import RequestCategoryUnitsDialog from './RequestCategoryUnitsDialog';
 
 export default function CategoriesManager() {
     const { categories, loading, error, reload } = useProductCategories();
@@ -12,6 +13,7 @@ export default function CategoriesManager() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
     const [saveError, setSaveError] = useState('');
+    const [unitsOpen, setUnitsOpen] = useState(false);
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
         const trimmed = name.trim().replace(/\s+/g, ' ');
@@ -29,6 +31,8 @@ export default function CategoriesManager() {
         finally { setSaving(false); }
     };
     return <Box>
+        {unitsOpen && <RequestCategoryUnitsDialog onClose={() => setUnitsOpen(false)} onSaved={() => void reload(true)} />}
+        <Button variant="outlined" sx={{ mb: 2 }} onClick={() => setUnitsOpen(true)}>Request Categories & Units</Button>
         <Card sx={{ borderRadius: 4, mb: 3 }}><CardContent>
             <Stack component="form" onSubmit={submit} spacing={2}>
                 <TextField label="Category name" value={name} onChange={e => setName(e.target.value)} required inputProps={{ maxLength: 100 }} disabled={saving} />
