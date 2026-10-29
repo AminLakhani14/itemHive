@@ -21,7 +21,7 @@ export const ensureLegacyBusiness = () => Business.findOneAndUpdate(
     { slug: 'legacy-itemhive' },
     {
         $setOnInsert: {
-            name: 'ItemHive Legacy Workspace',
+            name: 'Ozor Legacy Workspace',
             slug: 'legacy-itemhive',
             isActive: true,
             isLegacy: true,

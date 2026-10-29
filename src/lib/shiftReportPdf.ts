@@ -54,7 +54,7 @@ const buildLines = ({ report, shopName, shopAddress, shopPhone, formatCurrency: 
     const heading = (label: string) => lines.push({ text: label, bold: true, gapBefore: 5 }, { text: divider });
     const pair = (label: string, value: string, bold = false) => lines.push({ text: leftRight(label, value), bold });
 
-    lines.push({ text: shopName || 'ItemHive', bold: true, align: 'center', size: 12 });
+    lines.push({ text: shopName || 'Ozor', bold: true, align: 'center', size: 12 });
     if (shopAddress) lines.push({ text: truncate(shopAddress, TEXT_WIDTH), align: 'center' });
     if (shopPhone) lines.push({ text: truncate(shopPhone, TEXT_WIDTH), align: 'center' });
     lines.push({ text: 'SHIFT CLOSING REPORT', bold: true, align: 'center', size: 10, gapBefore: 5 });

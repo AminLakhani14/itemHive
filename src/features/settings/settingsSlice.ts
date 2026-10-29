@@ -35,7 +35,7 @@ export interface AppSettings {
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
     salesTaxRate: 0,
-    shopName: 'ItemHive POS',
+    shopName: 'Ozor POS',
     shopPhone: '',
     shopAddress: '',
     receiptBannerUrl: '',

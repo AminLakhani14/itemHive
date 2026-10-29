@@ -12,7 +12,7 @@ function load(fetch) {
 }
 const response = (data) => ({ ok: true, json: async () => ({ error: false, data }) });
 
-test('countries load directly from the public API without ItemHive credentials or backend routes', async () => {
+test('countries load directly from the public API without Ozor credentials or backend routes', async () => {
     const locations = load(async (url, options) => {
         assert.equal(url, 'https://countriesnow.space/api/v0.1/countries/iso');
         assert.equal(options.credentials, 'omit');

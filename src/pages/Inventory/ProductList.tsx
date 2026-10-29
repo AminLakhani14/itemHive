@@ -378,7 +378,7 @@ const ProductList: React.FC = () => {
         worksheet['!cols'] = Object.keys(rows[0] || {}).map((header) => ({ wch: Math.max(header.length + 2, 15) }));
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
-        XLSX.writeFile(workbook, `itemhive_inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(workbook, `ozor_inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     const categories = Array.from(new Set(products.map(p => p.category))).sort();

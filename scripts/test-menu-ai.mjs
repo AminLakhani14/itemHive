@@ -56,7 +56,7 @@ test('accepted section photos attach to the section, survive moves and rejected 
 });
 
 test('custom branding distinguishes untouched app defaults from a saved restaurant theme or logo', () => {
-    const settings = { shopName: 'ItemHive POS', invoiceLogoUrl: '' };
+    const settings = { shopName: 'Ozor POS', invoiceLogoUrl: '' };
     const empty = { name: '', theme: '', logo: '', colors: [] };
     assert.deepEqual(getMenuBrand(settings), empty);
     assert.deepEqual(getMenuBrand(settings, { appearance: { themeColor: '#0ea5a5', fontColor: '', logo: '' } }), empty);

@@ -7,6 +7,7 @@ import api from '../../api/axios';
 import { PayrollTable, RequestForm, requestError, money } from '../../components/Payroll/PayrollShared';
 import { compactPayrollSx, PayrollStats, requestDetails, StatusChip } from '../../components/Payroll/PayrollLayout';
 import WorkflowNav from '../../components/Payroll/WorkflowNav';
+import PayrollAccessNotice from '../../components/Payroll/PayrollAccessNotice';
 import type { PayrollEmployee, PayrollRequest, PayrollLoan } from '../../types/payroll';
 
 export default function RequestsPage({ kind, self = false }: { kind: 'leave' | 'loan' | 'work'; self?: boolean }) {
@@ -61,7 +62,7 @@ export default function RequestsPage({ kind, self = false }: { kind: 'leave' | '
   };
   return <Stack gap={2} sx={compactPayrollSx}><WorkflowNav area={self ? 'personal' : 'payroll'} /><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={1}><Typography variant="h4" fontWeight={800}>{title}</Typography><Stack direction="row" gap={1}><Button disabled={busy || loading} onClick={() => void load()}>Refresh</Button><Button variant="contained" disabled={busy || loading || !!error || (!self && !employees.length)} onClick={() => setForm(true)}>New {kind === 'loan' ? 'loan / advance' : kind === 'leave' ? 'leave' : 'work'} request</Button></Stack></Stack>
     <Typography color="text.secondary">{kind === 'loan' ? 'Submit a request. Another admin approves it. Then record the loan payment and repayments.' : kind === 'leave' ? 'Submit leave for approval. You can cancel it while it is pending.' : 'Submit overtime or attendance changes for approval. Check clock-in and clock-out times first.'}</Typography>
-    {notice && <Alert severity="success" onClose={() => setNotice('')}>{notice}</Alert>}{loading && <LinearProgress />}{error && <Alert severity="error">{error === 'Employee not found in the selected business' ? 'Ask your admin to link your login to an employee profile.' : error}</Alert>}
+    {notice && <Alert severity="success" onClose={() => setNotice('')}>{notice}</Alert>}{loading && <LinearProgress />}<PayrollAccessNotice error={error} />
     {self && kind === 'leave' && Object.keys(balances).length > 0 && <PayrollStats items={Object.entries(balances).map(([label, value]) => ({ label, value: value + ' days' }))} />}
     {linkedRequest && <Alert severity="info" action={<Button onClick={() => { setQuery({}, { replace: true }); setStatus(''); }}>Show all requests</Button>}>Showing the request from your notification.</Alert>}
     <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}><TextField label="Search requests" size="small" value={search} onChange={e => setSearch(e.target.value)} /><TextField select sx={{ minWidth: 180 }} label="Status" size="small" value={status} onChange={e => setStatus(e.target.value)}><MenuItem value="">All statuses</MenuItem>{['pending', 'approved', 'rejected', 'cancelled'].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}</TextField></Stack>

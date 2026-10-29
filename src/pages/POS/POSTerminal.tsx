@@ -1546,7 +1546,7 @@ const POSTerminal: React.FC = () => {
                             }}
                         >
                             <Typography align="center" fontWeight={900} sx={{ fontSize: '1.1rem', letterSpacing: 1 }}>KITCHEN TICKET</Typography>
-                            <Typography align="center" variant="caption" display="block" sx={{ mb: 1.5 }}>{appSettings.shopName || 'ItemHive POS'}</Typography>
+                            <Typography align="center" variant="caption" display="block" sx={{ mb: 1.5 }}>{appSettings.shopName || 'Ozor POS'}</Typography>
                             <Divider sx={{ borderStyle: 'dashed', borderColor: 'currentColor', mb: 1.25 }} />
                             <Box sx={{ display: 'grid', gap: 0.45, fontSize: '0.75rem', mb: 1.25 }}>
                                 <Typography variant="caption">Order: #{receiptId.replace(/^R-/, '').slice(-8).toUpperCase()}</Typography>
@@ -1881,7 +1881,7 @@ const POSTerminal: React.FC = () => {
                                     Thank you for your purchase
                                 </Typography>
                                 <Typography variant="caption" fontWeight={800}>
-                                    Powered by ItemHive
+                                    Powered by Ozor
                                 </Typography>
                             </Box>
                         </Stack>
@@ -1915,7 +1915,7 @@ const POSTerminal: React.FC = () => {
                                 Payment Slip
                             </Typography>
                             <Typography variant="h5" fontWeight={900} sx={{ lineHeight: 1.1 }}>
-                                {appSettings.shopName || 'ItemHive POS'}
+                                {appSettings.shopName || 'Ozor POS'}
                             </Typography>
                             {appSettings.shopPhone && <Typography variant="body2" sx={{ mt: 0.75, opacity: 0.9, whiteSpace: 'pre-line' }}>{appSettings.shopPhone}</Typography>}
                             {appSettings.shopAddress && <Typography variant="caption" sx={{ display: 'block', opacity: 0.82, whiteSpace: 'pre-line' }}>{appSettings.shopAddress}</Typography>}
@@ -2082,7 +2082,7 @@ const POSTerminal: React.FC = () => {
                                     Please keep this payment slip for your record
                                 </Typography>
                                 <Typography variant="body2" sx={{ mt: 0.8, fontWeight: 700 }}>
-                                    Thank you for shopping with {appSettings.shopName || 'ItemHive'}
+                                    Thank you for shopping with {appSettings.shopName || 'Ozor'}
                                 </Typography>
                             </Box>
                         </Box>
@@ -2094,7 +2094,7 @@ const POSTerminal: React.FC = () => {
                             sx={{ display: 'none', '@media print': { display: 'block', p: 2, color: '#000', bgcolor: '#fff' } }}
                         >
                             <Typography align="center" fontWeight={900} sx={{ fontSize: '1.1rem', letterSpacing: 1 }}>KITCHEN TICKET</Typography>
-                            <Typography align="center" variant="caption" display="block" sx={{ mb: 1.5 }}>{appSettings.shopName || 'ItemHive POS'}</Typography>
+                            <Typography align="center" variant="caption" display="block" sx={{ mb: 1.5 }}>{appSettings.shopName || 'Ozor POS'}</Typography>
                             <Divider sx={{ borderStyle: 'dashed', borderColor: 'currentColor', mb: 1.25 }} />
                             <Stack spacing={0.45} sx={{ mb: 1.25 }}>
                                 <Typography variant="caption">Order: #{receiptId.replace(/^R-/, '').slice(-8).toUpperCase()}</Typography>
@@ -2182,7 +2182,7 @@ const POSTerminal: React.FC = () => {
                     sx={{ display: 'none', '@media print': { display: 'block', p: 2, color: '#000', bgcolor: '#fff' } }}
                 >
                     <Typography align="center" fontWeight={900} sx={{ fontSize: '1.1rem', letterSpacing: 1 }}>KITCHEN TICKET</Typography>
-                    <Typography align="center" variant="caption" display="block" sx={{ mb: 1.5 }}>{appSettings.shopName || 'ItemHive POS'}</Typography>
+                    <Typography align="center" variant="caption" display="block" sx={{ mb: 1.5 }}>{appSettings.shopName || 'Ozor POS'}</Typography>
                     <Divider sx={{ borderStyle: 'dashed', borderColor: 'currentColor', mb: 1.25 }} />
                     <Stack spacing={0.45} sx={{ mb: 1.25 }}>
                         <Typography variant="caption">Draft: {draftKot.draftCode}</Typography>

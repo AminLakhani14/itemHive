@@ -17,7 +17,7 @@ export default function InventoryRequestHistory({ requests, initialRequest, onCl
     const [loading, setLoading] = React.useState(Boolean(initialRequest));
     const [error, setError] = React.useState('');
     const [printing, setPrinting] = React.useState('');
-    const shopName = useSelector((state: RootState) => selectPrintSettings(state).shopName || 'ItemHive');
+    const shopName = useSelector((state: RootState) => selectPrintSettings(state).shopName || 'Ozor');
     const load = React.useCallback(async () => {
         if (!selected) return;
         setLoading(true); setError(''); setDetail(undefined); setReceipts([]);

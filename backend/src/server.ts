@@ -56,6 +56,8 @@ const defaultAllowedOrigins = [
     'https://itemhiveinventorysystem.netlify.app',
     'http://localhost:5173',
     'https://itemhive-staging.netlify.app',
+    'https://ozorco.com',
+    'https://www.ozorco.com',
 ];
 
 const allowedOrigins = Array.from(new Set([...configuredOrigins, ...defaultAllowedOrigins]));
@@ -104,7 +106,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.get('/', (_req: Request, res: Response) => {
     res.json({
         status: 'success',
-        message: 'ItemHive Pro API is online 🚀',
+        message: 'Ozor Pro API is online 🚀',
         version: '1.0.0',
         commit: deploymentCommit,
         environment: process.env.NODE_ENV || 'development',
@@ -179,7 +181,7 @@ export const startServer = async (port: number | string = PORT) => {
 
     // Keep health diagnostics reachable even when initialization fails.
     return app.listen(Number(port), '0.0.0.0', () => {
-        console.log(`🚀 ItemHive Server running on port ${port}`);
+        console.log(`🚀 Ozor Server running on port ${port}`);
         console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 };

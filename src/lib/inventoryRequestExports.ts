@@ -62,7 +62,7 @@ export async function downloadStockRequest(request: StockRequestData, format: 'p
         return;
     }
     const blob = await buildInvoicePdfBlob({
-        title: 'Inventory Stock Request', shop: { name: 'ItemHive' },
+        title: 'Inventory Stock Request', shop: { name: 'Ozor' },
         billToLabel: 'Requested by', billTo: request.requestedByName, billToSubtitle: request.requestedByEmail,
         meta: [{ label: 'Request', value: request._id }, { label: 'Date', value: new Date(request.createdAt).toLocaleString() }, { label: 'Status', value: request.status }, { label: 'Delivery', value: request.deliveryStatus || 'not_received' }],
         columns: [{ label: 'Item / SKU', width: 2 }, { label: 'Qty / Unit', width: 1 }, { label: 'Vendor / Contact / Address', width: 3 }, { label: 'Remarks', width: 2 }],

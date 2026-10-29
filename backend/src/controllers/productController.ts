@@ -127,7 +127,7 @@ const fetchJson = <T>(url: string, timeoutMs = 4500) =>
             url,
             {
                 headers: {
-                    'User-Agent': 'ItemHive/1.0 image-suggestions',
+                    'User-Agent': 'Ozor/1.0 image-suggestions',
                     Accept: 'application/json',
                 },
             },

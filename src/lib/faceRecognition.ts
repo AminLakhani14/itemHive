@@ -82,7 +82,7 @@ export const captureFaceSnapshot = (video: HTMLVideoElement, box: FaceBox, size 
 
 export const describeCameraError = (error: unknown) => {
     if (!window.isSecureContext) {
-        return 'The camera only works over HTTPS or on localhost. Open ItemHive from a secure address to use face attendance.';
+        return 'The camera only works over HTTPS or on localhost. Open Ozor from a secure address to use face attendance.';
     }
     const name = (error as { name?: string })?.name;
     if (name === 'NotAllowedError' || name === 'SecurityError') {

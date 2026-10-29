@@ -19,7 +19,7 @@ const serializeAppSettings = async (appSettings: IAppSetting, globalAppSettings:
         businessTypeName: businessType?.name || '',
         productFields: businessProductFields(businessType),
         salesTaxRate: appSettings.salesTaxRate,
-        shopName: appSettings.shopName,
+        shopName: /^itemhive(?: pos)?$/i.test(appSettings.shopName || '') ? 'Ozor POS' : appSettings.shopName,
         shopPhone: appSettings.shopPhone,
         shopAddress: appSettings.shopAddress,
         receiptBannerUrl: appSettings.receiptBannerUrl || '',

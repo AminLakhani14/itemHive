@@ -57,7 +57,7 @@ test('sorting and column filters run before pagination and total count uses the 
     t.mock.method(Employee, 'find', () => ({ select: () => ({ lean: async () => [] }) }));
     let body: any;
     const res = { json: (value: unknown) => { body = value; }, status: () => res } as unknown as Response;
-    const req = { user: { id: actorId, role: 'super_admin' }, query: { page: '2', limit: '10', business: 'ItemHive', role: 'user' } } as unknown as AuthRequest;
+    const req = { user: { id: actorId, role: 'super_admin' }, query: { page: '2', limit: '10', business: 'Ozor', role: 'user' } } as unknown as AuthRequest;
     await getUsers(req, res);
     const facetIndex = observed.findIndex((stage) => stage.$facet);
     assert.ok(observed.findIndex((stage) => stage.$sort) < facetIndex);

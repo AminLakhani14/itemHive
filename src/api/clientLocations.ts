@@ -1,6 +1,6 @@
 export interface CountryOption { code: string; name: string }
 
-// Public geographic data does not depend on the ItemHive API or its deployment.
+// Public geographic data does not depend on the Ozor API or its deployment.
 // https://github.com/MartinsOnuoha/countriesNowAPI
 const BASE_URL = 'https://countriesnow.space/api/v0.1/countries';
 

@@ -137,7 +137,7 @@ export default function CreateClientPage() {
         <Button startIcon={<ArrowLeft size={16} />} onClick={() => navigate('/team')} disabled={saving} sx={{ mb: 1.5 }}>Team Management</Button>
         <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
             <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: 'action.selected', color: 'primary.main', display: { xs: 'none', sm: 'flex' } }}><Building2 size={28} /></Box>
-            <Box><Typography variant="h4" fontWeight={800}>Create Client</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Set up a business, its administrator, and access to ItemHive.</Typography></Box>
+            <Box><Typography variant="h4" fontWeight={800}>Create Client</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Set up a business, its administrator, and access to Ozor.</Typography></Box>
         </Stack>
         {error && <Alert ref={errorRef} severity="error" role="alert" sx={{ mb: 3 }}>{error}</Alert>}
         <Box component="form" onSubmit={submit} autoComplete="off">

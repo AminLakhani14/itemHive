@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 
 export const NAV_MODULES: Array<{ text: string; icon: React.ReactNode; path: string; roles: string[]; permission?: ScreenPermission; permissions?: ScreenPermission[]; children?: WorkflowScreen[]; requiresInstallmentAccess?: boolean; requiresDigitalMenuAccess?: boolean; requiresSignupApproval?: boolean }> = [
-        { text: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/', roles: ['super_admin', 'admin', 'user'], permission: 'dashboard' },
+        { text: 'Home', icon: <LayoutDashboard size={20} />, path: '/', roles: ['super_admin', 'admin', 'user'], permission: 'dashboard' },
         { text: 'POS Terminal', icon: <TerminalIcon size={20} />, path: '/pos', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
         { text: 'Shift Management', icon: <ChartNoAxesCombined size={20} />, path: '/pos-reports', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
         { text: 'Order Drafts', icon: <FileClock size={20} />, path: '/order-drafts', roles: ['super_admin', 'admin', 'user'], permission: 'pos' },
@@ -57,3 +57,17 @@ export const NAV_MODULES: Array<{ text: string; icon: React.ReactNode; path: str
         { text: 'Permissions', icon: <ShieldCheck size={20} />, path: '/permission-management', roles: ['super_admin'] },
         { text: 'Signup Requests', icon: <UserPlus size={20} />, path: '/signup-requests', roles: ['super_admin'], requiresSignupApproval: true },
     ];
+
+// Section order and membership are shared by the expanded and compact sidebar.
+export const NAV_SECTIONS = [
+    { title: '', paths: ['/'] },
+    { title: 'Operations', paths: ['/pos', '/pos-reports', '/orders', '/order-drafts', '/digital-menus'] },
+    { title: 'Inventory', paths: ['/inventory', '/inventory/units', '/inventory/requests', '/vendors', '/vendor-history'] },
+    { title: 'Customers', paths: ['/customers', '/customer-records', '/credits', '/installments'] },
+    { title: 'Payroll', paths: ['/employees', '/attendance', '/payroll'] },
+    { title: 'My Payroll', paths: ['/my'] },
+    { title: 'Expenses', paths: ['/expenses'] },
+    { title: 'Finance', paths: ['/transactions', '/finance'] },
+    { title: 'Reports', paths: ['/reports'] },
+    { title: 'Administration', paths: ['/team', '/organization', '/organization/branches', '/organization/departments', '/organization/fiscal-years', '/permission-management', '/signup-requests'] },
+];

@@ -67,8 +67,8 @@ export const sendSignupApprovalRequestEmail = async (request: ISignupRequest) =>
     const isDuplicateEmailRequest = request.requestType === 'duplicate_email';
     const payload = {
         subject: isDuplicateEmailRequest
-            ? 'Approval request for an existing ItemHive email'
-            : 'New ItemHive signup approval request',
+            ? 'Approval request for an existing Ozor email'
+            : 'New Ozor signup approval request',
         status: 'pending',
         requestType: request.requestType,
         name: request.fullName,
@@ -82,7 +82,7 @@ export const sendSignupApprovalRequestEmail = async (request: ISignupRequest) =>
     if (adminEmail !== request.email) {
         await sendSignupDecisionEmail(adminEmail, {
             ...payload,
-            subject: 'New ItemHive signup approval request',
+            subject: 'New Ozor signup approval request',
             requesterEmail: request.email,
         });
     }
@@ -157,7 +157,7 @@ export const decideSignupRequest = async (req: AuthRequest, res: Response) => {
                 // account remains the single identity for this email.
                 request.createdUserId = existingUser._id as any;
                 await sendSignupDecisionEmail(request.email, {
-                    subject: 'Your ItemHive approval request was reviewed',
+                    subject: 'Your Ozor approval request was reviewed',
                     status: 'approved',
                     requestType: request.requestType,
                     name: request.fullName,
@@ -201,7 +201,7 @@ export const decideSignupRequest = async (req: AuthRequest, res: Response) => {
             request.createdBusinessId = business._id as any;
 
             await sendSignupDecisionEmail(request.email, {
-                subject: 'Your ItemHive account is approved',
+                subject: 'Your Ozor account is approved',
                 status: 'approved',
                 name: request.fullName,
                 businessName: request.businessName,
@@ -214,7 +214,7 @@ export const decideSignupRequest = async (req: AuthRequest, res: Response) => {
             });
         } else {
             await sendSignupDecisionEmail(request.email, {
-                subject: 'Your ItemHive signup request update',
+                subject: 'Your Ozor signup request update',
                 status: 'rejected',
                 name: request.fullName,
                 businessName: request.businessName,

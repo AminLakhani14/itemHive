@@ -145,7 +145,7 @@ const ReportsPage: React.FC = () => {
         void generate(buildFilters());
     };
 
-    const getReportFileName = (extension: string) => `itemhive_analytics_${generatedFilters.period}_${new Date().toISOString().slice(0, 10)}.${extension}`;
+    const getReportFileName = (extension: string) => `ozor_analytics_${generatedFilters.period}_${new Date().toISOString().slice(0, 10)}.${extension}`;
     const formatItemSales = (items: SalesTrendPoint['items']) =>
         items?.map((item) => `${item.name}: ${item.quantity}`).join(', ') || '-';
 
@@ -173,7 +173,7 @@ const ReportsPage: React.FC = () => {
         try {
             const blob = await buildInvoicePdfBlob({
                 title: 'Inventory Analytics Report',
-                shop: { name: 'ItemHive' },
+                shop: { name: 'Ozor' },
                 billToLabel: 'Report period',
                 billTo: reportHeading,
                 meta: [{ label: 'Generated', value: new Date().toLocaleString() }],
@@ -347,7 +347,7 @@ const ReportsPage: React.FC = () => {
     return (
         <Box>
             {createPortal(<section id="itemhive-report-print">
-                <h1>ItemHive Inventory &amp; Sales Report</h1>
+                <h1>Ozor Inventory &amp; Sales Report</h1>
                 <p>{reportHeading} | Currency: {currency}</p>
                 <p>Total profit/loss: {formatCurrency(totalProfit)}</p>
                 <h2>Sales Summary</h2>

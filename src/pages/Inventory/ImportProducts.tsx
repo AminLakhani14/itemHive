@@ -59,7 +59,7 @@ const ImportProducts: React.FC = () => {
         sheet['!cols'] = TEMPLATE_COLUMNS.map((column) => ({ wch: Math.max(column.length + 3, 15) }));
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, sheet, 'Products');
-        XLSX.writeFile(workbook, 'itemhive_product_import_template.xlsx');
+        XLSX.writeFile(workbook, 'ozor_product_import_template.xlsx');
     };
 
     const handleFile = async (file?: File) => {
