@@ -12,6 +12,12 @@ export function resolveApiUrl(development: boolean, configuredUrl?: string): str
         // A localhost value in hosting environment variables must never send
         // deployed users' requests to their own computers.
         if ((!development && loopback) || !['http:', 'https:'].includes(url.protocol)) return fallback;
+        // Accept a bare API origin from hosting settings without dropping the
+        // Express /api mount. Preserve explicit paths used by reverse proxies.
+        if (/^\/*$/.test(url.pathname)) {
+            url.pathname = '/api';
+            return url.toString();
+        }
         return configured.replace(/\/+$/, '');
     } catch {
         return fallback;
