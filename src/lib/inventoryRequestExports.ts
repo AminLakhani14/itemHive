@@ -78,4 +78,3 @@ export async function downloadStockRequest(request: StockRequestData, format: 'p
     anchor.href = url; anchor.download = `${filename}.pdf`; anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-

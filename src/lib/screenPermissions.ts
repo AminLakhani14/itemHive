@@ -84,7 +84,8 @@ export const getDigitalMenuAccess = (user: User | null | undefined): 'none' | 'm
 
 export const hasScreenAccess = (user: User | null | undefined, permission: ScreenPermission) => {
     if (!user) return false;
-    if (permission.startsWith('self_') || permission === 'finance_expense_create') return user.role === 'super_admin' || Boolean(user.screenPermissions?.includes(permission));
+    if (permission.startsWith('self_')) return Boolean(user.employeeId) && (user.role === 'super_admin' || Boolean(user.screenPermissions?.includes(permission)));
+    if (permission === 'finance_expense_create') return user.role === 'super_admin' || Boolean(user.screenPermissions?.includes(permission));
     if (permission.startsWith('payroll_') || permission.startsWith('finance_')) return user.role === 'super_admin' || (user.role === 'admin' && Boolean(user.screenPermissions?.includes(permission)));
     if (!user || user.role !== 'admin') return true;
     // Organization was always available before client onboarding introduced its control.

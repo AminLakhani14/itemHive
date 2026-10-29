@@ -110,6 +110,16 @@ const AppContent: React.FC = () => {
   }, [dispatch, isAuthenticated]);
 
   useEffect(() => {
+    const refreshAccess = () => { if (isAuthenticated) dispatch(refreshCurrentUser()); };
+    window.addEventListener('itemhive-workspace-changed', refreshAccess);
+    window.addEventListener('itemhive-branch-changed', refreshAccess);
+    return () => {
+      window.removeEventListener('itemhive-workspace-changed', refreshAccess);
+      window.removeEventListener('itemhive-branch-changed', refreshAccess);
+    };
+  }, [dispatch, isAuthenticated]);
+
+  useEffect(() => {
     const handleAuthExpired = () => dispatch(logout());
     window.addEventListener('itemhive-auth-expired', handleAuthExpired);
     return () => window.removeEventListener('itemhive-auth-expired', handleAuthExpired);

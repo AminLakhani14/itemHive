@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import User from '../models/User';
 import type { AuthRequest } from '../middleware/auth';
-import { isSuperAdminEmail, normalizeRole, serializeUser } from '../utils/accessControl';
+import { isSuperAdminEmail, normalizeRole } from '../utils/accessControl';
 import Business from '../models/Business';
 import { ensureLegacyBusiness, getGlobalAppSettings } from '../utils/tenancy';
 import SignupRequest from '../models/SignupRequest';
@@ -226,7 +226,7 @@ export const register = async (req: AuthRequest, res: Response) => {
 
         res.status(201).json({
             token,
-            user: serializeUser(user),
+            user: await serializeUserWithTheme(user),
         });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -283,7 +283,7 @@ export const getCurrentUser = async (req: AuthRequest, res: Response) => {
 
         return res.json({
             user: {
-                ...(await serializeUserWithTheme(user)),
+                ...(await serializeUserWithTheme(user, req.user?.businessId)),
                 businessName: req.user?.businessName || '',
             },
         });
