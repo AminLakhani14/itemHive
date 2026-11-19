@@ -58,6 +58,7 @@ const defaultAllowedOrigins = [
     'https://itemhive-staging.netlify.app',
     'https://ozorco.com',
     'https://www.ozorco.com',
+    'https://app.ozorco.com',
 ];
 
 const allowedOrigins = Array.from(new Set([...configuredOrigins, ...defaultAllowedOrigins]));
